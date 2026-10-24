@@ -56,6 +56,7 @@ export interface SolverDeps {
 
 const GAS_MIN: Record<number, bigint> = { 56: 300_000_000_000_000n, [SOLANA]: 5_000_000n };
 const GAS_TOPUP_USDC = "500000";
+const DROP_AFTER_S = 120;
 export const MIN_BUY_MUSD = 10n ** 18n;
 const RETRY_MS = 30_000;
 
@@ -85,7 +86,7 @@ export class Solver {
   }
 
   // checked before the relayer spends gas on executeIntent
-  check(i: IntentAsk) {
+  async check(i: IntentAsk) {
     const token = coinAddress(i.chainId, i.token);
     if (!token) throw new HttpError(400, "bad_token", `not a coin address on chain ${i.chainId} (solana, base and bsc are supported)`);
     if (i.chainId === SOLANA && !this.d.runner.solanaAddress) throw new HttpError(503, "solver_off", "solana trading is off, the server has no SOLVER_SOLANA_KEY");
@@ -93,6 +94,11 @@ export class Solver {
     if (!i.isBuy) {
       const free = this.d.store.held(i.user, i.chainId, token) - this.d.store.reservedSells(i.user, i.chainId, token);
       if (free < i.amountIn) throw new HttpError(400, "insufficient_position", "you hold less of this coin than you are selling");
+      const min = GAS_MIN[i.chainId];
+      if (min !== undefined && !this.d.autoGas) {
+        const bal = await this.d.runner.nativeBalance(i.chainId).catch(() => null);
+        if (bal !== null && bal < min) throw new HttpError(503, "solver_no_gas", `selling coins on ${i.chainId === SOLANA ? "Solana" : "BNB Chain"} opens once the solver has gas there`);
+      }
     }
   }
 
@@ -346,6 +352,14 @@ export class Solver {
   }
 
   private async settle(row: IntentRow) {
+    // an intent started early whose open never landed can't settle onchain, after a grace period it's dropped so it stops reserving the position
+    if (!(await this.d.ops.opened(row.id as Hash).catch(() => true))) {
+      if (Date.now() / 1000 - row.opened_at < DROP_AFTER_S) return;
+      this.d.store.update(row.id, { status: "refunded", error: row.error ?? "the trade never reached the vault" });
+      log("solver.dropped", { id: row.id });
+      this.pushTx(row.user, { id: row.id, kind: "intent", status: "failed", hash: null, error: row.error ?? "the trade never reached the vault" });
+      return;
+    }
     const ok = row.error === null;
     this.d.store.update(row.id, { status: "settling" });
     const out = await this.d.ops.settle(row.id as Hash, row.user as Address, BigInt(row.musd_out ?? "0"), BigInt(row.token_amount ?? "0"), ok);

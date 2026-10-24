@@ -65,6 +65,11 @@ export class MezoOps {
     return this.pub.readContract({ address: this.dep.vault, abi: vaultAbi, functionName: "balanceOf", args: [this.address, this.dep.musd] });
   }
 
+  async opened(id: Hash): Promise<boolean> {
+    const r = (await this.pub.readContract({ address: this.dep.vault, abi: vaultAbi, functionName: "intents", args: [id] })) as readonly unknown[];
+    return r[0] !== "0x0000000000000000000000000000000000000000";
+  }
+
   async settle(id: Hash, user: Address, musdToUser: bigint, tokenAmount: bigint, ok: boolean): Promise<Outcome> {
     if (musdToUser > 0n) {
       const have = await this.cash();

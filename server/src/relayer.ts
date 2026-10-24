@@ -241,7 +241,7 @@ export class Relayer {
   }
 
   // the tx id is the intent id, the solver sends the final confirmed or failed once it settles
-  async intent(body: unknown, check: (i: { user: Address; isBuy: boolean; chainId: number; token: string; amountIn: bigint }) => void): Promise<TxStatus> {
+  async intent(body: unknown, check: (i: { user: Address; isBuy: boolean; chainId: number; token: string; amountIn: bigint }) => void | Promise<void>): Promise<TxStatus> {
     const { intent: it, sig } = parseBody(IntentBody, body);
     const message = {
       ...it,
@@ -253,7 +253,7 @@ export class Relayer {
     };
     if (message.amountIn === 0n) throw new HttpError(400, "bad_body", "intent.amountIn: must be positive");
     this.checkDeadline(message.deadline);
-    check({ user: it.user, isBuy: it.isBuy, chainId: Number(message.chainId), token: it.token, amountIn: message.amountIn });
+    await check({ user: it.user, isBuy: it.isBuy, chainId: Number(message.chainId), token: it.token, amountIn: message.amountIn });
     await this.checkVaultSig(it.user, "Intent", intentTypes, message, sig);
     const id = hashTypedData({ domain: domainFor(this.d.chainId, this.d.dep.vault), types: intentTypes, primaryType: "Intent", message });
     return this.locked(`${it.user}:${message.nonce}`, async (lock) => {

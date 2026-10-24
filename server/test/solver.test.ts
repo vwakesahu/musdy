@@ -42,6 +42,9 @@ class FakeOps {
   async settled() {
     return false;
   }
+  async opened() {
+    return true;
+  }
   async settle(id: Hash, user: Address, musd: bigint, tokens: bigint, ok: boolean) {
     this.settles.push([id, user, musd, tokens, ok]);
     return { hash: "0xabc" as Hash, ok: true, error: null };
