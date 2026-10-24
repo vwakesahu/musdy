@@ -20,7 +20,7 @@ export function HandleSheet({ open, onOpenChange, current }: { open: boolean; on
   };
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange} title="Your handle">
+    <Sheet open={open} onOpenChange={onOpenChange} title="Your name on musdy">
       <div className="flex flex-col gap-3">
         <label className="flex h-12 items-center rounded-[14px] bg-raised px-4">
           <span className="text-[16px] text-muted">@</span>

@@ -16,16 +16,22 @@ export function mergeItems(prev: FeedItem[], add: FeedItem[]) {
   return [...prev, ...fresh].sort(newestFirst).slice(0, MAX);
 }
 
-type State = { key: string; items: FeedItem[] };
-type Action = { key: string; add: FeedItem[] };
+type State = { key: string; items: FeedItem[]; live: Set<string> };
+type Action = { key: string; add: FeedItem[]; live?: boolean };
 
-const reducer = (s: State, a: Action): State =>
-  a.key !== s.key ? { key: a.key, items: mergeItems([], a.add) } : { key: s.key, items: mergeItems(s.items, a.add) };
+// only trades that arrive live animate in, a page load or a replay just appears
+const reducer = (s: State, a: Action): State => {
+  const base = a.key !== s.key ? { key: a.key, items: [], live: new Set<string>() } : s;
+  const items = mergeItems(base.items, a.add);
+  if (items === base.items) return base;
+  const live = a.live ? new Set([...base.live, ...a.add.map((x) => x.id)]) : base.live;
+  return { key: a.key, items, live };
+};
 
 // a list of trades from one http page plus the live socket topic, deduped by id
 export function useTradeList(topic: string | null, queryKey: unknown[], fetcher: (() => Promise<FeedItem[]>) | null) {
   const key = topic ?? "none";
-  const [state, dispatch] = useReducer(reducer, { key, items: [] });
+  const [state, dispatch] = useReducer(reducer, { key, items: [], live: new Set<string>() });
   const q = useQuery({ queryKey, queryFn: () => (fetcher ? fetcher() : Promise.resolve([])), enabled: !!fetcher });
 
   useEffect(() => {
@@ -33,9 +39,10 @@ export function useTradeList(topic: string | null, queryKey: unknown[], fetcher:
   }, [q.data, key]);
 
   useTopic(topic, (m) => {
-    if (m.type === "trade") dispatch({ key, add: [m.item] });
+    if (m.type === "trade") dispatch({ key, add: [m.item], live: !m.replay });
   });
 
   const items = state.key === key ? state.items : [];
-  return { items, loading: q.isPending && !!fetcher && items.length === 0, error: q.error };
+  const live = state.key === key ? state.live : null;
+  return { items, live, loading: q.isPending && !!fetcher && items.length === 0, error: q.error };
 }

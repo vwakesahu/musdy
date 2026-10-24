@@ -12,7 +12,10 @@ test("set a handle and follow a trader", async ({ page }, info) => {
   await shot(page, info, "profile");
 
   await page.goto(`/u/${other.address}`);
-  await page.getByTestId("follow").click();
+  // a repeat run may already follow them, the button starts from followedByViewer
+  const follow = page.getByTestId("follow");
+  await expect(follow).toHaveText(/^Follow(ing)?$/);
+  if ((await follow.innerText()) === "Follow") await follow.click();
   await expect(page.getByTestId("follow")).toHaveText("Following");
   await otherBuys(stock.address, "2");
   await page.goto("/");

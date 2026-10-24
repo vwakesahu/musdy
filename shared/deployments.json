@@ -6,7 +6,7 @@
     "launchpad": "0x09635F643e140090A9A8Dcd712eD6285858ceBef",
     "musd": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
     "router": "0x0165878A594ca255338adfa4d48449f69242Eb8F",
-    "startBlock": 0,
+    "startBlock": 2,
     "tokens": [
       {
         "address": "0x5FbDB2315678afecb367f032d93F642f64180aa3",

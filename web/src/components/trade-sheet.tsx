@@ -7,6 +7,8 @@ import { useActions, withSlippage } from "@/hooks/use-actions";
 import { useDebounced } from "@/hooks/use-debounced";
 import { useCash } from "@/hooks/use-live";
 import { useTxRun } from "@/hooks/use-tx-run";
+import { useDialogOpen } from "@/hooks/use-dialog-open";
+import { Toaster } from "./toaster";
 import { useSession } from "@/hooks/use-session";
 import { parseDollars, tokenAmount, usd } from "@/lib/format";
 import { api } from "@/lib/http";
@@ -42,6 +44,7 @@ export function TradeSheet({
   const actions = useActions();
   const { run, sending, confirmed: success } = useTxRun();
   const isBuy = side === "buy";
+  useDialogOpen(open);
   const unit = 10n ** BigInt(token.decimals);
 
   const dollars = parseDollars(input);
@@ -108,6 +111,7 @@ export function TradeSheet({
           className="fixed inset-x-0 bottom-0 z-50 mx-auto flex w-full max-w-[480px] flex-col rounded-t-[24px] border-t border-line bg-surface px-4 pb-[max(16px,env(safe-area-inset-bottom))] outline-none"
           data-testid="trade-sheet"
         >
+          {open && <Toaster inSheet />}
           <div className="mx-auto mt-3 mb-3 h-1 w-9 rounded-full bg-line" aria-hidden />
           <Drawer.Title className="sr-only">
             {isBuy ? "Buy" : "Sell"} {token.symbol}

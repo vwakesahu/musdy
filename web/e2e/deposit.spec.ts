@@ -16,7 +16,14 @@ test("faucet button adds test MUSD", async ({ page }, info) => {
   const before = Number(await cashText(page));
   await page.getByTestId("open-deposit").click();
   await page.getByTestId("faucet").click();
-  await expect(page.getByRole("status").or(page.getByRole("alert")).first()).toBeVisible();
-  await expect.poll(async () => Number(await cashText(page)), { timeout: 40_000 }).toBeGreaterThan(before);
+  const toast = page.getByRole("dialog").locator("[data-toast]").first();
+  await expect(toast).toBeVisible();
   await shot(page, info, "faucet");
+  // the faucet is once per 24h per address, a repeat run must show the server's reason instead
+  if ((await toast.getAttribute("data-toast")) === "error") {
+    await expect(page.getByRole("dialog").getByRole("alert")).not.toBeEmpty();
+    return;
+  }
+  await expect(page.getByRole("dialog").getByRole("status").first()).toBeVisible();
+  await expect.poll(async () => Number(await cashText(page)), { timeout: 40_000 }).toBeGreaterThan(before);
 });

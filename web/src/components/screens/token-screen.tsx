@@ -188,8 +188,8 @@ function TokenView({ address }: { address: Address }) {
           <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-4">
             <Stat label="Market cap" value={usd(BigInt(token.marketCapMusd))} />
             <Stat label="24h volume" value={usd(BigInt(token.volume24hMusd))} />
+            <Stat label="Holders" value={token.holders.toLocaleString("en-US")} />
             <Stat label="Venue" value={token.venue === "curve" ? "Launch curve" : "Mezo pool"} />
-            <Stat label="Kind" value={token.kind === "launch" ? "Launched on musdy" : token.kind === "stock" ? "Tokenized stock" : token.kind.toUpperCase()} />
           </dl>
           {token.venue === "curve" && token.curveProgress !== null && (
             <div className="mt-4">
@@ -204,6 +204,7 @@ function TokenView({ address }: { address: Address }) {
         <p className="label px-4">Trades</p>
         <FeedList
           items={trades.items}
+          live={trades.live}
           loading={trades.loading}
           error={trades.error}
           empty={<EmptyState title="No trades yet" body="The first buy shows up here live." />}

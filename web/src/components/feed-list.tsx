@@ -25,7 +25,19 @@ export function RowSkeletons({ n = 6 }: { n?: number }) {
 
 const SCROLL_FREEZE = 120;
 
-export function FeedList({ items, loading, error, empty }: { items: FeedItem[]; loading: boolean; error: Error | null; empty: ReactNode }) {
+export function FeedList({
+  items,
+  live,
+  loading,
+  error,
+  empty,
+}: {
+  items: FeedItem[];
+  live: Set<string> | null;
+  loading: boolean;
+  error: Error | null;
+  empty: ReactNode;
+}) {
   const { address } = useSession();
   const reduced = useReducedMotion();
   const [frozenTop, setFrozenTop] = useState<string | null>(null);
@@ -68,7 +80,7 @@ export function FeedList({ items, loading, error, empty }: { items: FeedItem[]; 
             <motion.li
               key={item.id}
               layout={reduced ? false : "position"}
-              initial={{ opacity: 0, y: reduced ? 0 : -24 }}
+              initial={live?.has(item.id) ? { opacity: 0, y: reduced ? 0 : -24 } : false}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1], layout: { duration: 0.24, ease: [0.65, 0, 0.35, 1] } }}
             >

@@ -36,8 +36,9 @@ export function DepositSheet({ open, onOpenChange }: { open: boolean; onOpenChan
 
   const faucet = async () => {
     setBusy(true);
-    await actions.faucet();
+    const res = await actions.faucet();
     setBusy(false);
+    if (res) toast("info", "Faucet request sent, 1,000 MUSD is on its way");
   };
 
   return (

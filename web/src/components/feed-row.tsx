@@ -3,7 +3,7 @@ import Link from "next/link";
 import type { FeedItem } from "shared";
 import { useLivePrice } from "@/hooks/use-live";
 import { useNow } from "@/hooks/use-now";
-import { displayName, price, timeAgo, usd } from "@/lib/format";
+import { displayName, timeAgo, usd } from "@/lib/format";
 import { CopyButton } from "./copy-button";
 import { Avatar } from "./ui/avatar";
 import { Icon } from "./ui/icon";
@@ -37,7 +37,7 @@ export function FeedRow({ item, self }: { item: FeedItem; self: boolean }) {
           <TokenIcon token={item.token} />
           <span className="font-semibold">{item.token.symbol}</span>
           <span className="truncate">
-            {usd(BigInt(item.musdAmount))} <span className="text-muted">at {price(at)}</span>
+            {usd(BigInt(item.musdAmount))} <span className="text-muted">at {usd(BigInt(item.marketCapMusd))} MC</span>
           </span>
           {since !== null && <PctChip value={since} />}
         </div>

@@ -63,11 +63,12 @@ function ProfileView({ address }: { address: Address }) {
   const [busy, setBusy] = useState(false);
   const trades = useTradeList(`user:${address.toLowerCase()}`, ["userTrades", address.toLowerCase()], () => api.userTrades(address));
   const p = profile.data;
+  const isFollowing = following ?? p?.followedByViewer ?? false;
   const user = p?.user ?? { address, handle: null, avatar: null };
   const positions = (p?.positions ?? []).filter((x) => BigInt(x.amount) > 0n);
 
   const toggleFollow = async () => {
-    const next = !following;
+    const next = !isFollowing;
     setBusy(true);
     const ok = await actions.follow(address, next);
     setBusy(false);
@@ -128,17 +129,20 @@ function ProfileView({ address }: { address: Address }) {
             </Link>
           </div>
         ) : (
-          me && (
+          me &&
+          (!p ? (
+            <Skeleton className="mt-2 h-[52px] w-full rounded-[14px]" />
+          ) : (
             <Button
-              variant={following ? "raised" : "accent"}
+              variant={isFollowing ? "raised" : "accent"}
               className="mt-2 h-[52px] w-full"
               disabled={busy}
               onClick={toggleFollow}
               data-testid="follow"
             >
-              {following ? "Following" : "Follow"}
+              {isFollowing ? "Following" : "Follow"}
             </Button>
-          )
+          ))
         )}
       </section>
 
@@ -167,7 +171,7 @@ function ProfileView({ address }: { address: Address }) {
           </ul>
         )
       ) : (
-        <FeedList items={trades.items} loading={trades.loading} error={trades.error} empty={<EmptyState title="No trades yet" />} />
+        <FeedList items={trades.items} live={trades.live} loading={trades.loading} error={trades.error} empty={<EmptyState title="No trades yet" />} />
       )}
 
       {self && (

@@ -15,8 +15,14 @@ export const useLiveToken = (address: string | undefined) =>
 
 export const useTx = (id: string | null) => useStore(liveTxs, (t) => (id ? (t[id] ?? null) : null), null);
 
-export const useProfile = (address: Address | null | undefined) =>
-  useQuery({ queryKey: ["user", address?.toLowerCase()], queryFn: () => api.user(address as Address), enabled: !!address });
+export function useProfile(address: Address | null | undefined) {
+  const viewer = useSession().address ?? undefined;
+  return useQuery({
+    queryKey: ["user", address?.toLowerCase(), viewer?.toLowerCase() ?? null],
+    queryFn: () => api.user(address as Address, viewer),
+    enabled: !!address,
+  });
+}
 
 // cash is the MUSD sitting in the vault for the signed in user, null until known
 export function useCash(): bigint | null {

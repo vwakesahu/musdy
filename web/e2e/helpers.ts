@@ -27,7 +27,7 @@ export async function devLogin(page: Page, path = "/") {
   const pill = page.getByTestId("balance-pill");
   if (await pill.isVisible().catch(() => false)) return;
   await page.getByRole("button", { name: "Log in" }).first().click();
-  await page.getByTestId("dev-login").click();
+  await page.getByRole("dialog").getByTestId("dev-login").click();
   await expect(pill).toBeVisible();
 }
 

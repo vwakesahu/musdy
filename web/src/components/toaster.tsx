@@ -2,15 +2,25 @@
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { dismissToast, toasts, type Toast } from "@/lib/toast";
 import { useStore } from "@/lib/store";
+import { openDialogs } from "@/lib/ui";
 import { Icon } from "./ui/icon";
 
 const none: Toast[] = [];
 
-export function Toaster() {
+// the page toaster sits at the top, the sheet one floats just above the open sheet
+export function Toaster({ inSheet = false }: { inSheet?: boolean }) {
   const list = useStore(toasts, (t) => t, none);
+  const dialogs = useStore(openDialogs, (n) => n, 0);
   const reduced = useReducedMotion();
+  if (!inSheet && dialogs > 0) return null;
   return (
-    <div className="pointer-events-none fixed inset-x-0 top-0 z-[60] mx-auto flex w-full max-w-[480px] flex-col gap-2 px-4 pt-[max(12px,env(safe-area-inset-top))]">
+    <div
+      className={
+        inSheet
+          ? "pointer-events-none absolute inset-x-0 bottom-full z-[60] mb-2 flex flex-col gap-2 px-4"
+          : "pointer-events-none fixed inset-x-0 top-0 z-[60] mx-auto flex w-full max-w-[480px] flex-col gap-2 px-4 pt-[max(12px,env(safe-area-inset-top))]"
+      }
+    >
       <AnimatePresence initial={false}>
         {list.map((t) => (
           <motion.div

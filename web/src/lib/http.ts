@@ -79,7 +79,7 @@ export const api = {
     request(FeedItem.array(), fill(routes.tokenTrades, { address }), { query: { before } }),
   feed: (scope: "global" | "following", address?: Address, before?: string) =>
     request(FeedItem.array(), routes.feed, { query: { scope, address, before } }),
-  user: (address: Address) => request(Profile, fill(routes.user, { address })),
+  user: (address: Address, viewer?: Address) => request(Profile, fill(routes.user, { address }), { query: { viewer } }),
   userTrades: (address: Address) => request(FeedItem.array(), fill(routes.userTrades, { address })),
   leaderboard: (window: PnlWindow) => request(LeaderRow.array(), routes.leaderboard, { query: { window } }),
   quote: (token: Address, isBuy: boolean, amountIn: bigint) =>

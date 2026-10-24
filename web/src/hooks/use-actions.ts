@@ -73,7 +73,8 @@ export function useActions() {
           const issued = new Date().toISOString();
           const sig = await s.signMessage(profileMessage(handle, issued));
           const p = await api.profile({ address: s.address, handle, issued, sig });
-          qc.setQueryData(["user", s.address.toLowerCase()], p);
+          qc.setQueryData(["user", s.address.toLowerCase(), s.address.toLowerCase()], p);
+          void qc.invalidateQueries({ queryKey: ["user"] });
           return p;
         }),
       follow: (target: Address, follow: boolean) =>

@@ -46,7 +46,9 @@ export function FeedScreen() {
         <EmptyState title="Log in to see who you follow" body="Follow traders from their profile and their buys land here." action={<div className="w-[300px]"><LoginOptions /></div>} />
       ) : (
         <FeedList
+          key={scope}
           items={feed.items}
+          live={feed.live}
           loading={feed.loading}
           error={feed.error}
           empty={
