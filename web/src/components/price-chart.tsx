@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AreaSeries, ColorType, LineStyle, createChart, type AutoscaleInfo, type IChartApi, type ISeriesApi, type UTCTimestamp } from "lightweight-charts";
 import type { Candle } from "shared";
 import { priceOfNumber } from "@/lib/format";
@@ -12,6 +12,7 @@ export function PriceChart({ candles, className = "h-[clamp(200px,36dvh,280px)] 
   const el = useRef<HTMLDivElement>(null);
   const chart = useRef<IChartApi | null>(null);
   const series = useRef<ISeriesApi<"Area"> | null>(null);
+  const [tip, setTip] = useState<{ x: number; width: number; price: number; time: number } | null>(null);
 
   useEffect(() => {
     if (!el.current) return;
@@ -44,6 +45,12 @@ export function PriceChart({ candles, className = "h-[clamp(200px,36dvh,280px)] 
       },
     });
     chart.current = c;
+    c.subscribeCrosshairMove((p) => {
+      const s = series.current;
+      const v = s && p.point && p.time !== undefined ? p.seriesData.get(s) : undefined;
+      if (!p.point || !v || !("value" in v)) return setTip(null);
+      setTip({ x: p.point.x, width: el.current?.clientWidth ?? 0, price: Number(v.value), time: Number(p.time) });
+    });
     return () => {
       c.remove();
       chart.current = null;
@@ -66,6 +73,16 @@ export function PriceChart({ candles, className = "h-[clamp(200px,36dvh,280px)] 
   return (
     <div className={`dot-grid relative w-full ${className}`}>
       <div ref={el} className="chart-reveal absolute inset-0" data-testid="price-chart" />
+      {tip && (
+        <div
+          className="pointer-events-none absolute top-1 z-10 rounded-lg border border-border bg-surface-2 px-2.5 py-1.5 text-center shadow-sm"
+          style={{ left: Math.min(Math.max(tip.x - 60, 4), Math.max(tip.width - 124, 4)), width: 120 }}
+          data-testid="chart-tooltip"
+        >
+          <div className="text-[14px] font-semibold tabular-nums text-text">{priceOfNumber(tip.price)}</div>
+          <div className="text-[11px] tabular-nums text-muted">{new Date(tip.time * 1000).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</div>
+        </div>
+      )}
     </div>
   );
 }

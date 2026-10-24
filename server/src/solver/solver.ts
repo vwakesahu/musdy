@@ -97,7 +97,7 @@ export class Solver {
       const min = GAS_MIN[i.chainId];
       if (min !== undefined && !this.d.autoGas) {
         const bal = await this.d.runner.nativeBalance(i.chainId).catch(() => null);
-        if (bal !== null && bal < min) throw new HttpError(503, "solver_no_gas", `selling coins on ${i.chainId === SOLANA ? "Solana" : "BNB Chain"} opens once the solver has gas there`);
+        if (bal !== null && bal < min) throw new HttpError(503, "sell_no_gas", `selling coins on ${i.chainId === SOLANA ? "Solana" : "BNB Chain"} opens once the solver has gas there`);
       }
     }
   }

@@ -43,6 +43,7 @@ const friendly: Record<string, string> = {
   solver_off: "Trading this coin opens soon.",
   solver_low_musd: "The solver is low on MUSD right now. Your USDC stays in your wallet, try again later.",
   solver_no_gas: "Moving USDC from that chain isn't open right now. Your USDC stays in your wallet.",
+  sell_no_gas: "Selling coins on this chain opens once the solver has gas there. Your coins are safe.",
   "solver low on MUSD": "The solver is low on MUSD right now. Your USDC stays in your wallet, try again later.",
   Expired: "That took too long to send. Try again.",
   BadNonce: "Another action was in flight. Try again.",
