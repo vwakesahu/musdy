@@ -14,3 +14,6 @@ web/playwright-report/
 scripts/real-prices.json
 .env.testnet
 .env.mainnet
+server/dist/
+.vercel
+.env*

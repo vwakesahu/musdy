@@ -1,0 +1,9 @@
+contracts
+server
+refs
+out
+docs
+scripts
+**/node_modules
+**/.next
+.env*

@@ -1,0 +1,41 @@
+app = "musdy-api"
+primary_region = "sin"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT = "8080"
+  CHAIN_ID = "31611"
+  RPC_URL = "https://rpc.test.mezo.org"
+  RPC_WS = "wss://rpc-ws.test.mezo.org"
+  DB_PATH = "/data/musdy.db"
+  FAUCET_AMOUNT = "100"
+  FAUCET_HOURLY_CAP = "50"
+  TRUST_PROXY = "1"
+  SOLVER_AUTO_GAS = "1"
+  BASE_RPC_URL = "https://base-rpc.publicnode.com"
+  BSC_RPC_URL = "https://bsc-rpc.publicnode.com"
+
+[[mounts]]
+  source = "musdy_data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    grace_period = "120s"
+    interval = "30s"
+    timeout = "5s"
+    method = "GET"
+    path = "/health"
+
+[[vm]]
+  memory = "512mb"
+  cpu_kind = "shared"
+  cpus = 1
