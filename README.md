@@ -18,13 +18,13 @@
   </p>
 </div>
 
-fomo on mezo. log in with google and you get one dollar balance. buy bitcoin, stocks and coins people launch on musdy from it, see what everyone else is buying as it happens, and copy any trade in one tap. no gas, no bridges, no wallet popups. musdy.fun
+fomo on mezo. log in with google and you get one dollar balance. buy coins on solana, base and bnb chain, bitcoin and stocks from it, see what everyone else is buying as it happens, and copy any trade in one tap. no gas, no bridges, no wallet popups. musdy.fun
 
 ## what you can do
 
 - see a live feed of every buy and sell, who made it, how big, and what they've made on it since.
 - copy a trade in one tap, same coin, same dollar amount.
-- buy and sell bitcoin, tokenized stocks and launched coins from the same balance.
+- buy and sell coins on solana, base and bnb chain, plus bitcoin and tokenized stocks on mezo, from the same balance.
 - launch your own coin in one step with a name, a ticker and an optional first buy.
 - follow traders, check their pnl, climb the leaderboard.
 - deposit by sending MUSD or BTC to your address, it lands in your balance on its own.
