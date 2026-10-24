@@ -42,4 +42,6 @@ interface IMezoPool {
     function token1() external view returns (address);
     function stable() external view returns (bool);
     function getReserves() external view returns (uint256 reserve0, uint256 reserve1, uint256 blockTimestampLast);
+    function totalSupply() external view returns (uint256);
+    function mint(address to) external returns (uint256 liquidity);
 }

@@ -1,3 +1,4 @@
 # review log
 
 C1-C5 done, test_trade_*/test_depositWithPermit_frontRunPermit/test_graduation_*/testFuzz_curve_buyThenSellNeverProfits/invariant_curve_*/invariant_vault_* + test/fork (3 green on mezo testnet incl. real graduation), MusdyToken.Locked() is not in vaultAbi so server must add it (or check launchpad.isCurve) to name the curve-withdraw revert; ABIs gained only additive views (poolFor, priceOf, owner, typehashes) and errors (ZeroAddress, OZ errors)
+graduation fix done, test_graduation_survivesDonatedPool + test_fork_graduationSurvivesDonatedPool (real factory), graduation now transfers raised MUSD and 206.9M tokens straight to the pool and calls pool.mint(dEaD) instead of router.addLiquidity; IMezoPool gained totalSupply() and mint(address) (checked against verified Pool 0xC56F...30f5), poolAbi regenerated; Graduated musdLiquidity is the MUSD we sent, donations sit on top in the pool

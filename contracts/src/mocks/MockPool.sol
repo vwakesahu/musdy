@@ -39,6 +39,14 @@ contract MockPool is IMezoPool, ERC20 {
         return (reserve0, reserve1, blockTimestampLast);
     }
 
+    function totalSupply() public view override(ERC20, IMezoPool) returns (uint256) {
+        return super.totalSupply();
+    }
+
+    function sync() external {
+        _update(IERC20(token0).balanceOf(address(this)), IERC20(token1).balanceOf(address(this)));
+    }
+
     function mint(address to) external returns (uint256 liquidity) {
         uint256 bal0 = IERC20(token0).balanceOf(address(this));
         uint256 bal1 = IERC20(token1).balanceOf(address(this));

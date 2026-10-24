@@ -7,7 +7,7 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {IMusdyLaunchpad} from "./interfaces/IMusdyLaunchpad.sol";
-import {IMezoRouter, IMezoPoolFactory} from "./interfaces/IMezoPools.sol";
+import {IMezoRouter, IMezoPoolFactory, IMezoPool} from "./interfaces/IMezoPools.sol";
 import {MusdyToken} from "./MusdyToken.sol";
 
 // pump style constant product curve priced in MUSD, graduates into a mezo pools volatile pool
@@ -159,12 +159,10 @@ contract MusdyLaunchpad is IMusdyLaunchpad, Ownable, ReentrancyGuard {
         c.pool = pool;
         uint256 musdAmount = c.realMusd;
         uint256 tokenAmount = TOTAL_SUPPLY - CURVE_SUPPLY;
-        IERC20(MUSD).forceApprove(router, musdAmount);
-        IERC20(token).forceApprove(router, tokenAmount);
-        (uint256 usedToken, uint256 usedMusd,) =
-            IMezoRouter(router).addLiquidity(token, MUSD, false, tokenAmount, musdAmount, 0, 0, DEAD, block.timestamp);
-        IERC20(MUSD).forceApprove(router, 0);
-        IERC20(token).forceApprove(router, 0);
-        emit Graduated(token, pool, usedMusd, usedToken);
+        // fund the pool directly and mint, a pre created pool with donated and synced MUSD can't block this
+        IERC20(MUSD).safeTransfer(pool, musdAmount);
+        IERC20(token).safeTransfer(pool, tokenAmount);
+        IMezoPool(pool).mint(DEAD);
+        emit Graduated(token, pool, musdAmount, tokenAmount);
     }
 }

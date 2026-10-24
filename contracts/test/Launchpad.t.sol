@@ -178,6 +178,34 @@ contract LaunchpadTest is Base {
         assertEq(launchpad.curveOf(token).pool, pool);
     }
 
+    function test_graduation_survivesDonatedPool() public {
+        address attacker = makeAddr("attacker");
+        address pool = factory.createPool(token, address(musd), false);
+        musd.mint(attacker, 1000e18);
+        vm.startPrank(attacker);
+        musd.transfer(pool, 1000e18);
+        MockPool(pool).sync();
+        vm.stopPrank();
+        (uint256 out,) = _buy(alice, 10_000e18);
+        assertEq(out, launchpad.CURVE_SUPPLY());
+        IMusdyLaunchpad.Curve memory c = launchpad.curveOf(token);
+        assertTrue(c.graduated);
+        assertEq(c.pool, pool);
+        (uint256 r0, uint256 r1,) = IMezoPool(pool).getReserves();
+        bool tokenIs0 = IMezoPool(pool).token0() == token;
+        (uint256 rT, uint256 rM) = tokenIs0 ? (r0, r1) : (r1, r0);
+        assertEq(rT, 206_900_000e18);
+        assertEq(rM, c.realMusd + 1000e18);
+        assertGt(MockPool(pool).balanceOf(dead), 0);
+        assertEq(MockPool(pool).balanceOf(dead) + 1000, MockPool(pool).totalSupply());
+        // pool price stays within the donation's share of the curve's final price
+        uint256 curvePrice = c.virtualMusd * 1e18 / c.virtualToken;
+        uint256 poolPrice = rM * 1e18 / rT;
+        assertGe(poolPrice, curvePrice * 99 / 100);
+        assertLe(poolPrice, curvePrice * (c.realMusd + 1000e18) / c.realMusd + 1);
+        assertEq(MockPool(pool).balanceOf(attacker), 0);
+    }
+
     function testFuzz_curve_buyThenSellNeverProfits(uint256 pre, uint256 amount) public {
         pre = bound(pre, 0, 4000e18);
         amount = bound(amount, 1e6, 5000e18);

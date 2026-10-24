@@ -12,6 +12,10 @@ import {IMezoPool, IMezoPoolFactory} from "../../src/interfaces/IMezoPools.sol";
 
 // runs against mezo testnet: forge test --match-path 'test/fork/*' --fork-url mezo_testnet
 // BTC (0x7b7C...) is a cosmos precompile, an anvil fork only sees its stub bytecode, so BTC trades are not covered here
+interface ISyncPool {
+    function sync() external;
+}
+
 contract MezoForkTest is Test {
     address internal constant ROUTER = 0x9a1ff7FE3a0F69959A3fBa1F1e5ee18e1A9CD7E9;
     address internal constant MUSD = 0x118917a40FAF1CD7a13dB0Ef56C86De7973Ac503;
@@ -81,6 +85,33 @@ contract MezoForkTest is Test {
         (v, r, s) = vm.sign(aliceKey, vault.hashWithdraw(w));
         vault.executeWithdraw(w, abi.encodePacked(r, s, v));
         assertEq(MusdyToken(token).balanceOf(alice), first);
+    }
+
+    function test_fork_graduationSurvivesDonatedPool() public {
+        IMusdyVault.Launch memory l =
+            IMusdyVault.Launch(alice, "Grief Coin", "GRF", "", 0, vault.nonces(alice), block.timestamp + 60);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(aliceKey, vault.hashLaunch(l));
+        (address token,) = vault.executeLaunch(l, abi.encodePacked(r, s, v));
+        address attacker = makeAddr("attacker");
+        deal(MUSD, attacker, 500e18);
+        vm.startPrank(attacker);
+        address pool = IMezoPoolFactory(vault.factory()).createPool(token, MUSD, false);
+        IERC20(MUSD).transfer(pool, 500e18);
+        ISyncPool(pool).sync();
+        vm.stopPrank();
+        (uint256 r0, uint256 r1,) = IMezoPool(pool).getReserves();
+        assertEq(r0 + r1, 500e18);
+        uint256 out = _trade(token, true, 9_000e18, 0);
+        assertEq(out, launchpad.CURVE_SUPPLY());
+        IMusdyLaunchpad.Curve memory c = launchpad.curveOf(token);
+        assertTrue(c.graduated);
+        assertEq(c.pool, pool);
+        (r0, r1,) = IMezoPool(pool).getReserves();
+        bool tokenIs0 = IMezoPool(pool).token0() == token;
+        assertEq(tokenIs0 ? r0 : r1, 206_900_000e18);
+        assertEq(tokenIs0 ? r1 : r0, c.realMusd + 500e18);
+        assertGt(IERC20(pool).balanceOf(0x000000000000000000000000000000000000dEaD), 0);
+        assertGt(_trade(token, false, out / 100, 0), 0);
     }
 
     function _checkGraduated(address token) internal view {
