@@ -65,6 +65,8 @@ contract MusdyLaunchpad is IMusdyLaunchpad, Ownable, ReentrancyGuard {
         nonReentrant
         returns (uint256 tokensOut, uint256 musdUsed)
     {
+        // locked tokens may only leave the curve to the buyer itself, never to a pool before graduation
+        if (to != msg.sender) revert BadRecipient();
         Curve storage c = _live(token);
         if (musdIn == 0) revert ZeroAmount();
         (tokensOut, musdUsed) = _quoteBuy(c, musdIn);
@@ -75,7 +77,7 @@ contract MusdyLaunchpad is IMusdyLaunchpad, Ownable, ReentrancyGuard {
         c.virtualToken -= tokensOut;
         c.realMusd += musdUsed;
         c.tokensSold += tokensOut;
-        IERC20(token).safeTransfer(to, tokensOut);
+        IERC20(token).safeTransfer(msg.sender, tokensOut);
         emit CurveTrade(token, msg.sender, true, musdUsed, tokensOut, c.virtualMusd, c.virtualToken);
         if (c.tokensSold == CURVE_SUPPLY) _graduate(token, c);
     }
@@ -85,6 +87,7 @@ contract MusdyLaunchpad is IMusdyLaunchpad, Ownable, ReentrancyGuard {
         nonReentrant
         returns (uint256 musdOut)
     {
+        // to only receives MUSD, which anyone can already donate to a pool, locked tokens only flow back to the curve
         Curve storage c = _live(token);
         if (tokensIn == 0) revert ZeroAmount();
         musdOut = _quoteSell(c, tokensIn);
@@ -157,6 +160,10 @@ contract MusdyLaunchpad is IMusdyLaunchpad, Ownable, ReentrancyGuard {
         address pool = IMezoPoolFactory(factory).getPool(token, MUSD, false);
         if (pool == address(0)) pool = IMezoPoolFactory(factory).createPool(token, MUSD, false);
         c.pool = pool;
+        // before unlock a curve token can only sit with the launchpad or a buyer (buy pays msg.sender), so the pool
+        // holds zero of it and mint (sqrt(a0 * a1) - MINIMUM_LIQUIDITY) cannot succeed, LP supply is zero here
+        // and every LP above the locked minimum goes to dEaD; the check keeps that true if the lock ever changes
+        if (IMezoPool(pool).totalSupply() != 0) revert PoolNotEmpty();
         uint256 musdAmount = c.realMusd;
         uint256 tokenAmount = TOTAL_SUPPLY - CURVE_SUPPLY;
         // fund the pool directly and mint, a pre created pool with donated and synced MUSD can't block this

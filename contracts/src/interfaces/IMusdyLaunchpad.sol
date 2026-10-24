@@ -29,6 +29,8 @@ interface IMusdyLaunchpad {
     error Slippage();
     error ZeroAmount();
     error BadMetadata();
+    error BadRecipient();
+    error PoolNotEmpty();
 
     function MUSD() external view returns (address);
     function TOTAL_SUPPLY() external view returns (uint256);

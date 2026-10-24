@@ -22,6 +22,7 @@ contract MezoForkTest is Test {
     address internal constant ROUTER = 0x9a1ff7FE3a0F69959A3fBa1F1e5ee18e1A9CD7E9;
     address internal constant MUSD = 0x118917a40FAF1CD7a13dB0Ef56C86De7973Ac503;
     address internal constant NVDA = 0x0dd342913752311E88BBfb0184E3f55FAeFc866a;
+    address internal constant BTC = 0x7b7C000000000000000000000000000000000000;
 
     MusdyLaunchpad internal launchpad;
     MusdyVault internal vault;
@@ -33,7 +34,7 @@ contract MezoForkTest is Test {
         if (block.chainid != 31611) vm.skip(true);
         alice = vm.addr(aliceKey);
         launchpad = new MusdyLaunchpad(MUSD, ROUTER, 1500e18, address(this));
-        vault = new MusdyVault(MUSD, ROUTER, address(launchpad), feeTo, 50, address(this));
+        vault = new MusdyVault(MUSD, BTC, ROUTER, address(launchpad), feeTo, 50, address(this));
         deal(MUSD, alice, 10_000e18);
         vm.startPrank(alice);
         IERC20(MUSD).approve(address(vault), 10_000e18);
@@ -153,7 +154,8 @@ contract MezoForkTest is Test {
         bool tokenIs0 = IMezoPool(pool).token0() == token;
         assertEq(tokenIs0 ? r0 : r1, 206_900_000e18);
         assertEq(tokenIs0 ? r1 : r0, c.realMusd + 500e18);
-        assertGt(IERC20(pool).balanceOf(0x000000000000000000000000000000000000dEaD), 0);
+        assertEq(IERC20(pool).balanceOf(0x000000000000000000000000000000000000dEaD) + 1000, IERC20(pool).totalSupply());
+        assertEq(IERC20(pool).balanceOf(attacker), 0);
         assertGt(_trade(token, false, out / 100, 0), 0);
     }
 
@@ -166,5 +168,10 @@ contract MezoForkTest is Test {
         assertEq(tokenIs0 ? r0 : r1, 206_900_000e18);
         assertEq(tokenIs0 ? r1 : r0, c.realMusd);
         assertGt(IERC20(c.pool).balanceOf(0x000000000000000000000000000000000000dEaD), 0);
+        // real pool locks MINIMUM_LIQUIDITY (1000) at address(1) like the mock, all the rest is dEaD's
+        assertEq(IERC20(c.pool).balanceOf(address(1)), 1000);
+        assertEq(
+            IERC20(c.pool).balanceOf(0x000000000000000000000000000000000000dEaD) + 1000, IERC20(c.pool).totalSupply()
+        );
     }
 }

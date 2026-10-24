@@ -108,7 +108,7 @@ contract LaunchpadTest is Base {
         vm.expectRevert(IMusdyLaunchpad.Slippage.selector);
         launchpad.buy(token, 1e18, type(uint256).max, alice);
         vm.expectRevert(IMusdyLaunchpad.NotCurveToken.selector);
-        launchpad.buy(address(nvda), 1e18, 0, alice);
+        launchpad.buy(address(nvda), 1e18, 0, address(this));
         vm.expectRevert(IMusdyLaunchpad.NotCurveToken.selector);
         launchpad.priceOf(address(nvda));
         vm.expectRevert(IMusdyLaunchpad.ZeroAmount.selector);
@@ -204,6 +204,70 @@ contract LaunchpadTest is Base {
         assertGe(poolPrice, curvePrice * 99 / 100);
         assertLe(poolPrice, curvePrice * (c.realMusd + 1000e18) / c.realMusd + 1);
         assertEq(MockPool(pool).balanceOf(attacker), 0);
+    }
+
+    // reviewer PoC: buy curve tokens straight into a pre created pool, add MUSD, mint LP before graduation, then
+    // let graduation deposit into a pool the attacker owns ~all of. it must die at the first step.
+    function test_graduation_preseededPoolBlocked() public {
+        address attacker = makeAddr("attacker");
+        address pool = factory.createPool(token, address(musd), false);
+        musd.mint(attacker, 1000e18);
+        vm.startPrank(attacker);
+        musd.approve(address(launchpad), type(uint256).max);
+        // step 1: buy to the pool
+        vm.expectRevert(IMusdyLaunchpad.BadRecipient.selector);
+        launchpad.buy(token, 10e18, 0, pool);
+        // the detour, buy to self then move to the pool, is locked too
+        (uint256 out,) = launchpad.buy(token, 10e18, 0, attacker);
+        vm.expectRevert(MusdyToken.Locked.selector);
+        MusdyToken(token).transfer(pool, out);
+        // selling to the pool only donates MUSD
+        MusdyToken(token).approve(address(launchpad), out);
+        launchpad.sell(token, out, 0, pool);
+        // MUSD alone can't mint LP, the pool holds no curve token
+        musd.transfer(pool, 100e18);
+        vm.expectRevert();
+        MockPool(pool).mint(attacker);
+        MockPool(pool).sync();
+        musd.transfer(pool, 1e18);
+        vm.expectRevert();
+        MockPool(pool).mint(attacker);
+        vm.stopPrank();
+        assertEq(MockPool(pool).totalSupply(), 0);
+        assertEq(MusdyToken(token).balanceOf(pool), 0);
+        // graduation still lands every LP above the locked minimum at dEaD
+        _buy(alice, 10_000e18);
+        IMusdyLaunchpad.Curve memory c = launchpad.curveOf(token);
+        assertTrue(c.graduated);
+        assertEq(c.pool, pool);
+        assertEq(MockPool(pool).balanceOf(attacker), 0);
+        assertEq(MockPool(pool).balanceOf(address(1)), MockPool(pool).MINIMUM_LIQUIDITY());
+        assertEq(MockPool(pool).balanceOf(dead) + MockPool(pool).MINIMUM_LIQUIDITY(), MockPool(pool).totalSupply());
+    }
+
+    function test_curve_buy_onlyToBuyer() public {
+        vm.prank(alice);
+        vm.expectRevert(IMusdyLaunchpad.BadRecipient.selector);
+        launchpad.buy(token, 1e18, 0, bob);
+        vm.prank(alice);
+        vm.expectRevert(IMusdyLaunchpad.BadRecipient.selector);
+        launchpad.buy(token, 1e18, 0, address(0));
+        // sell may still pay MUSD elsewhere
+        (uint256 out,) = _buy(alice, 10e18);
+        vm.startPrank(alice);
+        MusdyToken(token).approve(address(launchpad), out);
+        uint256 got = launchpad.sell(token, out, 0, bob);
+        vm.stopPrank();
+        assertEq(musd.balanceOf(bob), got);
+    }
+
+    function test_graduation_refusesPoolWithLpSupply() public {
+        // unreachable through the lock, the guard is belt and braces
+        address pool = factory.createPool(token, address(musd), false);
+        vm.mockCall(pool, abi.encodeWithSignature("totalSupply()"), abi.encode(uint256(1)));
+        vm.prank(alice);
+        vm.expectRevert(IMusdyLaunchpad.PoolNotEmpty.selector);
+        launchpad.buy(token, 10_000e18, 0, alice);
     }
 
     function testFuzz_curve_buyThenSellNeverProfits(uint256 pre, uint256 amount) public {

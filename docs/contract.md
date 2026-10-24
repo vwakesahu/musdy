@@ -14,9 +14,9 @@ solidity 0.8.28, evm london (mezo has no PUSH0), openzeppelin 5.1 vendored in `c
 
 implements `IMusdyVault`. holds everyone's money as an internal ledger `balanceOf[user][token]`. MUSD is cash, everything else is a position.
 
-constructor `(musd, router, launchpad, feeRecipient, feeBps, owner)`. `factory` is read from `router.defaultFactory()`. feeBps starts at 50, max 100.
+constructor `(musd, btc, router, launchpad, feeRecipient, feeBps, owner)`. `factory` is read from `router.defaultFactory()`. feeBps starts at 50, max 100.
 
-`deposit(token, amount, onBehalfOf)` pulls from msg.sender, credits onBehalfOf. anyone. emits `Deposited`.
+`deposit(token, amount, onBehalfOf)` pulls from msg.sender, credits onBehalfOf. crediting someone else only works for MUSD and BTC, any other token must be deposited for yourself. emits `Deposited`.
 
 `depositWithPermit(owner, token, amount, deadline, v, r, s)` calls `permit(owner, vault, amount, deadline, v, r, s)` on the token then pulls from owner and credits owner. anyone can submit it, that's how the relayer sweeps. if the permit call reverts but allowance is already enough it still goes through (front run safe). emits `Deposited`.
 
@@ -24,7 +24,7 @@ constructor `(musd, router, launchpad, feeRecipient, feeBps, owner)`. `factory` 
 
 `executeTrade(Trade, sig)`, `executeWithdraw(Withdraw, sig)`, `executeLaunch(Launch, sig)` are submitted by anyone, usually the relayer. each checks the eip712 signature of `user` (ECDSA, eoa only), `nonce == nonces[user]` then increments it, and `block.timestamp <= deadline`. reverts `BadSignature`, `BadNonce`, `Expired`.
 
-trade semantics. every trade is MUSD against one token. on a buy `amountIn` is MUSD, fee = amountIn * feeBps / 10000 goes to feeRecipient's internal balance, the rest is swapped, user gets tokens, `minOut` is checked on tokens. on a sell `amountIn` is tokens, the swap returns MUSD, fee is taken from that, user gets the rest, `minOut` is checked on the net MUSD. venue is the launchpad if `launchpad.isCurve(token)`, otherwise the mezo pool from `factory.getPool(token, musd, false)`, falling back to the stable pool, else `NoRoute`. a curve buy can be partially filled when it sells out the curve, the unused MUSD stays in the user's balance and `musdAmount` reflects what was used. emits `Traded(user, token, isBuy, musdAmount, tokenAmount, fee, ref, venue)` where musdAmount is MUSD that left the user on a buy (fee included) and MUSD that reached the user on a sell (fee excluded).
+trade semantics. every trade is MUSD against one token. on a buy `amountIn` is MUSD, fee = amountIn * feeBps / 10000 goes to feeRecipient's internal balance, the rest is swapped, user gets tokens, `minOut` is checked on tokens. on a sell `amountIn` is tokens, the swap returns MUSD, fee is taken from that, user gets the rest, `minOut` is checked on the net MUSD. venue is the launchpad if `launchpad.isCurve(token)`, otherwise the volatile mezo pool if it has reserves, else the stable pool if it has reserves, else `NoRoute`. a curve buy can be partially filled when it sells out the curve, the unused MUSD stays in the user's balance and `musdAmount` reflects what was used. emits `Traded(user, token, isBuy, musdAmount, tokenAmount, fee, ref, venue)` where musdAmount is MUSD that left the user on a buy (fee included) and MUSD that reached the user on a sell (fee excluded).
 
 `executeWithdraw` moves the internal balance out to `to`. launch tokens still on the curve revert inside the token transfer, that's on purpose.
 
@@ -48,7 +48,7 @@ constructor `(musd, router, virtualMusd, owner)`. `virtualToken` starts at 1,073
 
 `sell(token, tokensIn, minMusdOut, to)` pulls tokens, musdOut = vM - k / (vT + tokensIn). emits `CurveTrade`.
 
-graduation. `factory.getPool(token, musd, false)` or `createPool`, then `router.addLiquidity` with all raised MUSD and the remaining 206,900,000e18 tokens, LP to `0x000000000000000000000000000000000000dEaD`. marks graduated, unlocks token transfers, emits `Graduated`.
+graduation. `factory.getPool(token, musd, false)` or `createPool`, `PoolNotEmpty` if it already has LP supply (it can't, the pool can never receive the locked token), then all raised MUSD and the remaining 206,900,000e18 tokens go straight to the pool and `pool.mint(0x000000000000000000000000000000000000dEaD)`. marks graduated, unlocks token transfers, emits `Graduated`.
 
 `MusdyToken` is a plain erc20 with 18 decimals. before graduation a transfer reverts unless `from` or `to` is the launchpad, so nobody can seed a pool at a bad price before graduation. the launchpad flips it once.
 

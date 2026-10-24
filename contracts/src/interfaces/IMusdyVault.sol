@@ -61,8 +61,10 @@ interface IMusdyVault {
     error Slippage();
     error ZeroAmount();
     error FeeTooHigh();
+    error BadRecipient();
 
     function MUSD() external view returns (address);
+    function BTC() external view returns (address);
     function router() external view returns (address);
     function factory() external view returns (address);
     function launchpad() external view returns (address);

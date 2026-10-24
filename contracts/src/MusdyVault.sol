@@ -10,7 +10,7 @@ import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {IMusdyVault} from "./interfaces/IMusdyVault.sol";
 import {IMusdyLaunchpad} from "./interfaces/IMusdyLaunchpad.sol";
-import {IMezoRouter, IMezoPoolFactory} from "./interfaces/IMezoPools.sol";
+import {IMezoRouter, IMezoPoolFactory, IMezoPool} from "./interfaces/IMezoPools.sol";
 
 // custodial ledger, users sign eip712 actions and anyone relays them
 contract MusdyVault is IMusdyVault, EIP712, Ownable, ReentrancyGuard {
@@ -28,6 +28,7 @@ contract MusdyVault is IMusdyVault, EIP712, Ownable, ReentrancyGuard {
     uint256 private constant BPS = 10_000;
 
     address public immutable MUSD;
+    address public immutable BTC;
     address public immutable router;
     address public immutable factory;
     address public immutable launchpad;
@@ -41,6 +42,7 @@ contract MusdyVault is IMusdyVault, EIP712, Ownable, ReentrancyGuard {
 
     constructor(
         address musd,
+        address btc,
         address router_,
         address launchpad_,
         address feeRecipient_,
@@ -48,10 +50,14 @@ contract MusdyVault is IMusdyVault, EIP712, Ownable, ReentrancyGuard {
         address owner_
     ) EIP712("musdy", "1") Ownable(owner_) {
         if (feeBps_ > MAX_FEE_BPS) revert FeeTooHigh();
-        if (musd == address(0) || router_ == address(0) || launchpad_ == address(0) || feeRecipient_ == address(0)) {
+        if (
+            musd == address(0) || btc == address(0) || router_ == address(0) || launchpad_ == address(0)
+                || feeRecipient_ == address(0)
+        ) {
             revert ZeroAddress();
         }
         MUSD = musd;
+        BTC = btc;
         router = router_;
         factory = IMezoRouter(router_).defaultFactory();
         launchpad = launchpad_;
@@ -97,6 +103,8 @@ contract MusdyVault is IMusdyVault, EIP712, Ownable, ReentrancyGuard {
 
     function deposit(address token, uint256 amount, address onBehalfOf) external nonReentrant {
         if (onBehalfOf == address(0)) revert ZeroAddress();
+        // gifting cash is fine (the faucet does it), crediting anything else to someone else would plant positions
+        if (onBehalfOf != msg.sender && token != MUSD && token != BTC) revert BadRecipient();
         _pull(token, msg.sender, amount, onBehalfOf);
     }
 
@@ -173,12 +181,19 @@ contract MusdyVault is IMusdyVault, EIP712, Ownable, ReentrancyGuard {
     }
 
     // returns the pool a pool trade of token would use, address(0) when there is none
+    // an empty volatile pool (anyone can create one) must not shadow a funded stable pool
     function poolFor(address token) public view returns (address pool, bool stable) {
-        pool = IMezoPoolFactory(factory).getPool(token, MUSD, false);
-        if (pool == address(0)) {
-            pool = IMezoPoolFactory(factory).getPool(token, MUSD, true);
-            stable = pool != address(0);
-        }
+        address volatilePool = IMezoPoolFactory(factory).getPool(token, MUSD, false);
+        if (_funded(volatilePool)) return (volatilePool, stable);
+        address stablePool = IMezoPoolFactory(factory).getPool(token, MUSD, true);
+        stable = _funded(stablePool);
+        if (stable) pool = stablePool;
+    }
+
+    function _funded(address pool) private view returns (bool) {
+        if (pool == address(0)) return false;
+        (uint256 r0, uint256 r1,) = IMezoPool(pool).getReserves();
+        return r0 != 0 && r1 != 0;
     }
 
     function _buy(address user, address token, uint256 amountIn, uint256 minOut, address ref)
@@ -195,7 +210,7 @@ contract MusdyVault is IMusdyVault, EIP712, Ownable, ReentrancyGuard {
             venue = Venue.Curve;
             uint256 used;
             IERC20(MUSD).forceApprove(launchpad, net);
-            (tokensOut, used) = IMusdyLaunchpad(launchpad).buy(token, net, minOut, address(this));
+            (tokensOut, used) = IMusdyLaunchpad(launchpad).buy(token, net, 0, address(this));
             IERC20(MUSD).forceApprove(launchpad, 0);
             if (used < net) {
                 fee = _scaledFee(fee, used, net);
@@ -203,7 +218,7 @@ contract MusdyVault is IMusdyVault, EIP712, Ownable, ReentrancyGuard {
                 balanceOf[user][MUSD] += amountIn - musdAmount;
             }
         } else {
-            tokensOut = _swap(MUSD, token, net, minOut);
+            tokensOut = _swap(MUSD, token, net);
         }
         if (tokensOut < minOut) revert Slippage();
         balanceOf[feeRecipient][MUSD] += fee;
@@ -222,7 +237,7 @@ contract MusdyVault is IMusdyVault, EIP712, Ownable, ReentrancyGuard {
             gross = IMusdyLaunchpad(launchpad).sell(t.token, t.amountIn, 0, address(this));
             IERC20(t.token).forceApprove(launchpad, 0);
         } else {
-            gross = _swap(t.token, MUSD, t.amountIn, 0);
+            gross = _swap(t.token, MUSD, t.amountIn);
         }
         uint256 fee = _fee(gross);
         net = gross - fee;
@@ -232,14 +247,12 @@ contract MusdyVault is IMusdyVault, EIP712, Ownable, ReentrancyGuard {
         emit Traded(t.user, t.token, false, net, t.amountIn, fee, t.ref, venue);
     }
 
-    function _swap(address tokenIn, address tokenOut, uint256 amountIn, uint256 minOut)
-        private
-        returns (uint256 received)
-    {
+    // venues get 0 as their minimum, minOut is checked by the vault on what actually arrived
+    function _swap(address tokenIn, address tokenOut, uint256 amountIn) private returns (uint256 received) {
         IMezoRouter.Route[] memory routes = _route(tokenIn, tokenOut);
         uint256 before = IERC20(tokenOut).balanceOf(address(this));
         IERC20(tokenIn).forceApprove(router, amountIn);
-        IMezoRouter(router).swapExactTokensForTokens(amountIn, minOut, routes, address(this), block.timestamp);
+        IMezoRouter(router).swapExactTokensForTokens(amountIn, 0, routes, address(this), block.timestamp);
         IERC20(tokenIn).forceApprove(router, 0);
         received = IERC20(tokenOut).balanceOf(address(this)) - before;
     }

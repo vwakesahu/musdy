@@ -40,7 +40,7 @@ abstract contract Base is Test {
         _seed(address(nvda), 10_000e18, 1_510_000e18, false);
         _seed(address(stab), 1_000_000e18, 1_000_000e18, true);
         launchpad = new MusdyLaunchpad(address(musd), address(router), 1500e18, owner);
-        vault = new MusdyVault(address(musd), address(router), address(launchpad), feeTo, 50, owner);
+        vault = new MusdyVault(address(musd), address(btc), address(router), address(launchpad), feeTo, 50, owner);
     }
 
     function _seed(address token, uint256 tokenAmt, uint256 musdAmt, bool stable) internal {

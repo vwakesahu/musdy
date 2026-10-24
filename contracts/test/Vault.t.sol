@@ -69,9 +69,11 @@ contract VaultTest is Base {
 
     function test_constructorChecks() public {
         vm.expectRevert(IMusdyVault.FeeTooHigh.selector);
-        new MusdyVault(address(musd), address(router), address(launchpad), feeTo, 101, owner);
+        new MusdyVault(address(musd), address(btc), address(router), address(launchpad), feeTo, 101, owner);
         vm.expectRevert(MusdyVault.ZeroAddress.selector);
-        new MusdyVault(address(musd), address(router), address(launchpad), address(0), 50, owner);
+        new MusdyVault(address(musd), address(btc), address(router), address(launchpad), address(0), 50, owner);
+        vm.expectRevert(MusdyVault.ZeroAddress.selector);
+        new MusdyVault(address(musd), address(0), address(router), address(launchpad), feeTo, 50, owner);
     }
 
     // deposits
@@ -102,6 +104,38 @@ contract VaultTest is Base {
         vm.stopPrank();
     }
 
+    function test_deposit_onBehalfOfCashOnly() public {
+        // MUSD (the faucet path) and BTC can be gifted
+        btc.mint(bob, 2e18);
+        nvda.mint(bob, 2e18);
+        vm.startPrank(bob);
+        btc.approve(address(vault), 2e18);
+        nvda.approve(address(vault), 2e18);
+        vault.deposit(address(btc), 1e18, alice);
+        assertEq(vault.balanceOf(alice, address(btc)), 1e18);
+        // any other token only to the depositor itself
+        vm.expectRevert(IMusdyVault.BadRecipient.selector);
+        vault.deposit(address(nvda), 1e18, alice);
+        vault.deposit(address(nvda), 1e18, bob);
+        vault.deposit(address(btc), 1e18, bob);
+        vm.stopPrank();
+        assertEq(vault.balanceOf(alice, address(nvda)), 0);
+        assertEq(vault.balanceOf(bob, address(nvda)), 1e18);
+        assertEq(vault.balanceOf(bob, address(btc)), 1e18);
+        assertEq(vault.BTC(), address(btc));
+    }
+
+    function test_deposit_faucetGiftsMusd() public {
+        address faucet = makeAddr("faucet");
+        musd.mint(faucet, 1000e18);
+        vm.startPrank(faucet);
+        musd.approve(address(vault), 1000e18);
+        vault.deposit(address(musd), 1000e18, alice);
+        vm.stopPrank();
+        assertEq(vault.balanceOf(alice, address(musd)), 1000e18);
+        assertEq(vault.balanceOf(faucet, address(musd)), 0);
+    }
+
     function test_depositWithPermit_btcPrecompileDomain() public {
         MockBtcPermit pbtc = new MockBtcPermit();
         assertEq(pbtc.name(), "BTC");
@@ -125,8 +159,7 @@ contract VaultTest is Base {
         assertEq(pbtc.PERMIT_TYPEHASH(), PERMIT_TYPEHASH);
         bytes32 structHash =
             keccak256(abi.encode(PERMIT_TYPEHASH, alice, address(vault), 2e18, pbtc.nonce(alice), deadline));
-        (uint8 v, bytes32 r, bytes32 s) =
-            vm.sign(aliceKey, keccak256(abi.encodePacked("\x19\x01", domain, structHash)));
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(aliceKey, keccak256(abi.encodePacked("\x19\x01", domain, structHash)));
         vm.prank(relayer);
         vault.depositWithPermit(alice, address(pbtc), 2e18, deadline, v, r, s);
         assertEq(vault.balanceOf(alice, address(pbtc)), 2e18);
@@ -221,6 +254,64 @@ contract VaultTest is Base {
         assertTrue(stable);
         uint256 out = _execTrade(aliceKey, _trade(alice, address(stab), true, 100e18, 0, address(0)));
         assertApproxEqRel(out, 99.5e18, 0.01e18);
+    }
+
+    function test_poolFor_emptyVolatileDoesNotShadowStable() public {
+        // anyone can create an empty volatile pool for a stable only token
+        address empty = factory.createPool(address(stab), address(musd), false);
+        (address pool, bool stable) = vault.poolFor(address(stab));
+        assertTrue(stable);
+        assertEq(pool, factory.getPool(address(stab), address(musd), true));
+        assertTrue(pool != empty);
+        _fund(alice, 100e18);
+        uint256 out = _execTrade(aliceKey, _trade(alice, address(stab), true, 100e18, 0, address(0)));
+        assertApproxEqRel(out, 99.5e18, 0.01e18);
+        // a funded volatile pool wins
+        (pool, stable) = vault.poolFor(address(nvda));
+        assertFalse(stable);
+        assertEq(pool, factory.getPool(address(nvda), address(musd), false));
+    }
+
+    function test_poolFor_emptyPoolsAreNoRoute() public {
+        MockERC20Permit orphan = new MockERC20Permit("O", "O");
+        factory.createPool(address(orphan), address(musd), false);
+        factory.createPool(address(orphan), address(musd), true);
+        (address pool, bool stable) = vault.poolFor(address(orphan));
+        assertEq(pool, address(0));
+        assertFalse(stable);
+        // one sided donation is still not a route
+        musd.mint(address(this), 1e18);
+        musd.transfer(factory.getPool(address(orphan), address(musd), false), 1e18);
+        (pool,) = vault.poolFor(address(orphan));
+        assertEq(pool, address(0));
+        vm.expectRevert(IMusdyVault.NoRoute.selector);
+        vault.quote(address(orphan), true, 1e18);
+        _fund(alice, 100e18);
+        IMusdyVault.Trade memory t = _trade(alice, address(orphan), true, 100e18, 0, address(0));
+        bytes memory sig = _sign(aliceKey, vault.hashTrade(t));
+        vm.expectRevert(IMusdyVault.NoRoute.selector);
+        vault.executeTrade(t, sig);
+    }
+
+    function test_trade_buySlippage() public {
+        _fund(alice, 1000e18);
+        // pool: the router gets 0 as its minimum, the vault's own check fires
+        (uint256 qOut,) = vault.quote(address(nvda), true, 100e18);
+        IMusdyVault.Trade memory t = _trade(alice, address(nvda), true, 100e18, qOut + 1, address(0));
+        bytes memory sig = _sign(aliceKey, vault.hashTrade(t));
+        vm.expectRevert(IMusdyVault.Slippage.selector);
+        vault.executeTrade(t, sig);
+        assertEq(_execTrade(aliceKey, _trade(alice, address(nvda), true, 100e18, qOut, address(0))), qOut);
+        // curve
+        (address token,) = _execLaunch(aliceKey, _launch(alice, "Coin", 0));
+        (qOut,) = vault.quote(token, true, 100e18);
+        t = _trade(alice, token, true, 100e18, qOut + 1, address(0));
+        sig = _sign(aliceKey, vault.hashTrade(t));
+        vm.expectRevert(IMusdyVault.Slippage.selector);
+        vault.executeTrade(t, sig);
+        assertEq(_execTrade(aliceKey, _trade(alice, token, true, 100e18, qOut, address(0))), qOut);
+        assertEq(vault.balanceOf(alice, address(musd)), 800e18);
+        _allowancesClean(address(musd));
     }
 
     function test_trade_noRoute() public {

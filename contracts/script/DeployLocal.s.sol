@@ -39,7 +39,8 @@ contract DeployLocal is DeploymentWriter {
         _seed(googl, 9_000e18, 333);
 
         MusdyLaunchpad launchpad = new MusdyLaunchpad(address(musd), address(router), 1500e18, deployer);
-        MusdyVault vault = new MusdyVault(address(musd), address(router), address(launchpad), deployer, 50, deployer);
+        MusdyVault vault =
+            new MusdyVault(address(musd), address(btc), address(router), address(launchpad), deployer, 50, deployer);
         musd.mint(FAUCET, 1_000_000e18);
         vm.stopBroadcast();
 

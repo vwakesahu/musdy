@@ -5,6 +5,7 @@ import {Test} from "forge-std/Test.sol";
 import {MockERC20Permit} from "../../src/mocks/MockERC20Permit.sol";
 import {MockPoolFactory} from "../../src/mocks/MockPoolFactory.sol";
 import {MockRouter} from "../../src/mocks/MockRouter.sol";
+import {MockPool} from "../../src/mocks/MockPool.sol";
 import {MusdyLaunchpad} from "../../src/MusdyLaunchpad.sol";
 import {MusdyToken} from "../../src/MusdyToken.sol";
 import {IMusdyLaunchpad} from "../../src/interfaces/IMusdyLaunchpad.sol";
@@ -12,15 +13,23 @@ import {IMusdyLaunchpad} from "../../src/interfaces/IMusdyLaunchpad.sol";
 contract CurveHandler is Test {
     MusdyLaunchpad public lp;
     MockERC20Permit public musd;
+    MockPoolFactory public factory;
     address[] public tokens;
+    address internal attacker = address(0x0BAD);
     address[3] internal traders = [address(0x1001), address(0x1002), address(0x1003)];
 
     bool public priceViolated;
     bool public graduatedTradeSucceeded;
+    bool public graduatedWrongError;
+    bool public foreignBuySucceeded;
+    bool public foreignBuyWrongError;
+    bool public preGraduationMint;
+    uint256 public seeds;
 
-    constructor(MusdyLaunchpad lp_, MockERC20Permit musd_) {
+    constructor(MusdyLaunchpad lp_, MockERC20Permit musd_, MockPoolFactory factory_) {
         lp = lp_;
         musd = musd_;
+        factory = factory_;
         for (uint256 i; i < 2; ++i) {
             tokens.push(lp.createToken("Coin", "C", "", address(this)));
         }
@@ -41,21 +50,44 @@ contract CurveHandler is Test {
         return tokens.length;
     }
 
+    function _graduatedRevert(bytes memory err) internal {
+        if (bytes4(err) != IMusdyLaunchpad.AlreadyGraduated.selector) graduatedWrongError = true;
+    }
+
+    function _poolOf(address t) internal returns (address pool) {
+        pool = factory.getPool(t, address(musd), false);
+        if (pool == address(0)) pool = factory.createPool(t, address(musd), false);
+    }
+
     function _price(address t) internal view returns (uint256) {
         IMusdyLaunchpad.Curve memory c = lp.curveOf(t);
         return c.virtualMusd * 1e18 / c.virtualToken;
     }
 
-    function buy(uint256 tSeed, uint256 who, uint256 amount) external {
+    // toSeed picks the recipient: the trader, the token's pool, or any address
+    function buy(uint256 tSeed, uint256 who, uint256 amount, uint256 toSeed, address randomTo) external {
         address t = tokens[tSeed % tokens.length];
         address trader = traders[who % 3];
         amount = bound(amount, 1e15, 3000e18);
         musd.mint(trader, amount);
+        uint256 mode = toSeed % 3;
+        address to = mode == 0 ? trader : mode == 1 ? _poolOf(t) : randomTo;
+        if (to != trader) {
+            vm.prank(trader);
+            try lp.buy(t, amount, 0, to) {
+                foreignBuySucceeded = true;
+            } catch (bytes memory err) {
+                if (bytes4(err) != IMusdyLaunchpad.BadRecipient.selector) foreignBuyWrongError = true;
+            }
+            return;
+        }
         if (!lp.isCurve(t)) {
             vm.prank(trader);
             try lp.buy(t, amount, 0, trader) {
                 graduatedTradeSucceeded = true;
-            } catch {}
+            } catch (bytes memory err) {
+                _graduatedRevert(err);
+            }
             return;
         }
         uint256 p0 = _price(t);
@@ -75,7 +107,9 @@ contract CurveHandler is Test {
         if (!lp.isCurve(t)) {
             try lp.sell(t, amount, 0, trader) {
                 graduatedTradeSucceeded = true;
-            } catch {}
+            } catch (bytes memory err) {
+                _graduatedRevert(err);
+            }
             vm.stopPrank();
             return;
         }
@@ -84,19 +118,37 @@ contract CurveHandler is Test {
         vm.stopPrank();
         if (_price(t) >= p0) priceViolated = true;
     }
+
+    // griefer pre creates the pool, donates MUSD, maybe syncs, and tries to mint LP before graduation
+    function seedPool(uint256 tSeed, uint256 amount, bool doSync) external {
+        address t = tokens[tSeed % tokens.length];
+        address pool = _poolOf(t);
+        amount = bound(amount, 1, 10_000e18);
+        bool live = lp.isCurve(t);
+        musd.mint(attacker, amount);
+        vm.startPrank(attacker);
+        musd.transfer(pool, amount);
+        if (doSync) MockPool(pool).sync();
+        try MockPool(pool).mint(attacker) {
+            if (live) preGraduationMint = true;
+        } catch {}
+        vm.stopPrank();
+        ++seeds;
+    }
 }
 
 contract CurveInvariantTest is Test {
     MusdyLaunchpad internal lp;
     MockERC20Permit internal musd;
+    MockPoolFactory internal factory;
     CurveHandler internal handler;
 
     function setUp() public {
         musd = new MockERC20Permit("Mezo USD", "MUSD");
-        MockPoolFactory factory = new MockPoolFactory();
+        factory = new MockPoolFactory();
         MockRouter router = new MockRouter(address(factory));
         lp = new MusdyLaunchpad(address(musd), address(router), 1500e18, address(this));
-        handler = new CurveHandler(lp, musd);
+        handler = new CurveHandler(lp, musd, factory);
         targetContract(address(handler));
     }
 
@@ -124,5 +176,28 @@ contract CurveInvariantTest is Test {
 
     function invariant_curve_graduatedReverts() public view {
         assertFalse(handler.graduatedTradeSucceeded());
+        assertFalse(handler.graduatedWrongError());
+    }
+
+    function invariant_curve_buyOnlyToBuyer() public view {
+        assertFalse(handler.foreignBuySucceeded());
+        assertFalse(handler.foreignBuyWrongError());
+    }
+
+    // MockPool, like the mezo (velodrome v2) pool, locks MINIMUM_LIQUIDITY (1000) at address(1) on the first mint;
+    // the fork suite checks the real pool does the same
+    function invariant_curve_graduationLpLocked() public view {
+        assertFalse(handler.preGraduationMint());
+        for (uint256 i; i < handler.tokenCount(); ++i) {
+            address t = handler.tokens(i);
+            IMusdyLaunchpad.Curve memory c = lp.curveOf(t);
+            address pool = factory.getPool(t, address(musd), false);
+            if (!c.graduated) {
+                if (pool != address(0)) assertEq(MockPool(pool).totalSupply(), 0);
+                continue;
+            }
+            MockPool p = MockPool(c.pool);
+            assertEq(p.balanceOf(lp.DEAD()) + p.MINIMUM_LIQUIDITY(), p.totalSupply());
+        }
     }
 }
