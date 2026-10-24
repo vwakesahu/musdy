@@ -2,10 +2,8 @@ import { expect, test } from "@playwright/test";
 import { parseUnits } from "viem";
 import { cashText, dep, devLogin, me, sendWalletBtc, sendWalletMusd, shot, vaultBalance, walletBalance } from "./helpers";
 
-// the app leaves 0.00002 BTC in the wallet for gas (BTC_GAS_RESERVE in src/lib/live.ts)
 const BTC_RESERVE = parseUnits("0.00002", 18);
 
-// AC2: MUSD that lands in the user's own address is swept into the vault silently
 test("wallet MUSD is auto deposited into the balance", async ({ page }, info) => {
   await devLogin(page, "/portfolio");
   const before = Number(await cashText(page));
@@ -14,7 +12,6 @@ test("wallet MUSD is auto deposited into the balance", async ({ page }, info) =>
   await shot(page, info, "deposit");
 });
 
-// AC2 for BTC: the app signs a permit against the precompile shaped BTC and the vault takes it, all but a small gas reserve
 test("wallet BTC is auto deposited into the vault, keeping a gas reserve", async ({ page }, info) => {
   await devLogin(page, "/portfolio");
   const before = await vaultBalance(me.address, dep.btc);

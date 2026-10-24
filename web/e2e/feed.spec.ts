@@ -1,7 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { otherBuys, rowDollars, rowName, shot, stock } from "./helpers";
 
-// AC8: someone else's trade shows on the global feed within a block, live, as one sentence
 test("a new trade slides into the global feed", async ({ page }, info) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Feed" })).toBeVisible();
@@ -10,7 +9,6 @@ test("a new trade slides into the global feed", async ({ page }, info) => {
   const row = page.locator(`[data-testid="feed-row"][data-id="${item.id}"]`);
   await expect(row).toBeVisible({ timeout: 30_000 });
   await expect(page.getByTestId("feed-row").first()).toHaveAttribute("data-id", item.id);
-  // who, side, coin, dollars, and how it has done since the buy
   await expect(row).toContainText(rowName(item.user));
   await expect(row).toContainText("Buy");
   await expect(row).toContainText(stock.symbol);

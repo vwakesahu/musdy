@@ -11,7 +11,6 @@ const oauthFailed = (e: unknown) => toast("error", `Google login didn't finish. 
 
 export function PrivySession({ children }: { children: ReactNode }) {
   const { ready, authenticated, logout } = usePrivy();
-  // straight to Google, no Privy modal. mounted on every page so it also finishes the redirect back from Google
   const { initOAuth, state: oauth } = useLoginWithOAuth({ onError: (code) => oauthFailed(code) });
   const { wallets } = useWallets();
   const embedded = wallets.find((w) => w.walletClientType === "privy");
@@ -32,7 +31,6 @@ export function PrivySession({ children }: { children: ReactNode }) {
     initOAuth({ provider: "google" }).catch(oauthFailed);
   }, [initOAuth]);
 
-  // busy while leaving for Google, and after coming back until the embedded wallet exists
   const busy = oauth.status === "loading" || (authenticated && !signer);
 
   const state = useMemo<PrivyState>(

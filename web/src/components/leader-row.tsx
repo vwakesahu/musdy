@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { LeaderRow as Row } from "shared";
 import { displayName, signedBig } from "@/lib/format";
-import { Avatar } from "./ui/avatar";
+import { UserAvatar } from "./ui/avatar";
 import { Medal } from "./ui/medal";
 import { Pnl } from "./ui/pnl";
 
@@ -16,7 +16,7 @@ export function LeaderRow({ row, self }: { row: Row; self: boolean }) {
       <span className="grid w-7 place-items-center text-[14px] font-semibold text-muted tabular-nums">
         {row.rank <= 3 ? <Medal rank={row.rank as 1 | 2 | 3} /> : row.rank}
       </span>
-      <Avatar user={row.user} />
+      <UserAvatar user={row.user} />
       <span className="min-w-0 flex-1">
         <span className="block truncate text-[15px] leading-[22px] font-semibold">
           {displayName(row.user)}

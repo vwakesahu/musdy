@@ -19,7 +19,6 @@ export function mergeItems(prev: FeedItem[], add: FeedItem[]) {
 type State = { key: string; items: FeedItem[]; live: Set<string> };
 type Action = { key: string; add: FeedItem[]; live?: boolean };
 
-// only trades that arrive live animate in, a page load or a replay just appears
 const reducer = (s: State, a: Action): State => {
   const base = a.key !== s.key ? { key: a.key, items: [], live: new Set<string>() } : s;
   const items = mergeItems(base.items, a.add);
@@ -28,7 +27,6 @@ const reducer = (s: State, a: Action): State => {
   return { key: a.key, items, live };
 };
 
-// a list of trades from one http page plus the live socket topic, deduped by id
 export function useTradeList(topic: string | null, queryKey: unknown[], fetcher: (() => Promise<FeedItem[]>) | null) {
   const key = topic ?? "none";
   const [state, dispatch] = useReducer(reducer, { key, items: [], live: new Set<string>() });

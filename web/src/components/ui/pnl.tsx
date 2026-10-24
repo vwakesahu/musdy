@@ -3,7 +3,6 @@ import { pct, signedUsd } from "@/lib/format";
 const tone = (x: number) => (x > 0 ? "text-up" : x < 0 ? "text-down" : "text-muted");
 
 export function PctChip({ value: raw }: { value: number }) {
-  // round to what's shown first, so 0.001% reads as a muted 0.00% with no arrow
   const value = Math.round(raw * 10_000) / 10_000 || 0;
   const bg = value > 0 ? "bg-up/12" : value < 0 ? "bg-down/12" : "bg-raised";
   return (

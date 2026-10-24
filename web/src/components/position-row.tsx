@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { Position } from "shared";
 import { signedBig, tokenAmount, usd } from "@/lib/format";
-import { Icon } from "./ui/icon";
+import { LockSimpleIcon } from "@phosphor-icons/react/ssr";
 import { PctChip, Pnl } from "./ui/pnl";
 import { TokenIcon } from "./ui/token-icon";
 
@@ -13,7 +13,7 @@ export function PositionRow({ position }: { position: Position }) {
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-1.5 text-[15px] leading-[22px] font-semibold">
           {t.symbol}
-          {!position.withdrawable && <Icon name="lock" size={14} className="text-muted" aria-label="On its launch curve" />}
+          {!position.withdrawable && <LockSimpleIcon size={14} weight="fill" className="text-muted" aria-label="On its launch curve" />}
         </span>
         <span className="block truncate text-[14px] leading-5 text-muted">
           {tokenAmount(BigInt(position.amount), t.decimals)} · cost <span data-testid="position-cost">{usd(BigInt(position.costMusd))}</span>

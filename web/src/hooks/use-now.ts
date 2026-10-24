@@ -23,7 +23,6 @@ function subscribe(l: () => void) {
   };
 }
 
-// wall clock that ticks every 10s, 0 on the server
 export const useNow = () =>
   useSyncExternalStore(
     subscribe,

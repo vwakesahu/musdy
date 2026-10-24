@@ -3,7 +3,6 @@ import { useCallback, useState } from "react";
 import type { TxStatus } from "shared";
 import { useTx } from "./use-live";
 
-// runs a signed action and follows the tx it answers with until the socket says it landed
 export function useTxRun() {
   const [signing, setSigning] = useState(false);
   const [txId, setTxId] = useState<string | null>(null);

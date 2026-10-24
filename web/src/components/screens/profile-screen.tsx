@@ -9,10 +9,10 @@ import { HandleSheet } from "../handle-sheet";
 import { LoginGate } from "../login-gate";
 import { PositionRow } from "../position-row";
 import { ScreenHeader } from "../screen-header";
-import { Avatar } from "../ui/avatar";
+import { UserAvatar } from "../ui/avatar";
 import { Button } from "../ui/button";
 import { EmptyState } from "../ui/empty-state";
-import { Icon } from "../ui/icon";
+import { TrophyIcon } from "@phosphor-icons/react";
 import { Pnl } from "../ui/pnl";
 import { Segmented } from "../ui/segmented";
 import { Skeleton } from "../ui/skeleton";
@@ -50,7 +50,6 @@ export function UserProfileScreen() {
   return <UserProfile address={raw} />;
 }
 
-// someone else's profile is a drill in, so it gets a back chevron and their name
 function UserProfile({ address }: { address: Address }) {
   const p = useProfile(address).data;
   return (
@@ -95,7 +94,7 @@ function ProfileView({ address }: { address: Address }) {
     <div className="flex flex-col">
       <section className="flex flex-col gap-3 px-4 pt-2 pb-6">
         <div className="flex items-center gap-4">
-          <Avatar user={user} size={72} />
+          <UserAvatar user={user} size={72} />
           <div className="min-w-0 flex-1">
             <p className="truncate text-[20px] leading-[26px] font-semibold" data-testid="profile-name">
               {user.handle ?? shortAddr(address)}
@@ -137,11 +136,11 @@ function ProfileView({ address }: { address: Address }) {
 
         {self ? (
           <div className="mt-2 grid grid-cols-2 gap-3">
-            <Button variant="raised" onClick={() => setEditing(true)} data-testid="edit-handle">
+            <Button variant="secondary" onClick={() => setEditing(true)} data-testid="edit-handle">
               {user.handle ? "Edit handle" : "Set a handle"}
             </Button>
             <Link href="/leaderboard" className="press inline-flex h-11 items-center justify-center gap-2 rounded-[14px] bg-raised text-[15px] font-semibold">
-              <Icon name="trophy" size={20} /> Leaderboard
+              <TrophyIcon size={20} weight="bold" /> Leaderboard
             </Link>
           </div>
         ) : (
@@ -150,8 +149,8 @@ function ProfileView({ address }: { address: Address }) {
             <Skeleton className="mt-2 h-[52px] w-full rounded-[14px]" />
           ) : (
             <Button
-              variant={isFollowing ? "raised" : "accent"}
-              className="mt-2 h-[52px] w-full"
+              variant={isFollowing ? "secondary" : "primary"}
+              size="md" className="mt-2 w-full"
               disabled={busy}
               onClick={toggleFollow}
               data-testid="follow"

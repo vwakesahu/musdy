@@ -14,7 +14,6 @@ export function toast(kind: Toast["kind"], text: string, ms = 4000) {
 
 export const dismissToast = (id: number) => toasts.set((t) => t.filter((x) => x.id !== id));
 
-// what a person reads for the server's codes and the contract's revert names
 const friendly: Record<string, string> = {
   faucet_limited: "You already claimed test MUSD today. The faucet allows one claim every 24 hours.",
   faucet_ip_limited: "This network already claimed the faucet 3 times today. Try again tomorrow.",
@@ -44,7 +43,6 @@ const sentence = (s: string) => {
   return /[.!?]$/.test(cap) ? cap : `${cap}.`;
 };
 
-// a readable line for any error or revert name, never a raw code
 export function errorText(e: unknown): string {
   if (typeof e === "string") return friendly[e] ?? (/^[A-Z][A-Za-z0-9]+$/.test(e) ? sentence(e.replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase()) : sentence(e));
   if (e && typeof e === "object" && "code" in e && typeof e.code === "string" && friendly[e.code]) return friendly[e.code];

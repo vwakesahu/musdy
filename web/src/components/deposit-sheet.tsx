@@ -12,13 +12,12 @@ import { liveBalances, lk } from "@/lib/live";
 import { createStore, useStore } from "@/lib/store";
 import { toast } from "@/lib/toast";
 import { Button } from "./ui/button";
-import { Icon } from "./ui/icon";
-import { Sheet } from "./ui/sheet";
+import { CopySimpleIcon, DropIcon } from "@phosphor-icons/react";
+import { Drawer } from "./ui/drawer";
 
 const DAY = 86_400_000;
 const LIMITED = new Set(["faucet_limited", "faucet_ip_limited"]);
 const claimKey = (address: string) => `musdy:faucet:${address.toLowerCase()}`;
-// bumps when a claim is written so the sheet re-reads storage
 const claimTick = createStore(0);
 
 function readClaim(address: string, now: number): number | null {
@@ -78,7 +77,7 @@ export function DepositSheet({ open, onOpenChange }: { open: boolean; onOpenChan
   };
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange} title="Add cash">
+    <Drawer open={open} onOpenChange={onOpenChange} title="Add cash">
       {!address ? (
         <p className="text-[14px] text-muted">Log in to get your deposit address.</p>
       ) : (
@@ -92,7 +91,7 @@ export function DepositSheet({ open, onOpenChange }: { open: boolean; onOpenChan
           <p className="-mb-2 text-[12px] leading-4 font-medium text-muted">Your deposit address</p>
           <button onClick={copy} className="press flex items-center gap-3 rounded-[14px] bg-raised px-4 py-3 text-left" data-testid="deposit-address">
             <span className="flex-1 font-mono text-[13px] leading-5 break-all">{address}</span>
-            <Icon name="copy" size={20} className="shrink-0 text-muted" />
+            <CopySimpleIcon size={20} weight="bold" className="shrink-0 text-muted" />
           </button>
           {incoming.map((x) => (
             <p key={x.symbol} className="text-[13px] text-muted" role="status">
@@ -100,13 +99,13 @@ export function DepositSheet({ open, onOpenChange }: { open: boolean; onOpenChan
             </p>
           ))}
           {faucetOn && (
-            <Button variant="raised" className="h-[52px] w-full" disabled={busy || claimedAt !== null} onClick={faucet} data-testid="faucet">
-              <Icon name="drop" size={20} />
+            <Button variant="secondary" size="lg" className="w-full" disabled={busy || claimedAt !== null} onClick={faucet} data-testid="faucet">
+              <DropIcon size={20} weight="fill" />
               {busy ? "Requesting" : claimedAt !== null ? `Claimed, next in about ${hoursLeft}h` : "Get 1,000 test MUSD"}
             </Button>
           )}
         </div>
       )}
-    </Sheet>
+    </Drawer>
   );
 }

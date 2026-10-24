@@ -17,14 +17,12 @@ import { openSheet } from "@/lib/ui";
 import { publicClient } from "@/lib/chain";
 import { liveTokens, lk } from "@/lib/live";
 
-// the same limits the server and contract check, straight from the shared schema
 const rules = LaunchBody.shape.launch.shape;
 const issue = (r: { safeParse: (v: unknown) => { success: boolean; error?: { issues: { message: string }[] } } }, v: string) => {
   const res = r.safeParse(v);
   return res.success ? null : (res.error?.issues[0]?.message ?? "invalid");
 };
 
-// the new coin's address from the Launched event in the confirmed tx
 async function launchedToken(hash: Hex, user: Address): Promise<Address | null> {
   try {
     const receipt = await publicClient.getTransactionReceipt({ hash });
@@ -79,7 +77,6 @@ function LaunchForm() {
     router.push(token ? `/token/${token}` : "/explore?sort=new");
   };
 
-  // whichever comes first: a tokens message for a coin this user just created, or the confirmed receipt
   useEffect(() => {
     if (!txId || !address) return;
     const check = () => {
@@ -99,7 +96,6 @@ function LaunchForm() {
     void (hash ? launchedToken(hash, address) : Promise.resolve(null)).then((token) => {
       if (!live) return;
       if (token) go(token);
-      // give the tokens message a moment before falling back to the new list
       else setTimeout(() => go(null), 3000);
     });
     return () => {
@@ -189,7 +185,7 @@ function LaunchForm() {
           </button>
         )}
       </div>
-      <Button variant="accent" className="h-[52px] w-full" disabled={!ok} onClick={submit} data-testid="launch-submit">
+      <Button variant="primary" size="lg" className="w-full" disabled={!ok} onClick={submit} data-testid="launch-submit">
         {sending ? "Launching" : symbol ? `Launch ${symbol}` : "Launch"}
       </Button>
     </div>

@@ -1,6 +1,5 @@
 import { useSyncExternalStore } from "react";
 
-// a tiny external store for state the socket writes and many components read
 export function createStore<T>(initial: T) {
   let state = initial;
   const listeners = new Set<() => void>();

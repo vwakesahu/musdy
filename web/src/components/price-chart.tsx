@@ -4,10 +4,8 @@ import { ColorType, LineSeries, createChart, type AutoscaleInfo, type IChartApi,
 import type { Candle } from "shared";
 import { priceOfNumber } from "@/lib/format";
 
-// the scale always spans at least this much either side of the mid, so a tiny wiggle stays a tiny wiggle
 const MIN_HALF_RANGE = 0.02;
 
-// line chart of closes, colour follows the direction over the shown range
 export function PriceChart({ candles }: { candles: Candle[] }) {
   const el = useRef<HTMLDivElement>(null);
   const chart = useRef<IChartApi | null>(null);

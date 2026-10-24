@@ -69,7 +69,6 @@ export async function signLaunch(
 
 export async function signPermit(signer: Signer, dep: Deployment, token: Address, amount: bigint): Promise<PermitDepositBody> {
   const owner = signer.address;
-  // the same domain reader the server verifies with
   const { domain, nonce } = await readPermitDomain(publicClient, dep.chainId, token, owner);
   const dl = deadline();
   const sig = await signer.signTypedData({

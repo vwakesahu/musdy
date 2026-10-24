@@ -7,7 +7,7 @@ import { RowSkeletons } from "../feed-list";
 import { ScreenHeader } from "../screen-header";
 import { TokenRow } from "../token-row";
 import { EmptyState } from "../ui/empty-state";
-import { Icon } from "../ui/icon";
+import { MagnifyingGlassIcon } from "@phosphor-icons/react";
 import { Segmented } from "../ui/segmented";
 import { api } from "@/lib/http";
 import { liveTokens, lk } from "@/lib/live";
@@ -66,7 +66,7 @@ export function ExploreScreen() {
       <ScreenHeader title="Explore" />
       <div className="flex flex-col gap-3 px-4 pb-2">
         <label className="flex h-11 items-center gap-2 rounded-[14px] bg-surface px-3 text-muted">
-          <Icon name="explore" size={20} />
+          <MagnifyingGlassIcon size={18} className="text-muted" />
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}

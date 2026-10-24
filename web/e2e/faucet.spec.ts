@@ -4,9 +4,7 @@ import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { routes } from "shared";
 import { dep, loginAs, shot, vaultBalance } from "./helpers";
 
-// the app logs in as a brand new key (dev login on 31337 reads localStorage "musdy:devkey") and signs its own faucet
-// request. the only thing the spec touches is the x-forwarded-for header, a fresh ip the local server believes
-// because it runs with TRUST_PROXY=1, so the per ip daily cap doesn't carry over between runs. the body is untouched
+// fresh dev key and fresh ip, the local server runs with TRUST_PROXY=1
 async function freshIp(page: Page) {
   const ip = `10.${rand()}.${rand()}.${rand()}`;
   await page.route(`**${routes.faucet}`, (route) => route.continue({ headers: { ...route.request().headers(), "x-forwarded-for": ip } }));
@@ -20,7 +18,6 @@ async function openFaucet(page: Page) {
   return button;
 }
 
-// AC3 from the web side: a fresh address gets 1,000 MUSD, a second claim shows the limit in words
 test("faucet credits a fresh address, then explains the daily limit", async ({ page }, info) => {
   const key = generatePrivateKey();
   const fresh = privateKeyToAccount(key);
@@ -28,7 +25,6 @@ test("faucet credits a fresh address, then explains the daily limit", async ({ p
   await loginAs(page, key, "/portfolio");
 
   let button = await openFaucet(page);
-  // logged in as the fresh key, not the build's dev key
   await expect(page.getByRole("dialog").getByTestId("deposit-address")).toContainText(fresh.address);
   await expect(button).toHaveText(/Get 1,000 test MUSD/);
   const answer = page.waitForResponse((r) => r.url().endsWith(routes.faucet) && r.request().method() === "POST");
@@ -36,7 +32,6 @@ test("faucet credits a fresh address, then explains the daily limit", async ({ p
   const first = await answer;
   const dialog = page.getByRole("dialog");
 
-  // the app's own signed body, for the logged in fresh address
   const body = first.request().postDataJSON() as { address: string; issued: string; sig: string };
   expect(body.address.toLowerCase()).toBe(fresh.address.toLowerCase());
   expect(first.status()).toBe(200);
@@ -46,7 +41,6 @@ test("faucet credits a fresh address, then explains the daily limit", async ({ p
   await expect.poll(() => vaultBalance(fresh.address, dep.musd), { timeout: 40_000 }).toBe(parseUnits("1000", 18));
   await shot(page, info, "faucet");
 
-  // forget the local claim so the button asks the server again, which refuses
   await page.keyboard.press("Escape");
   await expect(dialog).toBeHidden();
   await page.evaluate(() => {

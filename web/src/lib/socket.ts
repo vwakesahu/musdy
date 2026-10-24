@@ -4,7 +4,6 @@ import { ApiError } from "./http";
 import { createStore } from "./store";
 import { errorText, toast } from "./toast";
 
-// the chain id from the latest welcome, checked against the build before anything signs
 export const socketChain = createStore<number | null>(null);
 
 type Handler = (msg: ServerMsg) => void;
@@ -13,7 +12,7 @@ export type SocketStatus = "idle" | "connecting" | "open" | "closed";
 const MIN_DELAY = 500;
 const MAX_DELAY = 8000;
 const SEEN_CAP = 1000;
-const ERROR_QUIET_MS = 15_000; // the same server error is shown at most once in this window
+const ERROR_QUIET_MS = 15_000;
 
 class SocketClient {
   private ws: WebSocket | null = null;
@@ -63,7 +62,6 @@ class SocketClient {
     };
   }
 
-  // hello is sent once per connection, so a new identity means a fresh connection
   identify(address: Address | undefined) {
     if (address?.toLowerCase() === this.address?.toLowerCase()) return;
     this.address = address;
@@ -130,7 +128,6 @@ class SocketClient {
     if (set) for (const h of set) h(msg);
   }
 
-  // rate limits, caps and bad messages reach the person in words, an identical one repeats only after a quiet spell
   private showError(code: string, message: string) {
     const key = `${code}:${message}`;
     const now = Date.now();

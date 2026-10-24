@@ -15,7 +15,6 @@ import { useSession } from "./use-session";
 const SLIPPAGE_BPS = 200n;
 export const withSlippage = (amountOut: bigint) => (amountOut * (10_000n - SLIPPAGE_BPS)) / 10_000n;
 
-// every chain action: sign silently, post to the server, track the tx it answers with
 export function useActions() {
   const { signer } = useSession();
   const dep = useDeployment().data;

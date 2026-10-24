@@ -20,7 +20,6 @@ export function compact(n: number, digits = 1) {
 const dollars = (n: number) =>
   n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-// "$1,240.55", compact above 10,000 unless full is asked for
 export function usd(x: bigint, full = false) {
   const n = Math.abs(toNum(x));
   const sign = x < 0n ? "-" : "";
@@ -33,7 +32,6 @@ export function signedUsd(x: bigint) {
   return `${x > 0n ? "+" : ""}${usd(x)}`;
 }
 
-// prices under a cent get the subscript zero count, 0.0₅42
 export function price(x: bigint) {
   if (x === 0n) return "$0.00";
   const n = toNum(x);
@@ -45,7 +43,6 @@ export function price(x: bigint) {
   return `$0.0${sub(zeros)}${digits}`;
 }
 
-// the same price text from a plain number, for the chart's scale
 export const priceOfNumber = (n: number) => (Number.isFinite(n) && n > 0 ? price(BigInt(Math.round(n * 1e18))) : "$0.00");
 
 export function tokenAmount(x: bigint, decimals = 18) {
@@ -68,11 +65,9 @@ export function timeAgo(tsSec: number, nowMs: number) {
 
 export const shortAddr = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
 
-// a handle, else a short address. compact fits a 64px label, "0x90F…a1b"
 export const displayName = (u: { address: string; handle: string | null }, compact = false) =>
   u.handle ?? (compact ? `${u.address.slice(0, 5)}…${u.address.slice(-3)}` : shortAddr(u.address));
 
-// "12.50" -> 12.5e18, anything unparsable is zero
 export function parseDollars(s: string): bigint {
   const m = /^(\d*)(?:\.(\d*))?$/.exec(s.trim());
   if (!m || (!m[1] && !m[2])) return 0n;

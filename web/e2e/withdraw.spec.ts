@@ -3,7 +3,6 @@ import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { parseUnits } from "viem";
 import { dep, devLogin, ensureCash, launchAs, me, shot, walletBalance } from "./helpers";
 
-// AC12: withdraw MUSD to any address, gasless, and the recipient gets exactly that amount on chain
 test("withdraw MUSD to another address", async ({ page }, info) => {
   const to = privateKeyToAccount(generatePrivateKey()).address;
   await devLogin(page, "/portfolio");
@@ -20,7 +19,6 @@ test("withdraw MUSD to another address", async ({ page }, info) => {
   await shot(page, info, "withdraw-done");
 });
 
-// a coin still on its launch curve is not a choice, it's one muted line
 test("curve coins show the locked line", async ({ page }, info) => {
   const symbol = `W${Date.now().toString(36).slice(-5).toUpperCase()}`;
   await launchAs(me, symbol, "5");

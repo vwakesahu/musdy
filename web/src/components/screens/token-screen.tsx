@@ -9,7 +9,7 @@ import { BackBar } from "../back-bar";
 import { FeedList } from "../feed-list";
 import { PriceChart } from "../price-chart";
 import { TradeSheet } from "../trade-sheet";
-import { Avatar } from "../ui/avatar";
+import { UserAvatar } from "../ui/avatar";
 import { Button } from "../ui/button";
 import { CurveBar } from "../ui/curve-bar";
 import { EmptyState } from "../ui/empty-state";
@@ -79,7 +79,6 @@ function TokenView({ address }: { address: Address }) {
   const now = Math.floor(useNow() / 1000);
   const shown = (candles.data ?? []).filter((c) => r.secs === Infinity || now === 0 || c.t >= now - r.secs);
 
-  // buyers who still hold, so the strip agrees with the Holders stat
   const buyers = new Map<string, { user: (typeof trades.items)[number]["user"]; total: bigint; net: bigint }>();
   for (const t of trades.items) {
     const k = t.user.address.toLowerCase();
@@ -183,7 +182,7 @@ function TokenView({ address }: { address: Address }) {
             {topBuyers.map((b) => (
               <li key={b.user.address}>
                 <Link href={`/u/${b.user.address}`} className="flex w-16 flex-col items-center gap-1">
-                  <Avatar user={b.user} />
+                  <UserAvatar user={b.user} />
                   <span className="w-full truncate text-center text-[12px] leading-4 font-medium" data-testid="buyer-name">
                     {displayName(b.user, true)}
                   </span>
@@ -225,10 +224,10 @@ function TokenView({ address }: { address: Address }) {
       </section>
 
       <div className="fixed inset-x-0 bottom-[calc(56px+env(safe-area-inset-bottom))] z-20 mx-auto flex h-[72px] w-full max-w-[480px] items-center gap-3 border-t border-line bg-bg/95 px-4 backdrop-blur-md">
-        <Button variant="accent" className="h-[52px] flex-1" disabled={!token} onClick={() => open("buy")} data-testid="open-buy">
+        <Button variant="buy" size="lg" className="flex-1" disabled={!token} onClick={() => open("buy")} data-testid="open-buy">
           Buy
         </Button>
-        <Button variant="raised" className="h-[52px] flex-1" disabled={!token || held === 0n} onClick={() => open("sell")} data-testid="open-sell">
+        <Button variant="secondary" size="lg" className="flex-1" disabled={!token || held === 0n} onClick={() => open("sell")} data-testid="open-sell">
           Sell
         </Button>
       </div>

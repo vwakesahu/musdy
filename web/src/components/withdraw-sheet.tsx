@@ -9,8 +9,8 @@ import { useSession } from "@/hooks/use-session";
 import { tokenAmount, usd } from "@/lib/format";
 import { ApiError } from "@/lib/http";
 import { Button } from "./ui/button";
-import { Icon } from "./ui/icon";
-import { Sheet } from "./ui/sheet";
+import { CheckIcon, LockSimpleIcon } from "@phosphor-icons/react";
+import { Drawer } from "./ui/drawer";
 import { TokenIcon } from "./ui/token-icon";
 
 type Asset = { address: Address; symbol: string; image: string | null; decimals: number; amount: bigint; withdrawable: boolean };
@@ -71,7 +71,7 @@ export function WithdrawSheet({ open, onOpenChange }: { open: boolean; onOpenCha
   };
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange} title="Withdraw">
+    <Drawer open={open} onOpenChange={onOpenChange} title="Withdraw">
       {assets.length === 0 ? (
         <p className="py-6 text-[14px] text-muted">Nothing to withdraw yet. Your balance is empty.</p>
       ) : (
@@ -93,7 +93,7 @@ export function WithdrawSheet({ open, onOpenChange }: { open: boolean; onOpenCha
                     <span className="block text-[15px] font-medium">{a.symbol}</span>
                     <span className="block text-[13px] text-muted">{a.symbol === "MUSD" ? usd(a.amount, true) : `${tokenAmount(a.amount, a.decimals)} ${a.symbol}`}</span>
                   </span>
-                  {selected === a.address && <Icon name="check" size={20} className="text-accent" />}
+                  {selected === a.address && <CheckIcon size={20} weight="bold" className="text-accent" />}
                 </button>
                 {asset?.address === a.address && (
                   <div className="flex flex-col gap-4 pb-3">
@@ -141,11 +141,11 @@ export function WithdrawSheet({ open, onOpenChange }: { open: boolean; onOpenCha
                     </label>
                     {locked && (
                       <p className="flex items-start gap-2 text-[13px] leading-5 text-muted" role="alert" data-testid="withdraw-locked">
-                        <Icon name="lock" size={16} className="mt-0.5 shrink-0" />
+                        <LockSimpleIcon size={16} weight="fill" className="mt-0.5 shrink-0" />
                         {locked}
                       </p>
                     )}
-                    <Button variant="accent" className="h-[52px] w-full" disabled={!validTo || amountBad || amountWei === 0n || tooMuch || sending} onClick={submit}>
+                    <Button variant="primary" size="lg" className="w-full" disabled={!validTo || amountBad || amountWei === 0n || tooMuch || sending} onClick={submit}>
                       {sending ? "Sending" : `Withdraw ${asset.symbol}`}
                     </Button>
                   </div>
@@ -156,12 +156,12 @@ export function WithdrawSheet({ open, onOpenChange }: { open: boolean; onOpenCha
           {choices.length === 0 && <p className="py-2 text-[14px] text-muted">Nothing can be withdrawn right now.</p>}
           {lockedCount > 0 && (
             <p className="flex items-start gap-2 px-3 py-2 text-[13px] leading-5 text-muted" data-testid="withdraw-curve-locked">
-              <Icon name="lock" size={16} className="mt-0.5 shrink-0" />
+              <LockSimpleIcon size={16} weight="fill" className="mt-0.5 shrink-0" />
               {lockedCount} {lockedCount === 1 ? "coin" : "coins"} still on {lockedCount === 1 ? "its" : "their"} launch curve can leave after {lockedCount === 1 ? "it graduates" : "they graduate"}
             </p>
           )}
         </div>
       )}
-    </Sheet>
+    </Drawer>
   );
 }

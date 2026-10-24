@@ -1,6 +1,5 @@
 import { defineConfig } from "@playwright/test";
-// Needs the full local stack: anvil (:8545) with DeployLocal applied, server (:8080) and web (:3000)
-// built with NEXT_PUBLIC_CHAIN_ID=31337 and NEXT_PUBLIC_DEV_KEY set to the same key as E2E_DEV_KEY.
+// needs the full local stack: anvil with DeployLocal, server on :8080, web on :3000 built for chain 31337
 export default defineConfig({
   testDir: "./e2e",
   timeout: 60_000,

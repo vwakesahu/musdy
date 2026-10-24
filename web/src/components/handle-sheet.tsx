@@ -3,15 +3,13 @@ import { useState } from "react";
 import { ProfileBody } from "shared";
 import { useActions } from "@/hooks/use-actions";
 import { Button } from "./ui/button";
-import { Sheet } from "./ui/sheet";
+import { Drawer } from "./ui/drawer";
 
-// the server's own rule for handles
 const handleRule = ProfileBody.shape.handle;
 
 export function HandleSheet({ open, onOpenChange, current }: { open: boolean; onOpenChange: (o: boolean) => void; current: string | null }) {
   const actions = useActions();
   const [value, setValue] = useState(current ?? "");
-  // every open starts from the handle they have now, which may have loaded after this mounted
   const [wasOpen, setWasOpen] = useState(open);
   if (open !== wasOpen) {
     setWasOpen(open);
@@ -28,7 +26,7 @@ export function HandleSheet({ open, onOpenChange, current }: { open: boolean; on
   };
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange} title="Your name on musdy">
+    <Drawer open={open} onOpenChange={onOpenChange} title="Your name on musdy">
       <div className="flex flex-col gap-3">
         <label className="flex h-12 items-center rounded-[14px] bg-raised px-4">
           <span className="text-[16px] text-muted">@</span>
@@ -44,10 +42,10 @@ export function HandleSheet({ open, onOpenChange, current }: { open: boolean; on
           />
         </label>
         <p className="text-[12px] leading-4 text-muted">3 to 15 characters: lowercase letters, numbers and underscores.</p>
-        <Button variant="accent" className="h-[52px] w-full" disabled={!ok || saving} onClick={save} data-testid="save-handle">
+        <Button variant="primary" size="lg" className="w-full" disabled={!ok || saving} onClick={save} data-testid="save-handle">
           {saving ? "Saving" : "Save handle"}
         </Button>
       </div>
-    </Sheet>
+    </Drawer>
   );
 }

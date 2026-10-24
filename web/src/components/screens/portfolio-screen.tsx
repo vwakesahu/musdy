@@ -5,7 +5,7 @@ import { PositionRow } from "../position-row";
 import { ScreenHeader } from "../screen-header";
 import { Button } from "../ui/button";
 import { EmptyState } from "../ui/empty-state";
-import { Icon } from "../ui/icon";
+import { ArrowUpIcon, LockSimpleIcon, PlusIcon } from "@phosphor-icons/react";
 import { Money } from "../ui/money";
 import { Pnl } from "../ui/pnl";
 import { Skeleton } from "../ui/skeleton";
@@ -58,11 +58,11 @@ function Portfolio() {
           </p>
         )}
         <div className="mt-5 grid grid-cols-2 gap-3">
-          <Button variant="accent" className="h-[52px]" onClick={() => openSheet("deposit")} data-testid="open-deposit">
-            <Icon name="arrowDown" size={20} /> Add cash
+          <Button variant="primary" size="lg" onClick={() => openSheet("deposit")} data-testid="open-deposit">
+            <PlusIcon size={20} weight="bold" /> Add cash
           </Button>
-          <Button variant="raised" className="h-[52px]" onClick={() => openSheet("withdraw")} data-testid="open-withdraw">
-            <Icon name="arrowUp" size={20} /> Withdraw
+          <Button variant="secondary" size="lg" onClick={() => openSheet("withdraw")} data-testid="open-withdraw">
+            <ArrowUpIcon size={20} weight="bold" /> Withdraw
           </Button>
         </div>
       </section>
@@ -101,7 +101,7 @@ function Portfolio() {
       )}
       {locked.length > 0 && (
         <p className="flex items-start gap-2 px-4 pt-3 text-[13px] leading-5 text-muted">
-          <Icon name="lock" size={16} className="mt-0.5 shrink-0" />
+          <LockSimpleIcon size={16} weight="fill" className="mt-0.5 shrink-0" />
           {locked.map((x) => x.token.symbol).join(", ")} {locked.length === 1 ? "is" : "are"} still on the launch curve. You can sell any time, and withdraw once the coin graduates.
         </p>
       )}

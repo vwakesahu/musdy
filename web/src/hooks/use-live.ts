@@ -10,8 +10,6 @@ import { useSession } from "./use-session";
 export const useLivePrice = (address: string | undefined): LivePrice | null =>
   useStore(livePrices, (p) => (address ? (p[lk(address)] ?? null) : null), null);
 
-// the token's price now: the live block price, else what the token lists said on load, else the token itself.
-// every feed row asks the same way, so a since buy chip shows as soon as any of them is known
 export function useCurrentPrice(address: string): bigint | null {
   const live = useLivePrice(address);
   const one = useQuery({
@@ -38,7 +36,6 @@ export function useProfile(address: Address | null | undefined) {
   });
 }
 
-// cash is the MUSD sitting in the vault for the signed in user, null until known
 export function useCash(): bigint | null {
   const { address } = useSession();
   const dep = useDeployment();

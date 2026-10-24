@@ -1,19 +1,17 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Drawer } from "vaul";
 import type { TokenRef } from "shared";
 import { useActions, withSlippage } from "@/hooks/use-actions";
 import { useDebounced } from "@/hooks/use-debounced";
 import { useCash } from "@/hooks/use-live";
 import { useTxRun } from "@/hooks/use-tx-run";
-import { useDialogOpen } from "@/hooks/use-dialog-open";
-import { Toaster } from "./toaster";
 import { useSession } from "@/hooks/use-session";
 import { parseDollars, tokenAmount, usd } from "@/lib/format";
 import { api } from "@/lib/http";
 import { openSheet } from "@/lib/ui";
 import { Button } from "./ui/button";
+import { Drawer } from "./ui/drawer";
 import { applyKey, NumberPad } from "./ui/number-pad";
 import { Segmented } from "./ui/segmented";
 
@@ -44,10 +42,8 @@ export function TradeSheet({
   const actions = useActions();
   const { run, sending, confirmed: success, failed } = useTxRun();
   const isBuy = side === "buy";
-  useDialogOpen(open);
   const unit = 10n ** BigInt(token.decimals);
 
-  // what was sent, frozen at submit so the sheet doesn't drift as held and price move after the fill
   const [submitted, setSent] = useState<{ amountIn: bigint; dollars: bigint; heldBefore: bigint } | null>(null);
   const sent = failed ? null : submitted;
   const dollars = parseDollars(input);
@@ -67,7 +63,6 @@ export function TradeSheet({
   });
   const q = quote.data && debounced === amountIn.toString() ? quote.data : null;
 
-  // a buy waits for the new position to show, never more than a few seconds
   useEffect(() => {
     if (!success) return;
     const t = setTimeout(() => onOpenChange(false), isBuy && !positionIn ? 4000 : 1200);
@@ -86,25 +81,25 @@ export function TradeSheet({
   };
   const editable = sent === null;
 
-
   let cta: React.ReactNode;
   if (!address) {
     cta = (
-      <Button variant="accent" className="h-[52px] w-full" onClick={() => openSheet("login")}>
+      <Button variant="primary" size="lg" className="w-full" onClick={() => openSheet("login")}>
         Log in to trade
       </Button>
     );
   } else if (short) {
     cta = (
-      <Button variant="raised" className="h-[52px] w-full" onClick={() => openSheet("deposit")}>
+      <Button variant="secondary" size="lg" className="w-full" onClick={() => openSheet("deposit")}>
         Not enough cash. Add cash
       </Button>
     );
   } else {
     cta = (
       <Button
-        variant={isBuy ? "accent" : "sell"}
-        className="h-[52px] w-full"
+        variant={isBuy ? "buy" : "sell"}
+        size="lg"
+        className="w-full"
         disabled={amountIn === 0n || !q || sending || sellTooMuch}
         onClick={submit}
         data-testid="trade-submit"
@@ -115,19 +110,7 @@ export function TradeSheet({
   }
 
   return (
-    <Drawer.Root open={open} onOpenChange={onOpenChange}>
-      <Drawer.Portal>
-        <Drawer.Overlay className="fixed inset-0 z-40 bg-black/60" />
-        <Drawer.Content
-          aria-describedby={undefined}
-          className="fixed inset-x-0 bottom-0 z-50 mx-auto flex w-full max-w-[480px] flex-col rounded-t-[24px] border-t border-line bg-surface px-4 pb-[max(16px,env(safe-area-inset-bottom))] outline-none"
-          data-testid="trade-sheet"
-        >
-          {open && <Toaster inSheet />}
-          <div className="mx-auto mt-3 mb-3 h-1 w-9 rounded-full bg-line" aria-hidden />
-          <Drawer.Title className="sr-only">
-            {isBuy ? "Buy" : "Sell"} {token.symbol}
-          </Drawer.Title>
+    <Drawer open={open} onOpenChange={onOpenChange} title={`${isBuy ? "Buy" : "Sell"} ${token.symbol}`} hideTitle desktop="panel" data-testid="trade-sheet">
           <Segmented
             value={side}
             onChange={(s) => {
@@ -158,7 +141,7 @@ export function TradeSheet({
           <div className="mt-3 flex gap-2">
             {isBuy
               ? [...BUY_CHIPS.map((n) => ({ label: `$${n}`, act: () => editable && setInput(String(n)) })), ...(cash !== null && cash > 0n ? [{ label: "max", act: () => editable && setInput((Number(cash / 10n ** 16n) / 100).toFixed(2)) }] : [])].map((c) => (
-                  <button key={c.label} onClick={c.act} className="press h-11 flex-1 rounded-full bg-raised text-[14px] font-medium">
+                  <button key={c.label} onClick={c.act} className="press h-11 flex-1 rounded-md bg-surface-2 text-[14px] font-semibold">
                     {c.label}
                   </button>
                 ))
@@ -171,7 +154,7 @@ export function TradeSheet({
                       setSellPct(p);
                       setInput("");
                     }}
-                    className={`press h-11 flex-1 rounded-full text-[14px] font-medium disabled:opacity-40 ${sellPct === p ? "bg-accent-tint text-accent" : "bg-raised"}`}
+                    className={`press h-11 flex-1 rounded-md text-[14px] font-semibold disabled:opacity-40 ${sellPct === p ? "bg-accent-soft text-accent-hi" : "bg-raised"}`}
                   >
                     {String(p)}%
                   </button>
@@ -219,8 +202,6 @@ export function TradeSheet({
               }}
             />
           </div>
-        </Drawer.Content>
-      </Drawer.Portal>
-    </Drawer.Root>
+    </Drawer>
   );
 }

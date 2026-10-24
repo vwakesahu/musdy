@@ -86,7 +86,6 @@ export function SessionRoot({ privy, children }: { privy: PrivyState | null; chi
     const dev = devOn && devSigner ? devSigner : null;
     const signer = dev ?? (allowed && privy?.authenticated ? privy.signer : null);
     return {
-      // a remembered dev login waits for the chain check instead of flashing the login screen
       ready: hydrated && (devOn && devKeyState === "ok" && !dev && !configError && !deployment.isError ? false : dev !== null || !privy || privy.ready),
       configError,
       address: signer?.address ?? null,

@@ -1,7 +1,6 @@
 import { expect, test, type WebSocketRoute } from "@playwright/test";
 import { otherBuys, shot, stock } from "./helpers";
 
-// AC14: the socket drops, a trade happens while it's down, and after reconnect it shows once without a reload
 test("a trade made while offline appears once after reconnect", async ({ page }, info) => {
   let down = false;
   const open = new Set<WebSocketRoute>();

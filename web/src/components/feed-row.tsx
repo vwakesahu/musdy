@@ -5,8 +5,8 @@ import { useCurrentPrice } from "@/hooks/use-live";
 import { useNow } from "@/hooks/use-now";
 import { displayName, timeAgo, usd } from "@/lib/format";
 import { CopyButton } from "./copy-button";
-import { Avatar } from "./ui/avatar";
-import { Icon } from "./ui/icon";
+import { UserAvatar } from "./ui/avatar";
+import { CaretRightIcon } from "@phosphor-icons/react";
 import { PctChip } from "./ui/pnl";
 import { TokenIcon } from "./ui/token-icon";
 
@@ -14,14 +14,13 @@ export function FeedRow({ item, self }: { item: FeedItem; self: boolean }) {
   const now = useNow();
   const current = useCurrentPrice(item.token.address);
   const at = BigInt(item.priceMusd);
-  // how this buy has done since, from the token's price now
   const since = item.isBuy && current !== null && at > 0n ? Number(((current - at) * 10_000n) / at) / 10_000 : null;
 
   return (
     <div className="relative flex min-h-[72px] items-center gap-3 border-b border-line px-4 py-3" data-testid="feed-row" data-id={item.id} data-user={item.user.address.toLowerCase()} data-side={item.isBuy ? "buy" : "sell"}>
       <Link href={`/token/${item.token.address}`} className="absolute inset-0" aria-label={`${item.token.symbol} details`} />
       <Link href={`/u/${item.user.address}`} className="relative z-10 -mx-0.5 grid h-11 w-11 shrink-0 place-items-center" aria-label={displayName(item.user)}>
-        <Avatar user={item.user} />
+        <UserAvatar user={item.user} />
       </Link>
       <div className="pointer-events-none min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
@@ -47,7 +46,7 @@ export function FeedRow({ item, self }: { item: FeedItem; self: boolean }) {
         </div>
         {item.ref && <p className="mt-0.5 text-[12px] leading-4 font-medium text-muted">copied {displayName(item.ref)}</p>}
       </div>
-      {item.isBuy && !self ? <CopyButton item={item} /> : <Icon name="chevron" size={20} className="text-muted" />}
+      {item.isBuy && !self ? <CopyButton item={item} /> : <CaretRightIcon size={18} weight="bold" className="text-muted" />}
     </div>
   );
 }

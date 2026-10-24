@@ -3,19 +3,19 @@ import { useEffect } from "react";
 import { useSession } from "@/hooks/use-session";
 import { devKeyState, env } from "@/lib/env";
 import { Button } from "./ui/button";
-import { Sheet } from "./ui/sheet";
+import { Drawer } from "./ui/drawer";
 
 export function LoginOptions() {
   const s = useSession();
   return (
     <div className="flex flex-col gap-3">
       {s.canPrivy && (
-        <Button variant="accent" className="h-[52px] w-full" onClick={s.loginPrivy} disabled={s.loginBusy} data-testid="google-login">
+        <Button variant="primary" size="lg" className="w-full" onClick={s.loginPrivy} disabled={s.loginBusy} data-testid="google-login">
           {s.loginBusy ? "Signing in with Google" : "Continue with Google"}
         </Button>
       )}
       {s.canDev && (
-        <Button variant="raised" className="h-[52px] w-full" onClick={s.loginDev} data-testid="dev-login">
+        <Button variant="secondary" size="lg" className="w-full" onClick={s.loginDev} data-testid="dev-login">
           Dev login (local anvil)
         </Button>
       )}
@@ -47,9 +47,9 @@ export function LoginSheet({ open, onOpenChange }: { open: boolean; onOpenChange
     if (address && open) onOpenChange(false);
   }, [address, open, onOpenChange]);
   return (
-    <Sheet open={open} onOpenChange={onOpenChange} title="Log in to musdy">
+    <Drawer open={open} onOpenChange={onOpenChange} title="Log in to musdy">
       <p className="mb-5 text-[14px] leading-5 text-muted">One USD balance. Buy anything, copy anyone, no gas.</p>
       <LoginOptions />
-    </Sheet>
+    </Drawer>
   );
 }

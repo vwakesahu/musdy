@@ -18,10 +18,8 @@ export const devKeyState: "off" | "ok" | "refused" = !devKey ? "off" : chainId =
 const isKey = (k: string | null | undefined): k is Hex => !!k && /^0x[0-9a-fA-F]{64}$/.test(k);
 const devKeyHex = (devKeyState === "ok" && isKey(devKey) ? devKey : null) as Hex | null;
 
-// what the server says it runs, from /config and from the socket welcome. null until heard
 export type ServerChains = { config: number | null; socket: number | null };
 
-// a chain the server reports that isn't the one this build signs for, null when nothing disagrees
 export function chainMismatch(s: ServerChains): string | null {
   for (const [where, id] of [
     ["server", s.config],
@@ -35,8 +33,7 @@ export function chainMismatch(s: ServerChains): string | null {
 // signing waits until the server's own config confirms the chain
 export const signingAllowed = (s: ServerChains) => s.config === chainId && chainMismatch(s) === null;
 
-// the dev key only when the build, the server config and the socket all say local anvil. there, and only there,
-// a key in localStorage "musdy:devkey" replaces the build's, so e2e can log in as a fresh account
+// the dev key only when build, server and socket all say local anvil, where localStorage "musdy:devkey" overrides it
 export const DEV_KEY_STORAGE = "musdy:devkey";
 export const devPrivateKey = (s: ServerChains, stored?: string | null): Hex | null => {
   if (!devKeyHex || chainId !== ANVIL || s.config !== ANVIL || s.socket !== ANVIL) return null;

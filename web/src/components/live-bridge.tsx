@@ -11,8 +11,6 @@ import { signPermit } from "@/lib/sign";
 import { socket } from "@/lib/socket";
 import { errorText, toast } from "@/lib/toast";
 
-// the token lists carry every listed token's price, so prices are known before the first block moves them.
-// a price the socket already sent is newer and wins
 const seedPrices = (list: TokenInfo[] | undefined) => {
   if (!list?.length) return;
   livePrices.set((p) => {
@@ -32,7 +30,6 @@ const txDone: Record<string, string> = {
   faucet: "Faucet MUSD added",
 };
 
-// owns the app wide socket topics and the silent auto deposit
 export function LiveBridge() {
   const { address, signer } = useSession();
   const dep = useDeployment().data;

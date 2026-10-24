@@ -7,7 +7,7 @@ import { useSession } from "@/hooks/use-session";
 import { useTxRun } from "@/hooks/use-tx-run";
 import { useStore } from "@/lib/store";
 import { openSheet, sheet } from "@/lib/ui";
-import { Icon } from "./ui/icon";
+import { RepeatIcon } from "@phosphor-icons/react";
 
 export function CopyButton({ item }: { item: FeedItem }) {
   const actions = useActions();
@@ -26,7 +26,6 @@ export function CopyButton({ item }: { item: FeedItem }) {
     void run(() => actions.copy(item, cash ?? 0n));
   };
 
-  // a copy tapped while logged out is dropped if login is dismissed, and runs once login lands and the balance is known
   if (afterLogin && !signer && !loginOpen) setAfterLogin(false);
   useEffect(() => {
     if (!afterLogin || !signer || cash === null) return;
@@ -58,7 +57,7 @@ export function CopyButton({ item }: { item: FeedItem }) {
         ) : waiting ? (
           <span className="h-4 w-4 animate-spin rounded-full border-2 border-accent/30 border-t-accent" />
         ) : (
-          <Icon name="copy" size={18} />
+          <RepeatIcon size={16} weight="bold" />
         )}
       </span>
     </button>

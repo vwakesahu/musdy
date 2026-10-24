@@ -10,7 +10,6 @@ async function getJson(path: string) {
   return (await res.json()) as unknown;
 }
 
-// a coin page updates its price and curve while someone else buys, no navigation
 test("a launched coin's price and curve move live", async ({ page }, info) => {
   const symbol = `L${Date.now().toString(36).slice(-5).toUpperCase()}`;
   await launchAs(other, symbol, "5");
@@ -44,7 +43,6 @@ test("a launched coin's price and curve move live", async ({ page }, info) => {
   await shot(page, info, "live-price");
 });
 
-// every portfolio row shows what /users/:address says, to the cent
 test("portfolio rows match the server's positions", async ({ page }) => {
   await devLogin(page, "/portfolio");
   await expect
@@ -72,7 +70,6 @@ test("portfolio rows match the server's positions", async ({ page }) => {
     .toBe("ok");
 });
 
-// each leaderboard window shows that window's ranking
 test("leaderboard tabs switch data", async ({ page }) => {
   await page.goto("/leaderboard");
   const tabs: [string, PnlWindow][] = [
@@ -81,7 +78,6 @@ test("leaderboard tabs switch data", async ({ page }) => {
     ["24h", "d1"],
   ];
   for (const [label, win] of tabs) {
-    // 24h loaded first, the other two are fetched when their tab is picked
     const asked = win === "d1" ? null : page.waitForRequest((r) => r.url().includes(`${routes.leaderboard}?window=${win}`));
     await page.getByRole("tab", { name: label }).click();
     await asked;

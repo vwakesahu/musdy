@@ -7,7 +7,7 @@ import { LoginOptions } from "../login-sheet";
 import { ScreenHeader } from "../screen-header";
 import { EmptyState } from "../ui/empty-state";
 import { Button } from "../ui/button";
-import { Icon } from "../ui/icon";
+import { TrophyIcon } from "@phosphor-icons/react";
 import { Segmented } from "../ui/segmented";
 import { useTradeList } from "@/hooks/use-feed";
 import { useSession } from "@/hooks/use-session";
@@ -31,14 +31,14 @@ export function FeedScreen() {
         title="Feed"
         extra={
           <Link href="/leaderboard" aria-label="Leaderboard" className="press grid h-11 w-11 place-items-center text-muted">
-            <Icon name="trophy" />
+            <TrophyIcon size={22} weight="bold" />
           </Link>
         }
       />
       {ready && !address && !following && (
         <div className="mx-4 mb-3 flex items-center gap-3 rounded-[20px] bg-surface py-2 pr-2 pl-4" data-testid="feed-intro">
           <p className="flex-1 text-[14px] leading-5">Copy real traders in one tap. One USD balance, no gas.</p>
-          <Button variant="accent" className="h-11 shrink-0 px-4" onClick={() => openSheet("login")}>
+          <Button variant="primary" className="h-11 shrink-0 px-4" onClick={() => openSheet("login")}>
             Log in
           </Button>
         </div>

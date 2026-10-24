@@ -1,88 +1,231 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
-@theme {
-  --color-bg: #0b0a0f;
-  --color-surface: #14121a;
-  --color-raised: #1d1a25;
-  --color-line: #2a2633;
-  --color-text: #f4f1ea;
-  --color-muted: #8b8696;
-  --color-up: #2ee59d;
-  --color-down: #ff5c6c;
-  --color-accent: #f7931a;
-  --color-accent-pressed: #d97b0b;
-  --color-accent-tint: rgb(247 147 26 / 0.14);
-  --color-on-accent: #1a0f00;
-  --font-sans: var(--font-figtree), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-jetbrains), ui-monospace, monospace;
-  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
-  --ease-move: cubic-bezier(0.65, 0, 0.35, 1);
-}
+@custom-variant dark (&:is(.dark *));
 
 :root {
   color-scheme: dark;
+
+  --bg: #070510;
+  --bg-sheet: #08070f;
+  --surface: #12111a;
+  --surface-2: #161523;
+  --surface-3: #1d1c27;
+  --border: #1b1926;
+  --border-strong: #2c2b35;
+  --scrim: rgba(3, 2, 8, 0.72);
+
+  --text: #f7f7f7;
+  --text-2: #c9c8cc;
+  --text-muted: #9999a3;
+  --text-faint: #66667a;
+  --text-on-accent: #ffffff;
+
+  --accent: #516bf6;
+  --accent-hi: #4662fb;
+  --accent-soft: #1a1c3a;
+  --accent-soft-2: #262f6e;
+  --accent-glow: 0 0 0 1px rgba(81, 107, 246, 0.5), 0 8px 24px rgba(81, 107, 246, 0.35);
+
+  --up: #21c85e;
+  --up-text-sm: #04c249;
+  --up-soft: #0b2c20;
+  --down: #ff5b3a;
+  --down-soft: #501f18;
+  --buy: #57c05a;
+  --gold: #e7b93e;
+  --silver: #a9adb8;
+  --bronze: #c9784a;
+  --star: #f5b70a;
+
+  --shadow-panel: 0 24px 64px rgba(0, 0, 0, 0.6);
+
+  /* shadcn and coss semantic names, mapped onto the fomo palette */
+  --background: var(--bg);
+  --foreground: var(--text);
+  --card: var(--surface);
+  --card-foreground: var(--text);
+  --popover: var(--surface);
+  --popover-foreground: var(--text);
+  --primary: var(--accent);
+  --primary-foreground: var(--text-on-accent);
+  --secondary: var(--surface-2);
+  --secondary-foreground: var(--text);
+  --muted-foreground: var(--text-muted);
+  --destructive: var(--down);
+  --destructive-foreground: var(--down);
+  --input: var(--border-strong);
+  --ring: var(--accent-hi);
+  --info: var(--accent);
+  --info-foreground: #b9c4fd;
+  --success: var(--up);
+  --success-foreground: var(--up);
+  --warning: var(--star);
+  --warning-foreground: var(--star);
 }
 
-html,
-body {
-  background: var(--color-bg);
-  color: var(--color-text);
+@theme inline {
+  --color-bg: var(--bg);
+  --color-bg-sheet: var(--bg-sheet);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-raised: var(--surface-2);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-line: var(--border);
+  --color-scrim: var(--scrim);
+  --color-text: var(--text);
+  --color-text-2: var(--text-2);
+  --color-muted: var(--text-muted);
+  --color-faint: var(--text-faint);
+  --color-on-accent: var(--text-on-accent);
+  --color-accent: var(--accent);
+  --color-accent-hi: var(--accent-hi);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-soft-2: var(--accent-soft-2);
+  --color-up: var(--up);
+  --color-up-sm: var(--up-text-sm);
+  --color-up-soft: var(--up-soft);
+  --color-down: var(--down);
+  --color-down-soft: var(--down-soft);
+  --color-buy: var(--buy);
+  --color-gold: var(--gold);
+  --color-silver: var(--silver);
+  --color-bronze: var(--bronze);
+  --color-star: var(--star);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+
+  --font-sans: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+  --font-heading: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 16px;
+  --radius-2xl: 24px;
+  --radius-3xl: 28px;
+
+  --shadow-glow: var(--accent-glow);
+  --shadow-panel: var(--shadow-panel);
+
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-move: cubic-bezier(0.65, 0, 0.35, 1);
+
+  --animate-skeleton: skeleton 1.2s linear infinite;
+  --animate-toast-success-odd: toast-pop 0.32s cubic-bezier(0.5, 1, 0.89, 1);
+  --animate-toast-success-even: toast-pop 0.32s cubic-bezier(0.5, 1, 0.89, 1);
+  --animate-toast-error-odd: toast-shake 0.28s cubic-bezier(0.5, 1, 0.89, 1);
+  --animate-toast-error-even: toast-shake 0.28s cubic-bezier(0.5, 1, 0.89, 1);
+
+  @keyframes skeleton {
+    from {
+      background-position: 100% 0;
+    }
+    to {
+      background-position: -100% 0;
+    }
+  }
+  @keyframes toast-pop {
+    30% {
+      scale: 1.025;
+    }
+    60% {
+      scale: 0.99;
+    }
+  }
+  @keyframes toast-shake {
+    25% {
+      translate: -3px 0;
+    }
+    75% {
+      translate: 3px 0;
+    }
+  }
 }
 
-body {
-  font-family: var(--font-sans);
-  font-variant-numeric: tabular-nums;
-  -webkit-tap-highlight-color: transparent;
-  overscroll-behavior-y: none;
-}
-
-input,
-textarea,
-select {
-  font-size: 16px;
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html,
+  body {
+    background: var(--bg);
+    color: var(--text);
+  }
+  html {
+    @apply font-sans;
+  }
+  body {
+    font-variant-numeric: tabular-nums;
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior-y: none;
+  }
+  button:not(:disabled),
+  [role="button"]:not(:disabled),
+  a[href] {
+    cursor: pointer;
+  }
+  :focus-visible {
+    outline: 2px solid var(--accent-hi);
+    outline-offset: 2px;
+  }
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
 }
 
 .label {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 14px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--color-accent);
+  font-size: 13px;
+  line-height: 17px;
+  font-weight: 500;
+  color: var(--text-muted);
 }
 
 .press {
-  transition: transform 160ms var(--ease-out-soft);
+  transition: transform 120ms var(--ease-out-soft);
 }
 .press:active {
   transform: scale(0.97);
-  transition-duration: 100ms;
+  transition-duration: 80ms;
 }
 
 .skeleton {
-  background: var(--color-raised);
+  background: linear-gradient(90deg, transparent 30%, rgb(255 255 255 / 0.04), transparent 70%) var(--surface) 0 0 / 200% 100%;
   border-radius: 6px;
-  position: relative;
-  overflow: hidden;
-}
-.skeleton::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(90deg, transparent, rgb(244 241 234 / 0.04), transparent);
-  transform: translateX(-100%);
-  animation: shimmer 1.6s linear infinite;
-}
-@keyframes shimmer {
-  to {
-    transform: translateX(100%);
-  }
+  animation: skeleton 1.2s linear infinite;
 }
 
 .draw-check path {
   stroke-dasharray: 30;
   stroke-dashoffset: 30;
-  animation: draw 280ms var(--ease-out-soft) forwards;
+  animation: draw 250ms var(--ease-out-soft) forwards;
 }
 @keyframes draw {
   to {
@@ -97,6 +240,11 @@ select {
   scrollbar-width: none;
 }
 
+.dot-grid {
+  background-image: radial-gradient(rgb(255 255 255 / 0.05) 1px, transparent 1px);
+  background-size: 12px 12px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -104,7 +252,7 @@ select {
     animation-duration: 120ms !important;
     transition-duration: 120ms !important;
   }
-  .skeleton::after {
+  .skeleton {
     animation: none;
   }
   .press:active {
@@ -117,7 +265,8 @@ select {
   animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
 }
 [data-vaul-drawer][data-vaul-drawer-direction="bottom"][data-state="closed"] {
-  animation-duration: 240ms;
+  animation-duration: 200ms;
+  animation-timing-function: ease-in;
 }
 
 .chart-reveal {

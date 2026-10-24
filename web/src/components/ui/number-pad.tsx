@@ -1,9 +1,8 @@
 "use client";
-import { Icon } from "./icon";
+import { BackspaceIcon } from "@phosphor-icons/react";
 
 const KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", ".", "0", "del"] as const;
 
-// keeps at most 2 decimals and no leading zeros
 export function applyKey(value: string, key: string, maxDecimals = 2) {
   if (key === "del") return value.slice(0, -1);
   if (key === ".") return value.includes(".") || maxDecimals === 0 ? value : (value || "0") + ".";
@@ -25,7 +24,7 @@ export function NumberPad({ onKey }: { onKey: (key: string) => void }) {
           onClick={() => onKey(k)}
           className="press grid h-12 place-items-center rounded-[14px] text-[22px] font-medium active:bg-raised"
         >
-          {k === "del" ? <Icon name="backspace" /> : k}
+          {k === "del" ? <BackspaceIcon size={26} /> : k}
         </button>
       ))}
     </div>

@@ -14,4 +14,4 @@ export const liveTxs = createStore<Record<string, TxStatus>>({});
 export const lk = key;
 
 // BTC is Mezo's gas token, auto deposit leaves this much in the wallet so the vault's withdraw escape hatch stays payable
-export const BTC_GAS_RESERVE = 20_000_000_000_000n; // 0.00002 BTC
+export const BTC_GAS_RESERVE = 20_000_000_000_000n;

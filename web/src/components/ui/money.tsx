@@ -1,6 +1,5 @@
 import { usd } from "@/lib/format";
 
-// "$163,293.86" with the cents at 60% and muted
 export function Money({ value, className = "" }: { value: bigint; className?: string }) {
   const s = usd(value, true);
   const dot = s.lastIndexOf(".");

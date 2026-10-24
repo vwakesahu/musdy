@@ -1,7 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { cashText, dep, devLogin, ensureCash, me, nextTrade, other, otherBuys, rowDollars, rowName, setCash, shot, stock, tradeAs, userTrades, vaultBalance } from "./helpers";
 
-// AC9: copy buys the same coin for the same dollars, with ref set to the copied trader
 test("copy a trade from the feed", async ({ page }, info) => {
   await devLogin(page);
   await ensureCash(page);
@@ -28,7 +27,6 @@ test("copy a trade from the feed", async ({ page }, info) => {
   await shot(page, info, "copy");
 });
 
-// a copy bigger than the cash on hand spends exactly the cash
 test("copy is capped to cash", async ({ page }) => {
   await devLogin(page);
   await setCash(me, "2");
@@ -46,7 +44,6 @@ test("copy is capped to cash", async ({ page }) => {
   expect(mine.ref?.address.toLowerCase()).toBe(other.address.toLowerCase());
 });
 
-// a real sell lands on the feed as a sell row with nothing to copy
 test("sell rows have no copy button", async ({ page }) => {
   await otherBuys(stock.address, "2");
   const held = await vaultBalance(other.address, stock.address);
