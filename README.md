@@ -44,7 +44,7 @@ cd server && bun --env-file=../.env src/index.ts
 cd web && pnpm dev
 ```
 
-tests. `forge test` in contracts, `bun test` in server (it starts its own anvil), and the playwright specs in `web/e2e` need anvil, the server and the web up, `BASE_URL` if web isn't on :3000.
+tests. `forge test` in contracts, `bun test` in server (it starts its own anvil), and the playwright specs in `web/e2e` need anvil, the server and the web up, `BASE_URL` if web isn't on :3000. run that server with `TRUST_PROXY=1` so the faucet spec can claim from fresh ips, never set it in production unless a proxy you control sets the header.
 
 ## testnet
 

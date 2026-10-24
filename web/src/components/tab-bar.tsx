@@ -9,7 +9,7 @@ const TABS: { href: string; label: string; icon: IconName; match: (p: string) =>
   { href: "/explore", label: "Explore", icon: "explore", match: (p) => p.startsWith("/explore") || p.startsWith("/token") },
   { href: "/launch", label: "Launch", icon: "launch", match: (p) => p.startsWith("/launch") },
   { href: "/portfolio", label: "Portfolio", icon: "portfolio", match: (p) => p.startsWith("/portfolio") },
-  { href: "/profile", label: "Profile", icon: "profile", match: (p) => p.startsWith("/profile") || p.startsWith("/u/") || p.startsWith("/leaderboard") },
+  { href: "/profile", label: "Profile", icon: "profile", match: (p) => p.startsWith("/profile") || p.startsWith("/leaderboard") },
 ];
 
 export function TabBar() {

@@ -11,6 +11,7 @@ export function LeaderRow({ row, self }: { row: Row; self: boolean }) {
       href={`/u/${row.user.address}`}
       className={`press flex min-h-[64px] items-center gap-3 border-b border-line px-4 py-3 ${self ? "bg-surface" : ""}`}
       data-testid="leader-row"
+      data-user={row.user.address.toLowerCase()}
     >
       <span className="grid w-7 place-items-center text-[14px] font-semibold text-muted tabular-nums">
         {row.rank <= 3 ? <Medal rank={row.rank as 1 | 2 | 3} /> : row.rank}
@@ -25,7 +26,7 @@ export function LeaderRow({ row, self }: { row: Row; self: boolean }) {
           {row.user.handle ? `@${row.user.handle}` : `${row.trades} trades`}
         </span>
       </span>
-      <Pnl value={signedBig(row.pnlMusd)} className="text-[15px] font-semibold" />
+      <Pnl value={signedBig(row.pnlMusd)} className="text-[15px] font-semibold" data-testid="leader-pnl" />
     </Link>
   );
 }

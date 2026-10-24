@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
-import { dep, devLogin, ensureCash, me, nextTrade, other, otherBuys, shot, stock, userTrades, vaultBalance } from "./helpers";
+import { cashText, dep, devLogin, ensureCash, me, nextTrade, other, otherBuys, setCash, shot, stock, tradeAs, userTrades, vaultBalance } from "./helpers";
 
-// AC9: copy buys the same coin for the same dollars (capped to cash), with ref set to the copied trader
+// AC9: copy buys the same coin for the same dollars, with ref set to the copied trader
 test("copy a trade from the feed", async ({ page }, info) => {
   await devLogin(page);
   await ensureCash(page);
@@ -10,15 +10,13 @@ test("copy a trade from the feed", async ({ page }, info) => {
   await expect(row).toBeVisible({ timeout: 30_000 });
 
   const before = await userTrades(me.address);
-  const cash = await vaultBalance(me.address, dep.musd);
   await row.getByTestId("copy-trade").click();
   const mine = await nextTrade(me.address, before);
 
-  const want = BigInt(copied.musdAmount);
   expect(mine.isBuy).toBe(true);
   expect(mine.ref?.address.toLowerCase()).toBe(other.address.toLowerCase());
   expect(mine.token.address.toLowerCase()).toBe(copied.token.address.toLowerCase());
-  expect(BigInt(mine.musdAmount)).toBe(want < cash ? want : cash);
+  expect(BigInt(mine.musdAmount)).toBe(BigInt(copied.musdAmount));
 
   const myRow = page.locator(`[data-testid="feed-row"][data-id="${mine.id}"]`);
   await expect(myRow).toContainText("copied", { timeout: 30_000 });
@@ -26,10 +24,34 @@ test("copy a trade from the feed", async ({ page }, info) => {
   await shot(page, info, "copy");
 });
 
-// a sell can't be copied, its row has no copy button
+// a copy bigger than the cash on hand spends exactly the cash
+test("copy is capped to cash", async ({ page }) => {
+  await devLogin(page);
+  await setCash(me, "2");
+  await expect.poll(async () => Number(await cashText(page)), { timeout: 30_000 }).toBe(2);
+  const cash = await vaultBalance(me.address, dep.musd);
+  const copied = await otherBuys(stock.address, "5");
+  expect(BigInt(copied.musdAmount)).toBeGreaterThan(cash);
+  const row = page.locator(`[data-testid="feed-row"][data-id="${copied.id}"]`);
+  await expect(row).toBeVisible({ timeout: 30_000 });
+
+  const before = await userTrades(me.address);
+  await row.getByTestId("copy-trade").click();
+  const mine = await nextTrade(me.address, before);
+  expect(BigInt(mine.musdAmount)).toBe(cash);
+  expect(mine.ref?.address.toLowerCase()).toBe(other.address.toLowerCase());
+});
+
+// a real sell lands on the feed as a sell row with nothing to copy
 test("sell rows have no copy button", async ({ page }) => {
+  await otherBuys(stock.address, "2");
+  const held = await vaultBalance(other.address, stock.address);
   await page.goto("/");
-  const sells = page.locator('[data-testid="feed-row"][data-side="sell"]');
-  await page.waitForTimeout(1500);
-  for (const r of await sells.all()) await expect(r.getByTestId("copy-trade")).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Feed" })).toBeVisible();
+  const sold = await tradeAs(other, stock.address, false, held / 2n);
+  const row = page.locator(`[data-testid="feed-row"][data-id="${sold.id}"]`);
+  await expect(row).toBeVisible({ timeout: 30_000 });
+  await expect(row).toHaveAttribute("data-side", "sell");
+  await expect(row).toContainText("Sell");
+  await expect(row.getByTestId("copy-trade")).toHaveCount(0);
 });

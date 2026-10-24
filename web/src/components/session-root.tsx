@@ -1,9 +1,11 @@
 "use client";
 import { useCallback, useMemo, useSyncExternalStore, type ReactNode } from "react";
 import { privateKeyToAccount } from "viem/accounts";
-import { devPrivateKey } from "@/lib/env";
+import { chainMismatch, devKeyState, devPrivateKey, signingAllowed } from "@/lib/env";
 import type { Signer } from "@/lib/signer";
-import { createStore } from "@/lib/store";
+import { socketChain } from "@/lib/socket";
+import { createStore, useStore } from "@/lib/store";
+import { useDeployment } from "@/hooks/use-deployment";
 import { SessionContext, type Session } from "@/hooks/use-session";
 
 export type PrivyState = {
@@ -34,15 +36,6 @@ const writeDev = (on: boolean) => {
   devStore.set(on);
 };
 
-const devAccount = devPrivateKey ? privateKeyToAccount(devPrivateKey) : null;
-const devSigner: Signer | null = devAccount
-  ? {
-      address: devAccount.address,
-      signTypedData: (data) => devAccount.signTypedData(data),
-      signMessage: (message) => devAccount.signMessage({ message }),
-    }
-  : null;
-
 export function SessionRoot({ privy, children }: { privy: PrivyState | null; children: ReactNode }) {
   const devOn = useSyncExternalStore(devStore.subscribe, readDev, () => false);
   const hydrated = useSyncExternalStore(
@@ -58,11 +51,31 @@ export function SessionRoot({ privy, children }: { privy: PrivyState | null; chi
     privy?.logout();
   }, [privy]);
 
+  const deployment = useDeployment();
+  const config = deployment.data?.chainId ?? null;
+  const socket = useStore(socketChain, (c) => c, null);
+  const configError = chainMismatch({ config, socket });
+  const allowed = signingAllowed({ config, socket });
+  const devKey = devPrivateKey({ config, socket });
+
+  // no signer of any kind exists until the server's chain matches the build
+  const devSigner = useMemo<Signer | null>(() => {
+    if (!devKey) return null;
+    const account = privateKeyToAccount(devKey);
+    return {
+      address: account.address,
+      signTypedData: (data) => account.signTypedData(data),
+      signMessage: (message) => account.signMessage({ message }),
+    };
+  }, [devKey]);
+
   const value = useMemo<Session>(() => {
     const dev = devOn && devSigner ? devSigner : null;
-    const signer = dev ?? (privy?.authenticated ? privy.signer : null);
+    const signer = dev ?? (allowed && privy?.authenticated ? privy.signer : null);
     return {
-      ready: hydrated && (dev !== null || !privy || privy.ready),
+      // a remembered dev login waits for the chain check instead of flashing the login screen
+      ready: hydrated && (devOn && devKeyState === "ok" && !dev && !configError && !deployment.isError ? false : dev !== null || !privy || privy.ready),
+      configError,
       address: signer?.address ?? null,
       signer,
       method: dev ? "dev" : signer ? "privy" : null,
@@ -72,7 +85,7 @@ export function SessionRoot({ privy, children }: { privy: PrivyState | null; chi
       loginDev,
       logout,
     };
-  }, [devOn, hydrated, privy, loginDev, loginPrivy, logout]);
+  }, [devOn, devSigner, allowed, configError, deployment.isError, hydrated, privy, loginDev, loginPrivy, logout]);
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }

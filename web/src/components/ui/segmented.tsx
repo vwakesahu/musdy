@@ -24,7 +24,7 @@ export function Segmented<T extends string>({
             role="tab"
             aria-selected={active}
             onClick={() => onChange(o.value)}
-            className={`relative flex-1 rounded-full font-medium transition-colors ${size === "sm" ? "h-8 px-3" : "h-11 px-4"} ${active ? "text-text" : "text-muted"}`}
+            className={`relative flex-1 rounded-full font-medium transition-colors ${size === "sm" ? "h-11 px-2" : "h-11 px-4"} ${active ? "text-text" : "text-muted"}`}
           >
             {active && (
               <motion.span

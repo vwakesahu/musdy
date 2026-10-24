@@ -1,16 +1,18 @@
 "use client";
 import { useState } from "react";
+import { ProfileBody } from "shared";
 import { useActions } from "@/hooks/use-actions";
 import { Button } from "./ui/button";
 import { Sheet } from "./ui/sheet";
 
-const HANDLE = /^[a-z0-9_]{3,15}$/;
+// the server's own rule for handles
+const handleRule = ProfileBody.shape.handle;
 
 export function HandleSheet({ open, onOpenChange, current }: { open: boolean; onOpenChange: (o: boolean) => void; current: string | null }) {
   const actions = useActions();
   const [value, setValue] = useState(current ?? "");
   const [saving, setSaving] = useState(false);
-  const ok = HANDLE.test(value) && value !== current;
+  const ok = handleRule.safeParse(value).success && value !== current;
 
   const save = async () => {
     setSaving(true);

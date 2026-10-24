@@ -68,12 +68,12 @@ export function useActions() {
         run(async (s) => track(await api.withdraw(await signWithdraw(s, needDep(), w))), onError),
       launch: (l: { name: string; symbol: string; image: string; initialBuy: bigint }) =>
         run(async (s) => track(await api.launch(await signLaunch(s, needDep(), l)))),
-      faucet: () =>
+      faucet: (onError?: (e: unknown) => void) =>
         run(async (s) => {
           const issued = new Date().toISOString();
           const sig = await s.signMessage(faucetMessage(s.address, issued));
           return track(await api.faucet({ address: s.address, issued, sig }));
-        }),
+        }, onError),
       setHandle: (handle: string) =>
         run(async (s) => {
           const issued = new Date().toISOString();

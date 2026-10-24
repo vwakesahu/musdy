@@ -17,5 +17,5 @@ export function useTxRun() {
     return res;
   }, []);
   const status = tx?.status ?? null;
-  return { run, sending: signing || status === "pending", confirmed: status === "confirmed", failed: status === "failed" };
+  return { run, txId, sending: signing || status === "pending", confirmed: status === "confirmed", failed: status === "failed" };
 }

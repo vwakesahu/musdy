@@ -19,7 +19,12 @@ export function LoginOptions() {
           Dev login (local anvil)
         </Button>
       )}
-      {!s.canPrivy && !s.canDev && (
+      {s.configError && (
+        <p role="alert" className="rounded-[14px] bg-raised p-4 text-[14px] leading-5" data-testid="login-config-error">
+          {s.configError}
+        </p>
+      )}
+      {!s.canPrivy && !s.canDev && !s.configError && devKeyState !== "ok" && (
         <div className="rounded-[20px] bg-raised p-4 text-[14px] leading-5" data-testid="login-setup">
           <p className="font-semibold">Login isn&apos;t set up yet</p>
           <p className="mt-1 text-muted">

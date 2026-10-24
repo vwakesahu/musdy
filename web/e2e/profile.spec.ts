@@ -12,6 +12,11 @@ test("set a handle and follow a trader", async ({ page }, info) => {
   await shot(page, info, "profile");
 
   await page.goto(`/u/${other.address}`);
+  await expect(page.getByTestId("follow")).toBeVisible();
+  // someone else's profile is a drill in: back chevron, their name, and the Profile tab stays dark
+  await expect(page.getByRole("button", { name: "Back" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(await page.getByTestId("profile-name").innerText());
+  await expect(page.getByRole("link", { name: "Profile" })).not.toHaveAttribute("aria-current", "page");
   // a repeat run may already follow them, the button starts from followedByViewer
   const follow = page.getByTestId("follow");
   await expect(follow).toHaveText(/^Follow(ing)?$/);

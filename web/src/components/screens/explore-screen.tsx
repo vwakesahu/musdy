@@ -1,7 +1,8 @@
 "use client";
 import { useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import type { TokenInfo, TokenSort } from "shared";
+import { TokenSort, type TokenInfo } from "shared";
 import { RowSkeletons } from "../feed-list";
 import { ScreenHeader } from "../screen-header";
 import { TokenRow } from "../token-row";
@@ -31,7 +32,12 @@ function withLive(list: TokenInfo[], live: Record<string, TokenInfo>, sort: Toke
 }
 
 export function ExploreScreen() {
-  const [sort, setSort] = useState<TokenSort>("trending");
+  const params = useSearchParams();
+  const router = useRouter();
+  const path = usePathname();
+  const parsed = TokenSort.safeParse(params.get("sort"));
+  const sort: TokenSort = parsed.success ? parsed.data : "trending";
+  const setSort = (s: TokenSort) => router.replace(s === "trending" ? path : `${path}?sort=${s}`, { scroll: false });
   const [q, setQ] = useState("");
   const live = useStore(liveTokens, (t) => t, none);
   const trending = useQuery({ queryKey: ["tokens", "trending"], queryFn: () => api.tokens("trending") });

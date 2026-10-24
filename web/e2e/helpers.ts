@@ -24,6 +24,7 @@ import {
   routes,
   tradeTypes,
   vaultAbi,
+  withdrawTypes,
   type Deployment,
 } from "shared";
 
@@ -31,8 +32,9 @@ export const SERVER = process.env.E2E_SERVER_URL ?? "http://localhost:8080";
 export const RPC = process.env.E2E_RPC_URL ?? "http://127.0.0.1:8545";
 // anvil account 3 by default, account 2 is the relayer, must match the web build's NEXT_PUBLIC_DEV_KEY
 export const DEV_KEY = (process.env.E2E_DEV_KEY ?? process.env.NEXT_PUBLIC_DEV_KEY ?? "0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a") as Hex;
-// anvil account 1 holds the local faucet MUSD, accounts 4 and 5 play other traders
-const FAUCET_KEY = "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d" as Hex;
+// anvil account 6 funds test wallets by minting the local mocks, it never shares a nonce with the server's
+// faucet (account 1) or relayer (account 2). accounts 4 and 5 play other traders
+const FUNDER_KEY = "0x92db14e403b83dfe3df233f83dfa3a0d7096f21ca9b0d6d6b8d88b2b4ec1564e" as Hex;
 export const OTHER_KEY = "0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6" as Hex;
 export const THIRD_KEY = "0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba" as Hex;
 
@@ -75,11 +77,12 @@ const permitRead = parseAbi([
   "function nonces(address owner) view returns (uint256)",
   "function nonce(address owner) view returns (uint256)",
 ]);
-const funder = createWalletClient({ account: privateKeyToAccount(FAUCET_KEY), chain: foundry, transport: http(RPC) });
+const funder = createWalletClient({ account: privateKeyToAccount(FUNDER_KEY), chain: foundry, transport: http(RPC) });
 
-// sends wallet MUSD from the faucet account straight to an address, outside the vault
-export async function sendWalletMusd(to: Address, amount: string) {
-  const hash = await funder.writeContract({ address: dep.musd, abi: erc20, functionName: "transfer", args: [to, parseUnits(amount, 18)] });
+// lands wallet MUSD on an address, outside the vault, by minting the local mock
+export async function sendWalletMusd(to: Address, amount: string | bigint) {
+  const value = typeof amount === "bigint" ? amount : parseUnits(amount, 18);
+  const hash = await funder.writeContract({ address: dep.musd, abi: erc20, functionName: "mint", args: [to, value] });
   await publicClient.waitForTransactionReceipt({ hash });
 }
 
@@ -188,9 +191,37 @@ export async function launchAs(account: PrivateKeyAccount, symbol: string, dolla
   });
 }
 
-export async function ensureCash(page: Page) {
-  if (Number(await cashText(page)) >= 20) return;
-  // the faucet allows one claim a day, after that wallet MUSD the app sweeps in does the same job
-  await faucet(me).catch(() => sendWalletMusd(me.address, "100"));
-  await expect.poll(async () => Number(await cashText(page)), { timeout: 30_000 }).toBeGreaterThanOrEqual(20);
+// tops up the logged in user's cash with wallet MUSD the app sweeps in, never the faucet (that has its own spec)
+export async function ensureCash(page: Page, dollars = 20) {
+  const want = parseUnits(String(dollars), 18);
+  const have = await vaultBalance(me.address, dep.musd);
+  if (have < want) {
+    await sendWalletMusd(me.address, want - have + parseUnits("50", 18));
+    await expect.poll(() => vaultBalance(me.address, dep.musd), { timeout: 40_000 }).toBeGreaterThanOrEqual(want);
+  }
+  await expect.poll(async () => Number(await cashText(page)), { timeout: 30_000 }).toBeGreaterThanOrEqual(dollars);
+}
+
+// a signed trade through the server, the way the app sends one
+export async function tradeAs(account: PrivateKeyAccount, token: Address, isBuy: boolean, amountIn: bigint) {
+  const before = await userTrades(account.address);
+  const message = { user: account.address, token, isBuy, amountIn, minOut: 0n, ref: zeroAddress, nonce: await vaultNonce(account.address), deadline: deadline() };
+  const sig = await account.signTypedData({ domain: domainFor(31337, dep.vault), types: tradeTypes, primaryType: "Trade", message });
+  await post(routes.trade, {
+    trade: { ...message, amountIn: amountIn.toString(), minOut: "0", nonce: message.nonce.toString(), deadline: message.deadline.toString() },
+    sig,
+  });
+  return nextTrade(account.address, before);
+}
+
+// moves vault MUSD out to a throwaway address so cash lands on an exact amount
+export async function setCash(account: PrivateKeyAccount, dollars: string) {
+  const want = parseUnits(dollars, 18);
+  const have = await vaultBalance(account.address, dep.musd);
+  if (have < want) return fund(account, dollars);
+  if (have === want) return;
+  const message = { user: account.address, token: dep.musd, amount: have - want, to: "0x000000000000000000000000000000000000dEaD" as Address, nonce: await vaultNonce(account.address), deadline: deadline() };
+  const sig = await account.signTypedData({ domain: domainFor(31337, dep.vault), types: withdrawTypes, primaryType: "Withdraw", message });
+  await post(routes.withdraw, { withdraw: { ...message, amount: message.amount.toString(), nonce: message.nonce.toString(), deadline: message.deadline.toString() }, sig });
+  await expect.poll(() => vaultBalance(account.address, dep.musd), { timeout: 30_000 }).toBe(want);
 }

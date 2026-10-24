@@ -5,6 +5,7 @@ import type { Signer } from "@/lib/signer";
 
 export type Session = {
   ready: boolean;
+  configError: string | null;
   address: Address | null;
   signer: Signer | null;
   method: "privy" | "dev" | null;

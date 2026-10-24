@@ -34,9 +34,9 @@ export function Toaster({ inSheet = false }: { inSheet?: boolean }) {
             transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
             className="pointer-events-auto flex items-start gap-3 rounded-[14px] border border-line bg-raised px-4 py-3 shadow-lg shadow-black/40"
           >
-            <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${t.kind === "error" ? "bg-text" : t.kind === "success" ? "bg-accent" : "bg-muted"}`} />
+            <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${t.kind === "error" ? "bg-down" : t.kind === "success" ? "bg-accent" : "bg-muted"}`} />
             <p className="flex-1 text-[14px] leading-5">{t.text}</p>
-            <button aria-label="Dismiss" onClick={() => dismissToast(t.id)} className="-m-1 p-1 text-muted">
+            <button aria-label="Dismiss" onClick={() => dismissToast(t.id)} className="-my-3 -mr-3 grid h-11 w-11 shrink-0 place-items-center text-muted">
               <Icon name="close" size={16} />
             </button>
           </motion.div>

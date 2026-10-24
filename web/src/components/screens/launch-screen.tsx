@@ -1,26 +1,42 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { parseEventLogs, type Address, type Hex } from "viem";
+import { LaunchBody, vaultAbi } from "shared";
 import { LoginGate } from "../login-gate";
 import { ScreenHeader } from "../screen-header";
 import { Button } from "../ui/button";
 import { CurveBar } from "../ui/curve-bar";
 import { TokenIcon } from "../ui/token-icon";
 import { useActions } from "@/hooks/use-actions";
-import { useCash } from "@/hooks/use-live";
+import { useCash, useTx } from "@/hooks/use-live";
+import { useSession } from "@/hooks/use-session";
 import { useTxRun } from "@/hooks/use-tx-run";
 import { parseDollars, usd } from "@/lib/format";
 import { openSheet } from "@/lib/ui";
+import { publicClient } from "@/lib/chain";
+import { liveTokens, lk } from "@/lib/live";
 
-const bytes = (s: string) => new TextEncoder().encode(s).length;
-const validUrl = (s: string) => {
-  try {
-    const u = new URL(s);
-    return u.protocol === "https:" || u.protocol === "http:";
-  } catch {
-    return false;
-  }
+// the same limits the server and contract check, straight from the shared schema
+const rules = LaunchBody.shape.launch.shape;
+const issue = (r: { safeParse: (v: unknown) => { success: boolean; error?: { issues: { message: string }[] } } }, v: string) => {
+  const res = r.safeParse(v);
+  return res.success ? null : (res.error?.issues[0]?.message ?? "invalid");
 };
+
+// the new coin's address from the Launched event in the confirmed tx
+async function launchedToken(hash: Hex, user: Address): Promise<Address | null> {
+  try {
+    const receipt = await publicClient.getTransactionReceipt({ hash });
+    const logs = parseEventLogs({ abi: vaultAbi, eventName: "Launched", logs: receipt.logs });
+    const mine = logs.find((l) => lk(l.args.user) === lk(user));
+    return mine ? mine.args.token : null;
+  } catch {
+    return null;
+  }
+}
+
+const nowSec = () => Math.floor(Date.now() / 1000);
 
 const field = "h-12 w-full rounded-[14px] bg-surface px-4 text-[16px] outline-none placeholder:text-muted focus:bg-raised";
 
@@ -43,20 +59,60 @@ function LaunchForm() {
   const [symbol, setSymbol] = useState("");
   const [image, setImage] = useState("");
   const [buy, setBuy] = useState("");
-  const { run, sending, confirmed } = useTxRun();
+  const { address } = useSession();
+  const { run, sending, confirmed, txId } = useTxRun();
+  const tx = useTx(txId);
+  const launching = useRef<{ symbol: string; at: number } | null>(null);
+  const went = useRef(false);
 
   const initialBuy = parseDollars(buy);
-  const nameOk = bytes(name.trim()) >= 1 && bytes(name.trim()) <= 32;
-  const symbolOk = bytes(symbol) >= 1 && bytes(symbol) <= 10;
-  const imageOk = image === "" || (validUrl(image) && image.length <= 256);
+  const nameOk = issue(rules.name, name.trim()) === null;
+  const symbolOk = issue(rules.symbol, symbol) === null;
+  const imageError = image === "" ? null : issue(rules.image, image);
+  const imageOk = imageError === null;
   const short = cash !== null && initialBuy > cash;
   const ok = nameOk && symbolOk && imageOk && !short && !sending;
 
-  useEffect(() => {
-    if (confirmed) router.push("/explore");
-  }, [confirmed, router]);
+  const go = (token: Address | null) => {
+    if (went.current) return;
+    went.current = true;
+    router.push(token ? `/token/${token}` : "/explore?sort=new");
+  };
 
-  const submit = () => run(() => actions.launch({ name: name.trim(), symbol, image, initialBuy }));
+  // whichever comes first: a tokens message for a coin this user just created, or the confirmed receipt
+  useEffect(() => {
+    if (!txId || !address) return;
+    const check = () => {
+      const l = launching.current;
+      const fresh = l && Object.values(liveTokens.get()).find((t) => t.creator && lk(t.creator) === lk(address) && t.symbol === l.symbol && t.createdAt >= l.at - 60);
+      if (fresh) go(fresh.address);
+    };
+    check();
+    return liveTokens.subscribe(check);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [txId, address]);
+
+  useEffect(() => {
+    if (!confirmed || !address) return;
+    let live = true;
+    const hash = tx?.hash ?? null;
+    void (hash ? launchedToken(hash, address) : Promise.resolve(null)).then((token) => {
+      if (!live) return;
+      if (token) go(token);
+      // give the tokens message a moment before falling back to the new list
+      else setTimeout(() => go(null), 3000);
+    });
+    return () => {
+      live = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [confirmed, address, tx?.hash]);
+
+  const submit = () => {
+    launching.current = { symbol, at: nowSec() };
+    went.current = false;
+    return run(() => actions.launch({ name: name.trim(), symbol, image, initialBuy }));
+  };
 
   return (
     <div className="flex flex-col gap-6 px-4 pt-2 pb-8">
@@ -106,7 +162,7 @@ function LaunchForm() {
           autoCorrect="off"
           className={field}
         />
-        {!imageOk && <span className="text-[12px] text-muted">That doesn&apos;t look like a link. Use http or https, 256 characters at most.</span>}
+        {imageError && <span className="text-[12px] text-muted">{imageError === "Invalid url" ? "That doesn't look like a link. Use http or https, 256 bytes at most." : `${imageError[0].toUpperCase()}${imageError.slice(1)}.`}</span>}
       </label>
       <div className="flex flex-col gap-1.5">
         <label htmlFor="first-buy" className="text-[12px] leading-4 font-medium text-muted">

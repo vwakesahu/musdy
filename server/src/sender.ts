@@ -97,7 +97,7 @@ export class Sender {
   }
 
   submit(send: SendFn): Promise<Hash> {
-    const run = async () => {
+    const attempt = async (): Promise<Hash> => {
       if (this.nonce === null) this.nonce = await this.pub.getTransactionCount({ address: this.address, blockTag: "pending" });
       const nonce = this.nonce;
       try {
@@ -110,6 +110,16 @@ export class Sender {
       } catch (e) {
         this.nonce = null;
         throw e;
+      }
+    };
+    // nonce too low means something else spent our cached nonce and this tx never entered the pool, so resync once
+    const run = async () => {
+      try {
+        return await attempt();
+      } catch (e) {
+        if (!nonceTooLow(e)) throw e;
+        log("sender.nonce_resync", { sender: this.name });
+        return attempt();
       }
     };
     const p = this.queue.then(run, run);
@@ -218,3 +228,5 @@ export class Sender {
     return sent;
   }
 }
+
+const nonceTooLow = (e: unknown) => /nonce too low|nonce has already been used/i.test(errMessage(e));

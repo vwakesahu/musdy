@@ -39,6 +39,29 @@ describe.skipIf(!ANVIL_READY)("nonce managed sender on anvil", () => {
     expect(await pub.getBalance({ address: to })).toBe(parseEther("0.11"));
   });
 
+  test("another party spending the cached nonce makes the next submit resync once and land", async () => {
+    const pub = createPublicClient({ chain: anvilChain, transport: http(node.rpc), pollingInterval: 200 });
+    const key = generatePrivateKey();
+    const account = privateKeyToAccount(key);
+    const testClient = createTestClient({ mode: "anvil", chain: anvilChain, transport: http(node.rpc) });
+    await testClient.setBalance({ address: account.address, value: parseEther("10") });
+    const wallet = createWalletClient({ chain: anvilChain, transport: http(node.rpc), account });
+    const sender = new Sender(wallet, pub, "shared");
+    const to = privateKeyToAccount(generatePrivateKey()).address;
+    const send = (nonce: number) => signSend(wallet, to, parseEther("0.01"), nonce);
+
+    await pub.waitForTransactionReceipt({ hash: await sender.submit(send) });
+    // someone outside the sender uses the same key, so the sender's cached nonce is now spent
+    const outsider = createWalletClient({ chain: anvilChain, transport: http(node.rpc), account });
+    await pub.waitForTransactionReceipt({ hash: await outsider.sendTransaction({ to, value: parseEther("0.01") }) });
+
+    const hash = await sender.submit(send);
+    const receipt = await pub.waitForTransactionReceipt({ hash });
+    expect(receipt.status).toBe("success");
+    expect((await pub.getTransaction({ hash })).nonce).toBe(2);
+    expect(await pub.getBalance({ address: to })).toBe(parseEther("0.03"));
+  });
+
   test("the watchdog replaces a stuck nonce at a higher fee and only the replacement mines", async () => {
     const pub = createPublicClient({ chain: anvilChain, transport: http(node.rpc), pollingInterval: 200 });
     const wallet = createWalletClient({ chain: anvilChain, transport: http(node.rpc), account: privateKeyToAccount(KEYS.RELAYER_KEY as `0x${string}`) });

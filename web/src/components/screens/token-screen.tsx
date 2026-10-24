@@ -1,10 +1,11 @@
 "use client";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Address } from "viem";
 import { isAddress } from "viem";
+import { BackBar } from "../back-bar";
 import { FeedList } from "../feed-list";
 import { PriceChart } from "../price-chart";
 import { TradeSheet } from "../trade-sheet";
@@ -12,7 +13,6 @@ import { Avatar } from "../ui/avatar";
 import { Button } from "../ui/button";
 import { CurveBar } from "../ui/curve-bar";
 import { EmptyState } from "../ui/empty-state";
-import { Icon } from "../ui/icon";
 import { PctChip, Pnl } from "../ui/pnl";
 import { Skeleton } from "../ui/skeleton";
 import { TokenIcon } from "../ui/token-icon";
@@ -41,7 +41,6 @@ export function TokenScreen() {
 }
 
 function TokenView({ address }: { address: Address }) {
-  const router = useRouter();
   const qc = useQueryClient();
   const { address: me } = useSession();
   const [range, setRange] = useState(1);
@@ -90,7 +89,7 @@ function TokenView({ address }: { address: Address }) {
   if (info.isError && !token) {
     return (
       <>
-        <BackBar title="" onBack={() => router.back()} />
+        <BackBar title="" />
         <EmptyState title="Couldn't load this token" body={info.error.message} />
       </>
     );
@@ -104,7 +103,7 @@ function TokenView({ address }: { address: Address }) {
 
   return (
     <div className="pb-[72px]">
-      <BackBar title={token?.symbol ?? ""} onBack={() => router.back()} />
+      <BackBar title={token?.symbol ?? ""} />
       <section className="px-4 pt-2">
         {token ? (
           <>
@@ -198,7 +197,7 @@ function TokenView({ address }: { address: Address }) {
             <Stat label="Venue" value={token.venue === "curve" ? "Launch curve" : "Mezo pool"} />
           </dl>
           {token.venue === "curve" && token.curveProgress !== null && (
-            <div className="mt-4">
+            <div className="mt-4" data-testid="curve-progress">
               <p className="mb-1.5 text-[12px] font-medium text-muted">Curve progress, graduates to a Mezo pool at 100%</p>
               <CurveBar progress={token.curveProgress} />
             </div>
@@ -247,16 +246,5 @@ function Stat({ label, value }: { label: string; value: string }) {
       <dt className="text-[12px] leading-4 font-medium text-muted">{label}</dt>
       <dd className="mt-0.5 text-[15px] leading-[22px] font-medium tabular-nums">{value}</dd>
     </div>
-  );
-}
-
-function BackBar({ title, onBack }: { title: string; onBack: () => void }) {
-  return (
-    <header className="sticky top-0 z-20 flex h-14 items-center gap-2 bg-bg/90 px-2 pt-[env(safe-area-inset-top)] backdrop-blur-md">
-      <button onClick={onBack} aria-label="Back" className="press grid h-11 w-11 place-items-center">
-        <Icon name="back" />
-      </button>
-      <h1 className="flex-1 text-[17px] font-semibold">{title}</h1>
-    </header>
   );
 }

@@ -55,7 +55,7 @@ export function LiveBridge() {
     if (m.type === "tx") {
       liveTxs.set((t) => ({ ...t, [m.tx.id]: m.tx }));
       if (m.tx.status === "confirmed") toast("success", txDone[m.tx.kind] ?? "Done");
-      if (m.tx.status === "failed") toast("error", m.tx.error ?? "Transaction failed");
+      if (m.tx.status === "failed") toast("error", m.tx.error ? errorText(m.tx.error) : "Transaction failed");
     }
   });
 

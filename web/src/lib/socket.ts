@@ -1,5 +1,9 @@
 import { ServerMsg, topicKey, type Address } from "shared";
 import { env } from "./env";
+import { createStore } from "./store";
+
+// the chain id from the latest welcome, checked against the build before anything signs
+export const socketChain = createStore<number | null>(null);
 
 type Handler = (msg: ServerMsg) => void;
 export type SocketStatus = "idle" | "connecting" | "open" | "closed";
@@ -112,6 +116,7 @@ class SocketClient {
     const parsed = ServerMsg.safeParse(json);
     if (!parsed.success) return;
     const msg = parsed.data;
+    if (msg.type === "welcome") socketChain.set(msg.chainId);
     for (const h of this.globalHandlers) h(msg);
     if (!("topic" in msg)) return;
     const topic = topicKey(msg.topic);

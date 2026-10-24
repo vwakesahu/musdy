@@ -4,15 +4,38 @@ import { useQuery } from "@tanstack/react-query";
 import { QRCodeSVG } from "qrcode.react";
 import { useActions } from "@/hooks/use-actions";
 import { useDeployment } from "@/hooks/use-deployment";
+import { useNow } from "@/hooks/use-now";
 import { useSession } from "@/hooks/use-session";
 import { tokenAmount } from "@/lib/format";
-import { api } from "@/lib/http";
+import { ApiError, api } from "@/lib/http";
 import { liveBalances, lk } from "@/lib/live";
-import { useStore } from "@/lib/store";
+import { createStore, useStore } from "@/lib/store";
 import { toast } from "@/lib/toast";
 import { Button } from "./ui/button";
 import { Icon } from "./ui/icon";
 import { Sheet } from "./ui/sheet";
+
+const DAY = 86_400_000;
+const LIMITED = new Set(["faucet_limited", "faucet_ip_limited"]);
+const claimKey = (address: string) => `musdy:faucet:${address.toLowerCase()}`;
+// bumps when a claim is written so the sheet re-reads storage
+const claimTick = createStore(0);
+
+function readClaim(address: string, now: number): number | null {
+  try {
+    const at = Number(window.localStorage.getItem(claimKey(address)));
+    return Number.isFinite(at) && at > 0 && now - at < DAY ? at : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeClaim(address: string) {
+  try {
+    window.localStorage.setItem(claimKey(address), String(Date.now()));
+  } catch {}
+  claimTick.set((n) => n + 1);
+}
 
 export function DepositSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
   const { address } = useSession();
@@ -36,11 +59,22 @@ export function DepositSheet({ open, onOpenChange }: { open: boolean; onOpenChan
     }
   };
 
+  useStore(claimTick, (n) => n, 0);
+  const now = useNow();
+  const claimedAt = address && open && now > 0 ? readClaim(address, now) : null;
+  const hoursLeft = claimedAt ? Math.max(1, Math.min(24, Math.ceil((claimedAt + DAY - now) / 3_600_000))) : 0;
+
   const faucet = async () => {
+    if (!address) return;
     setBusy(true);
-    const res = await actions.faucet();
+    const res = await actions.faucet((e) => {
+      if (e instanceof ApiError && LIMITED.has(e.code)) writeClaim(address);
+    });
     setBusy(false);
-    if (res) toast("info", "Faucet request sent, 1,000 MUSD is on its way");
+    if (res) {
+      writeClaim(address);
+      toast("success", "Faucet request sent, 1,000 MUSD is on its way");
+    }
   };
 
   return (
@@ -66,9 +100,9 @@ export function DepositSheet({ open, onOpenChange }: { open: boolean; onOpenChan
             </p>
           ))}
           {faucetOn && (
-            <Button variant="raised" className="h-[52px] w-full" disabled={busy} onClick={faucet} data-testid="faucet">
+            <Button variant="raised" className="h-[52px] w-full" disabled={busy || claimedAt !== null} onClick={faucet} data-testid="faucet">
               <Icon name="drop" size={20} />
-              {busy ? "Requesting" : "Get 1,000 test MUSD"}
+              {busy ? "Requesting" : claimedAt !== null ? `Claimed, next in about ${hoursLeft}h` : "Get 1,000 test MUSD"}
             </Button>
           )}
         </div>

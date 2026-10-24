@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
 import { isAddress, type Address } from "viem";
+import { BackBar } from "../back-bar";
 import { FeedList } from "../feed-list";
 import { HandleSheet } from "../handle-sheet";
 import { LoginGate } from "../login-gate";
@@ -19,7 +20,7 @@ import { useActions } from "@/hooks/use-actions";
 import { useTradeList } from "@/hooks/use-feed";
 import { useProfile } from "@/hooks/use-live";
 import { useSession } from "@/hooks/use-session";
-import { shortAddr, signedBig } from "@/lib/format";
+import { displayName, shortAddr, signedBig } from "@/lib/format";
 import type { PnlWindow } from "shared";
 import { api } from "@/lib/http";
 
@@ -38,10 +39,24 @@ export function OwnProfileScreen() {
 export function UserProfileScreen() {
   const params = useParams<{ address: string }>();
   const raw = params.address ?? "";
+  if (!isAddress(raw)) {
+    return (
+      <>
+        <BackBar title="" />
+        <EmptyState title="That isn't an address" />
+      </>
+    );
+  }
+  return <UserProfile address={raw} />;
+}
+
+// someone else's profile is a drill in, so it gets a back chevron and their name
+function UserProfile({ address }: { address: Address }) {
+  const p = useProfile(address).data;
   return (
     <>
-      <ScreenHeader title="Profile" />
-      {isAddress(raw) ? <ProfileView address={raw} /> : <EmptyState title="That isn't an address" />}
+      <BackBar title={p ? displayName(p.user) : shortAddr(address)} />
+      <ProfileView address={address} />
     </>
   );
 }
@@ -115,7 +130,7 @@ function ProfileView({ address }: { address: Address }) {
               <Skeleton className="mt-2 h-10 w-40" />
             )}
           </div>
-          <div className="w-[150px]">
+          <div className="w-[168px]">
             <Segmented size="sm" value={win} onChange={setWin} options={WINDOWS} />
           </div>
         </div>
@@ -176,7 +191,7 @@ function ProfileView({ address }: { address: Address }) {
       )}
 
       {self && (
-        <button onClick={logout} className="mx-auto my-8 text-[14px] font-medium text-muted" data-testid="logout">
+        <button onClick={logout} className="press mx-auto my-6 h-11 min-w-[120px] rounded-full px-4 text-[14px] font-medium text-muted" data-testid="logout">
           Log out
         </button>
       )}
