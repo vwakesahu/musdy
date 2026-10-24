@@ -122,7 +122,7 @@ function LaunchForm() {
         />
         <div className="mt-1 flex gap-2">
           {[0, 10, 50, 100].map((n) => (
-            <button key={n} onClick={() => setBuy(n ? String(n) : "")} className="press h-9 flex-1 rounded-full bg-raised text-[14px] font-medium">
+            <button key={n} onClick={() => setBuy(n ? String(n) : "")} className="press h-11 flex-1 rounded-full bg-raised text-[14px] font-medium">
               {n ? `$${n}` : "None"}
             </button>
           ))}

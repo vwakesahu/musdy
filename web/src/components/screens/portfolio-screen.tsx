@@ -18,7 +18,7 @@ export function PortfolioScreen() {
   return (
     <>
       <ScreenHeader title="Portfolio" />
-      <LoginGate title="Your money, in one number" body="Log in to get your Mezo address and a USD balance you can trade from.">
+      <LoginGate title="Your money, in one number" body="Log in to get a USD balance you can trade from.">
         <Portfolio />
       </LoginGate>
     </>
@@ -74,8 +74,7 @@ function Portfolio() {
             {cash === null ? <Skeleton className="h-5 w-20" /> : <Money value={cash} />}
           </span>
         </span>
-        <span className="text-right text-[12px] leading-4 text-muted">MUSD on Mezo,
-          <br />ready to trade</span>
+        <span className="text-right text-[12px] leading-4 text-muted">ready to trade</span>
       </section>
 
       <p className="label px-4">Positions</p>
@@ -103,7 +102,7 @@ function Portfolio() {
       {locked.length > 0 && (
         <p className="flex items-start gap-2 px-4 pt-3 text-[13px] leading-5 text-muted">
           <Icon name="lock" size={16} className="mt-0.5 shrink-0" />
-          {locked.map((x) => x.token.symbol).join(", ")} {locked.length === 1 ? "is" : "are"} still on the launch curve. You can sell any time, and withdraw once the coin graduates to a Mezo pool.
+          {locked.map((x) => x.token.symbol).join(", ")} {locked.length === 1 ? "is" : "are"} still on the launch curve. You can sell any time, and withdraw once the coin graduates.
         </p>
       )}
     </div>

@@ -1,14 +1,14 @@
 "use client";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import type { TokenInfo } from "shared";
+import type { TokenInfo, TokenSort } from "shared";
 import { RowSkeletons } from "../feed-list";
 import { ScreenHeader } from "../screen-header";
 import { TokenRow } from "../token-row";
 import { EmptyState } from "../ui/empty-state";
 import { Icon } from "../ui/icon";
 import { Segmented } from "../ui/segmented";
-import { api, type TokenSort } from "@/lib/http";
+import { api } from "@/lib/http";
 import { liveTokens, lk } from "@/lib/live";
 import { useStore } from "@/lib/store";
 

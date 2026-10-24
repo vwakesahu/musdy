@@ -22,7 +22,8 @@ import { useNow } from "@/hooks/use-now";
 import { useSession } from "@/hooks/use-session";
 import { useTopic } from "@/hooks/use-topic";
 import { displayName, price, signedBig, tokenAmount, usd } from "@/lib/format";
-import { api, type CandleTf } from "@/lib/http";
+import { topicKey, type CandleTf } from "shared";
+import { api } from "@/lib/http";
 
 const RANGES: { label: string; tf: CandleTf; secs: number }[] = [
   { label: "1H", tf: "1m", secs: 3600 },
@@ -54,7 +55,7 @@ function TokenView({ address }: { address: Address }) {
   const token = live ?? info.data;
   const r = RANGES[range];
   const candles = useQuery({ queryKey: ["candles", address.toLowerCase(), r.tf], queryFn: () => api.candles(address, r.tf) });
-  const topic = `token:${address.toLowerCase()}`;
+  const topic = topicKey(`token:${address}`);
   const trades = useTradeList(topic, ["tokenTrades", address.toLowerCase()], () => api.tokenTrades(address));
   const profile = useProfile(me);
 
@@ -73,13 +74,18 @@ function TokenView({ address }: { address: Address }) {
   const now = Math.floor(useNow() / 1000);
   const shown = (candles.data ?? []).filter((c) => r.secs === Infinity || now === 0 || c.t >= now - r.secs);
 
-  const buyers = new Map<string, { user: (typeof trades.items)[number]["user"]; total: bigint }>();
+  // buyers who still hold, so the strip agrees with the Holders stat
+  const buyers = new Map<string, { user: (typeof trades.items)[number]["user"]; total: bigint; net: bigint }>();
   for (const t of trades.items) {
-    if (!t.isBuy) continue;
     const k = t.user.address.toLowerCase();
-    buyers.set(k, { user: t.user, total: (buyers.get(k)?.total ?? 0n) + BigInt(t.musdAmount) });
+    const cur = buyers.get(k) ?? { user: t.user, total: 0n, net: 0n };
+    const amt = BigInt(t.tokenAmount);
+    buyers.set(k, t.isBuy ? { ...cur, total: cur.total + BigInt(t.musdAmount), net: cur.net + amt } : { ...cur, net: cur.net - amt });
   }
-  const topBuyers = [...buyers.values()].sort((a, b) => (b.total > a.total ? 1 : -1)).slice(0, 8);
+  const topBuyers = [...buyers.values()]
+    .filter((x) => x.total > 0n && x.net > 0n)
+    .sort((a, b) => (b.total > a.total ? 1 : -1))
+    .slice(0, Math.min(8, token?.holders ?? 8));
 
   if (info.isError && !token) {
     return (
@@ -139,7 +145,7 @@ function TokenView({ address }: { address: Address }) {
             <button
               key={x.label}
               onClick={() => setRange(i)}
-              className={`press h-8 rounded-full px-3 text-[13px] font-medium ${i === range ? "bg-raised text-text" : "text-muted"}`}
+              className={`press h-11 rounded-full px-3 text-[13px] font-medium ${i === range ? "bg-raised text-text" : "text-muted"}`}
             >
               {x.label}
             </button>
@@ -167,7 +173,7 @@ function TokenView({ address }: { address: Address }) {
 
       {topBuyers.length > 0 && (
         <section className="mt-6">
-          <p className="label px-4">Traders who bought</p>
+          <p className="label px-4">Traders who bought and hold</p>
           <ul className="no-scrollbar mt-3 flex gap-4 overflow-x-auto px-4">
             {topBuyers.map((b) => (
               <li key={b.user.address}>

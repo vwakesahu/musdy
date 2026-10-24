@@ -7,7 +7,8 @@ import { ScreenHeader } from "../screen-header";
 import { EmptyState } from "../ui/empty-state";
 import { Segmented } from "../ui/segmented";
 import { useSession } from "@/hooks/use-session";
-import { api, type PnlWindow } from "@/lib/http";
+import type { PnlWindow } from "shared";
+import { api } from "@/lib/http";
 
 export function LeaderboardScreen() {
   const [win, setWin] = useState<PnlWindow>("d1");

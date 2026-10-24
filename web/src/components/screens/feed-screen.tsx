@@ -1,21 +1,24 @@
 "use client";
 import Link from "next/link";
 import { useState } from "react";
+import { topicKey, type FeedScope } from "shared";
 import { FeedList } from "../feed-list";
 import { LoginOptions } from "../login-sheet";
 import { ScreenHeader } from "../screen-header";
 import { EmptyState } from "../ui/empty-state";
+import { Button } from "../ui/button";
 import { Icon } from "../ui/icon";
 import { Segmented } from "../ui/segmented";
 import { useTradeList } from "@/hooks/use-feed";
 import { useSession } from "@/hooks/use-session";
 import { api } from "@/lib/http";
+import { openSheet } from "@/lib/ui";
 
 export function FeedScreen() {
-  const [scope, setScope] = useState<"global" | "following">("global");
+  const [scope, setScope] = useState<FeedScope>("global");
   const { address, ready } = useSession();
   const following = scope === "following";
-  const topic = following ? (address ? `feed:following:${address.toLowerCase()}` : null) : "feed:global";
+  const topic = following ? (address ? topicKey(`feed:following:${address}`) : null) : topicKey("feed:global");
   const feed = useTradeList(
     topic,
     ["feed", scope, address?.toLowerCase() ?? null],
@@ -32,6 +35,14 @@ export function FeedScreen() {
           </Link>
         }
       />
+      {ready && !address && !following && (
+        <div className="mx-4 mb-3 flex items-center gap-3 rounded-[20px] bg-surface py-2 pr-2 pl-4" data-testid="feed-intro">
+          <p className="flex-1 text-[14px] leading-5">Copy real traders in one tap. One USD balance, no gas.</p>
+          <Button variant="accent" className="h-11 shrink-0 px-4" onClick={() => openSheet("login")}>
+            Log in
+          </Button>
+        </div>
+      )}
       <div className="px-4 pb-2">
         <Segmented
           value={scope}

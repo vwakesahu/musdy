@@ -17,10 +17,10 @@ export function MusdMark({ size = 14 }: { size?: number }) {
 export function BalancePill() {
   const { address, ready } = useSession();
   const cash = useCash();
-  if (!ready) return <Skeleton className="h-9 w-24 rounded-full" />;
+  if (!ready) return <Skeleton className="h-11 w-24 rounded-full" />;
   if (!address) {
     return (
-      <button onClick={() => openSheet("login")} className="press h-9 rounded-full bg-raised px-4 text-[14px] font-semibold">
+      <button onClick={() => openSheet("login")} className="press h-11 rounded-full bg-raised px-4 text-[14px] font-semibold">
         Log in
       </button>
     );
@@ -30,7 +30,7 @@ export function BalancePill() {
       onClick={() => openSheet("deposit")}
       aria-label="Balance, add cash"
       data-testid="balance-pill"
-      className="press flex h-9 items-center gap-2 rounded-full bg-raised pr-3.5 pl-2.5 text-[15px] font-semibold"
+      className="press flex h-11 items-center gap-2 rounded-full bg-raised pr-3.5 pl-2.5 text-[15px] font-semibold"
     >
       <MusdMark />
       {cash === null ? <Skeleton className="h-4 w-14" /> : <Money value={cash} />}

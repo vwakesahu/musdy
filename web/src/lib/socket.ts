@@ -1,4 +1,4 @@
-import { ServerMsg, type Address } from "shared";
+import { ServerMsg, topicKey, type Address } from "shared";
 import { env } from "./env";
 
 type Handler = (msg: ServerMsg) => void;
@@ -67,7 +67,8 @@ class SocketClient {
     }
   }
 
-  subscribe(topic: string, handler: Handler) {
+  subscribe(raw: string, handler: Handler) {
+    const topic = topicKey(raw);
     let set = this.handlers.get(topic);
     if (!set) {
       set = new Set();
@@ -113,8 +114,9 @@ class SocketClient {
     const msg = parsed.data;
     for (const h of this.globalHandlers) h(msg);
     if (!("topic" in msg)) return;
-    if (msg.type === "trade" && !this.firstSeen(msg.topic, msg.item.id)) return;
-    const set = this.handlers.get(msg.topic);
+    const topic = topicKey(msg.topic);
+    if (msg.type === "trade" && !this.firstSeen(topic, msg.item.id)) return;
+    const set = this.handlers.get(topic);
     if (set) for (const h of set) h(msg);
   }
 

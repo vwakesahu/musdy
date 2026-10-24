@@ -145,7 +145,7 @@ export function TradeSheet({
           <div className="mt-3 flex gap-2">
             {isBuy
               ? [...BUY_CHIPS.map((n) => ({ label: `$${n}`, act: () => setInput(String(n)) })), ...(cash !== null && cash > 0n ? [{ label: "max", act: () => setInput((Number(cash / 10n ** 16n) / 100).toFixed(2)) }] : [])].map((c) => (
-                  <button key={c.label} onClick={c.act} className="press h-9 flex-1 rounded-full bg-raised text-[14px] font-medium">
+                  <button key={c.label} onClick={c.act} className="press h-11 flex-1 rounded-full bg-raised text-[14px] font-medium">
                     {c.label}
                   </button>
                 ))
@@ -157,7 +157,7 @@ export function TradeSheet({
                       setSellPct(p);
                       setInput("");
                     }}
-                    className={`press h-9 flex-1 rounded-full text-[14px] font-medium disabled:opacity-40 ${sellPct === p ? "bg-accent-tint text-accent" : "bg-raised"}`}
+                    className={`press h-11 flex-1 rounded-full text-[14px] font-medium disabled:opacity-40 ${sellPct === p ? "bg-accent-tint text-accent" : "bg-raised"}`}
                   >
                     {String(p)}%
                   </button>

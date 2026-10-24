@@ -2,7 +2,7 @@
 import { useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import type { Address } from "viem";
-import { followMessage, profileMessage, type FeedItem, type TxStatus } from "shared";
+import { faucetMessage, followMessage, profileMessage, type FeedItem, type TxStatus } from "shared";
 import { api } from "@/lib/http";
 import { liveTxs } from "@/lib/live";
 import { signLaunch, signTrade, signWithdraw, type TradeInput } from "@/lib/sign";
@@ -48,6 +48,7 @@ export function useActions() {
       trade: (t: TradeInput) => run(async (s) => track(await api.trade(await signTrade(s, needDep(), t)))),
       copy: (item: FeedItem, cash: bigint) =>
         run(async (s) => {
+          if (!item.isBuy) throw new Error("Only buys can be copied");
           const want = BigInt(item.musdAmount);
           const amountIn = want < cash ? want : cash;
           if (amountIn <= 0n) throw new Error("No cash to copy with. Add MUSD first");
@@ -67,7 +68,12 @@ export function useActions() {
         run(async (s) => track(await api.withdraw(await signWithdraw(s, needDep(), w))), onError),
       launch: (l: { name: string; symbol: string; image: string; initialBuy: bigint }) =>
         run(async (s) => track(await api.launch(await signLaunch(s, needDep(), l)))),
-      faucet: () => run(async (s) => track(await api.faucet({ address: s.address }))),
+      faucet: () =>
+        run(async (s) => {
+          const issued = new Date().toISOString();
+          const sig = await s.signMessage(faucetMessage(s.address, issued));
+          return track(await api.faucet({ address: s.address, issued, sig }));
+        }),
       setHandle: (handle: string) =>
         run(async (s) => {
           const issued = new Date().toISOString();

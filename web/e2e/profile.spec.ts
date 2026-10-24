@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
-import { devLogin, other, otherBuys, shot, stock } from "./helpers";
+import { buyAs, devLogin, other, shot, stock, third } from "./helpers";
 
-// AC11: set a handle, follow a trader, the following feed shows their trades
+// AC11: set a handle, follow a trader, the following feed shows their trades and only theirs
 test("set a handle and follow a trader", async ({ page }, info) => {
   const handle = `e2e_${Date.now().toString(36).slice(-6)}`;
   await devLogin(page, "/profile");
@@ -17,9 +17,22 @@ test("set a handle and follow a trader", async ({ page }, info) => {
   await expect(follow).toHaveText(/^Follow(ing)?$/);
   if ((await follow.innerText()) === "Follow") await follow.click();
   await expect(page.getByTestId("follow")).toHaveText("Following");
-  await otherBuys(stock.address, "2");
+
+  // a repeat run may follow the third key from elsewhere, make sure it isn't
+  await page.goto(`/u/${third.address}`);
+  await expect(page.getByTestId("follow")).toHaveText(/^Follow(ing)?$/);
+  if ((await page.getByTestId("follow").innerText()) === "Following") await page.getByTestId("follow").click();
+  await expect(page.getByTestId("follow")).toHaveText("Follow");
+
   await page.goto("/");
   await page.getByRole("tab", { name: "Following" }).click();
-  await expect(page.getByTestId("feed-row").first()).toBeVisible({ timeout: 30_000 });
+  const theirs = await buyAs(other, stock.address, "2");
+  const stranger = await buyAs(third, stock.address, "2");
+  const rows = page.getByTestId("feed-row");
+  await expect(page.locator(`[data-testid="feed-row"][data-id="${theirs.id}"]`)).toBeVisible({ timeout: 30_000 });
+  // the third key's trade is indexed, give the socket a moment to (wrongly) deliver it
+  await page.waitForTimeout(3000);
+  await expect(page.locator(`[data-testid="feed-row"][data-id="${stranger.id}"]`)).toHaveCount(0);
+  for (const user of await rows.evaluateAll((els) => els.map((e) => e.getAttribute("data-user")))) expect(user).toBe(other.address.toLowerCase());
   await shot(page, info, "following");
 });

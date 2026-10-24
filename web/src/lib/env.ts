@@ -14,5 +14,3 @@ export const env = {
 // the dev key is a throwaway anvil key and is refused on every chain but local anvil
 export const devKeyState: "off" | "ok" | "refused" = !devKey ? "off" : chainId === 31337 ? "ok" : "refused";
 export const devPrivateKey = (devKeyState === "ok" && /^0x[0-9a-fA-F]{64}$/.test(devKey) ? devKey : null) as Hex | null;
-
-export const faucetEnabled = chainId === 31337 || chainId === 31611;

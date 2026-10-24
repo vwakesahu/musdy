@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { topicKey } from "shared";
 import { useDeployment } from "@/hooks/use-deployment";
 import { useSession } from "@/hooks/use-session";
 import { useTopic } from "@/hooks/use-topic";
@@ -30,7 +31,7 @@ export function LiveBridge() {
     liveBalances.set(null);
   }, [address]);
 
-  useTopic("prices", (m) => {
+  useTopic(topicKey("prices"), (m) => {
     if (m.type !== "prices") return;
     livePrices.set((p) => {
       const next = { ...p };
@@ -39,12 +40,12 @@ export function LiveBridge() {
     });
   });
 
-  useTopic("tokens", (m) => {
+  useTopic(topicKey("tokens"), (m) => {
     if (m.type !== "token") return;
     liveTokens.set((t) => ({ ...t, [lk(m.token.address)]: m.token }));
   });
 
-  useTopic(address ? `user:${address.toLowerCase()}` : null, (m) => {
+  useTopic(address ? topicKey(`user:${address}`) : null, (m) => {
     if (m.type === "balances") {
       const toMap = (xs: { token: string; amount: string }[]) => Object.fromEntries(xs.map((x) => [lk(x.token), BigInt(x.amount)]));
       liveBalances.set({ block: m.block, vault: toMap(m.vault), wallet: toMap(m.wallet) });

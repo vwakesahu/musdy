@@ -1,11 +1,12 @@
 "use client";
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { QRCodeSVG } from "qrcode.react";
 import { useActions } from "@/hooks/use-actions";
 import { useDeployment } from "@/hooks/use-deployment";
 import { useSession } from "@/hooks/use-session";
-import { faucetEnabled } from "@/lib/env";
 import { tokenAmount } from "@/lib/format";
+import { api } from "@/lib/http";
 import { liveBalances, lk } from "@/lib/live";
 import { useStore } from "@/lib/store";
 import { toast } from "@/lib/toast";
@@ -18,6 +19,7 @@ export function DepositSheet({ open, onOpenChange }: { open: boolean; onOpenChan
   const dep = useDeployment().data;
   const actions = useActions();
   const [busy, setBusy] = useState(false);
+  const faucetOn = useQuery({ queryKey: ["health"], queryFn: api.health, enabled: open, staleTime: 60_000 }).data?.faucet === true;
   const wallet = useStore(liveBalances, (b) => b?.wallet ?? null, null);
   const incoming = dep && wallet ? [
     { symbol: "MUSD", amount: wallet[lk(dep.musd)] ?? 0n },
@@ -48,11 +50,12 @@ export function DepositSheet({ open, onOpenChange }: { open: boolean; onOpenChan
       ) : (
         <div className="flex flex-col gap-4">
           <p className="text-[14px] leading-5 text-muted">
-            Send MUSD or BTC on Mezo to this address. It moves into your balance on its own, no gas needed.
+            Send MUSD or BTC to your deposit address. It moves into your balance on its own.
           </p>
           <div className="flex justify-center rounded-[20px] bg-raised p-5">
             <QRCodeSVG value={address} size={168} bgColor="#1D1A25" fgColor="#F4F1EA" marginSize={0} />
           </div>
+          <p className="-mb-2 text-[12px] leading-4 font-medium text-muted">Your deposit address</p>
           <button onClick={copy} className="press flex items-center gap-3 rounded-[14px] bg-raised px-4 py-3 text-left" data-testid="deposit-address">
             <span className="flex-1 font-mono text-[13px] leading-5 break-all">{address}</span>
             <Icon name="copy" size={20} className="shrink-0 text-muted" />
@@ -62,7 +65,7 @@ export function DepositSheet({ open, onOpenChange }: { open: boolean; onOpenChan
               Moving {tokenAmount(x.amount)} {x.symbol} into your balance
             </p>
           ))}
-          {faucetEnabled && (
+          {faucetOn && (
             <Button variant="raised" className="h-[52px] w-full" disabled={busy} onClick={faucet} data-testid="faucet">
               <Icon name="drop" size={20} />
               {busy ? "Requesting" : "Get 1,000 test MUSD"}

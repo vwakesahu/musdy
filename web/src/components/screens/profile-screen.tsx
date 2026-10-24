@@ -20,7 +20,8 @@ import { useTradeList } from "@/hooks/use-feed";
 import { useProfile } from "@/hooks/use-live";
 import { useSession } from "@/hooks/use-session";
 import { shortAddr, signedBig } from "@/lib/format";
-import { api, type PnlWindow } from "@/lib/http";
+import type { PnlWindow } from "shared";
+import { api } from "@/lib/http";
 
 export function OwnProfileScreen() {
   const { address } = useSession();

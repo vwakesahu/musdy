@@ -18,7 +18,7 @@ export function FeedRow({ item, self }: { item: FeedItem; self: boolean }) {
   const since = item.isBuy && live && at > 0n ? Number(((live.priceMusd - at) * 10_000n) / at) / 10_000 : null;
 
   return (
-    <div className="relative flex min-h-[72px] items-center gap-3 border-b border-line px-4 py-3" data-testid="feed-row">
+    <div className="relative flex min-h-[72px] items-center gap-3 border-b border-line px-4 py-3" data-testid="feed-row" data-id={item.id} data-user={item.user.address.toLowerCase()} data-side={item.isBuy ? "buy" : "sell"}>
       <Link href={`/token/${item.token.address}`} className="absolute inset-0" aria-label={`${item.token.symbol} details`} />
       <Link href={`/u/${item.user.address}`} className="relative z-10" aria-label={displayName(item.user)}>
         <Avatar user={item.user} />
@@ -43,7 +43,7 @@ export function FeedRow({ item, self }: { item: FeedItem; self: boolean }) {
         </div>
         {item.ref && <p className="mt-0.5 text-[12px] leading-4 font-medium text-muted">copied {displayName(item.ref)}</p>}
       </div>
-      {self ? <Icon name="chevron" size={20} className="text-muted" /> : <CopyButton item={item} />}
+      {item.isBuy && !self ? <CopyButton item={item} /> : <Icon name="chevron" size={20} className="text-muted" />}
     </div>
   );
 }

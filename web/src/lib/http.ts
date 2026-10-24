@@ -12,6 +12,10 @@ import {
   TokenInfo,
   routes,
   type Address,
+  type CandleTf,
+  type FeedScope,
+  type PnlWindow,
+  type TokenSort,
   type FaucetBody,
   type FollowBody,
   type LaunchBody,
@@ -24,10 +28,6 @@ import { env } from "./env";
 
 type Schema<T> = { parse: (data: unknown) => T };
 type Query = Record<string, string | undefined>;
-
-export type TokenSort = "trending" | "new" | "stocks";
-export type CandleTf = "1m" | "5m" | "1h" | "1d";
-export type PnlWindow = "d1" | "d7" | "all";
 
 export class ApiError extends Error {
   constructor(
@@ -77,7 +77,7 @@ export const api = {
   candles: (address: Address, tf: CandleTf) => request(Candle.array(), fill(routes.candles, { address }), { query: { tf } }),
   tokenTrades: (address: Address, before?: string) =>
     request(FeedItem.array(), fill(routes.tokenTrades, { address }), { query: { before } }),
-  feed: (scope: "global" | "following", address?: Address, before?: string) =>
+  feed: (scope: FeedScope, address?: Address, before?: string) =>
     request(FeedItem.array(), routes.feed, { query: { scope, address, before } }),
   user: (address: Address, viewer?: Address) => request(Profile, fill(routes.user, { address }), { query: { viewer } }),
   userTrades: (address: Address) => request(FeedItem.array(), fill(routes.userTrades, { address })),

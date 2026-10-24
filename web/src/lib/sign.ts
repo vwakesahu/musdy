@@ -73,24 +73,23 @@ export async function signLaunch(
   };
 }
 
-// erc2612 permit for the vault. MUSD tells us its domain, the BTC precompile doesn't
+type PermitDomain = { name: string; version: string; chainId: number; verifyingContract: Address };
+
+// erc2612 permit for the vault. ask the token for its domain and nonces(), fall back to the BTC precompile shape when it can't say
+async function permitDomain(token: Address, owner: Address, chainId: number): Promise<{ domain: PermitDomain; nonce: bigint }> {
+  try {
+    const [, name, version, cid, verifyingContract] = await publicClient.readContract({ address: token, abi: permitReadAbi, functionName: "eip712Domain" });
+    const nonce = await publicClient.readContract({ address: token, abi: permitReadAbi, functionName: "nonces", args: [owner] });
+    return { domain: { name, version, chainId: Number(cid), verifyingContract }, nonce };
+  } catch {
+    const nonce = await publicClient.readContract({ address: token, abi: permitReadAbi, functionName: "nonce", args: [owner] });
+    return { domain: btcPermitDomain(chainId, token), nonce };
+  }
+}
+
 export async function signPermit(signer: Signer, dep: Deployment, token: Address, amount: bigint): Promise<PermitDepositBody> {
   const owner = signer.address;
-  const isBtc = token.toLowerCase() === dep.btc.toLowerCase();
-  let domain: { name: string; version: string; chainId: number; verifyingContract: Address };
-  let nonce: bigint;
-  if (isBtc) {
-    domain = btcPermitDomain(dep.chainId, dep.btc);
-    nonce = await publicClient.readContract({ address: token, abi: permitReadAbi, functionName: "nonce", args: [owner] });
-  } else {
-    const [, name, version, chainId, verifyingContract] = await publicClient.readContract({
-      address: token,
-      abi: permitReadAbi,
-      functionName: "eip712Domain",
-    });
-    domain = { name, version, chainId: Number(chainId), verifyingContract };
-    nonce = await publicClient.readContract({ address: token, abi: permitReadAbi, functionName: "nonces", args: [owner] });
-  }
+  const { domain, nonce } = await permitDomain(token, owner, dep.chainId);
   const dl = deadline();
   const sig = await signer.signTypedData({
     domain,
