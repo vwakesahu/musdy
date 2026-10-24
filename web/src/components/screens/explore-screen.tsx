@@ -7,15 +7,16 @@ import { RowSkeletons } from "../feed-list";
 import { ScreenHeader } from "../screen-header";
 import { TokenRow } from "../token-row";
 import { EmptyState } from "../ui/empty-state";
-import { MagnifyingGlassIcon } from "@phosphor-icons/react";
-import { Segmented } from "../ui/segmented";
+import { MagnifyingGlassIcon, XIcon } from "@phosphor-icons/react";
+import { RightRail } from "../right-rail";
+import { cn } from "@/lib/utils";
 import { api } from "@/lib/http";
 import { liveTokens, lk } from "@/lib/live";
 import { useStore } from "@/lib/store";
 
 const empties: Record<TokenSort, { title: string; body: string }> = {
   trending: { title: "Nothing is trending yet", body: "Coins with the most buying in the last day show up here." },
-  new: { title: "No launches yet", body: "Launch the first coin from the + tab. It shows up here with its curve progress." },
+  new: { title: "No launches yet", body: "Launch the first coin from the Launch tab. It shows up here with its curve progress." },
   stocks: { title: "No stocks or BTC listed yet", body: "Tokens with a MUSD pool on Mezo show up here." },
 };
 
@@ -61,47 +62,93 @@ export function ExploreScreen() {
   const loading = !needle && current.isPending;
   const failed = !needle && current.isError && list.length === 0;
 
+  const everything = new Map<string, TokenInfo>();
+  for (const t of [...(trending.data ?? []), ...(stocks.data ?? []), ...(fresh.data ?? [])]) everything.set(lk(t.address), live[lk(t.address)] ?? t);
+  const movers = [...everything.values()].sort((a, b) => b.change24h - a.change24h).slice(0, 5);
+  const launches = withLive(fresh.data ?? [], live, "new").slice(0, 5);
+
   return (
     <>
       <ScreenHeader title="Explore" />
-      <div className="flex flex-col gap-3 px-4 pb-2">
-        <label className="flex h-11 items-center gap-2 rounded-[14px] bg-surface px-3 text-muted">
+      <div className="px-4 pb-1 lg:px-6">
+        <label className="flex h-11 items-center gap-2 rounded-[12px] border border-border bg-surface px-3 text-muted transition-colors focus-within:border-accent-hi">
           <MagnifyingGlassIcon size={18} className="text-muted" />
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Search coins, stocks, addresses"
             aria-label="Search"
-            className="h-full flex-1 bg-transparent text-[16px] text-text outline-none placeholder:text-muted"
+            className="h-full flex-1 bg-transparent text-[16px] text-text outline-none placeholder:text-faint"
           />
+          {q && (
+            <button type="button" onClick={() => setQ("")} aria-label="Clear search" className="grid size-7 place-items-center rounded-full bg-surface-3 text-text-2">
+              <XIcon size={14} weight="bold" />
+            </button>
+          )}
         </label>
-        {!needle && (
-          <Segmented
-            value={sort}
-            onChange={setSort}
-            options={[
-              { value: "trending", label: "Trending" },
-              { value: "new", label: "New" },
-              { value: "stocks", label: "Stocks" },
-            ]}
-          />
+      </div>
+      {!needle && (
+        <div role="tablist" aria-label="Sort" className="mt-2 flex border-b border-border">
+          {(
+            [
+              ["trending", "Trending"],
+              ["new", "New"],
+              ["stocks", "Stocks"],
+            ] as const
+          ).map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              role="tab"
+              aria-selected={sort === value}
+              onClick={() => setSort(value)}
+              className={cn(
+                "relative h-12 flex-1 text-[16px] font-medium transition-colors",
+                sort === value ? "text-text after:absolute after:inset-x-0 after:-bottom-px after:h-0.5 after:bg-accent-hi" : "text-muted hover:text-text-2",
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+      <div className="pt-2">
+        {loading ? (
+          <RowSkeletons />
+        ) : failed ? (
+          <EmptyState title="Can't reach the musdy server" body="Prices and coins load once it's back." />
+        ) : list.length === 0 ? (
+          needle ? <EmptyState title={`Nothing matches "${q.trim()}"`} body="Try a ticker like BTC or NVDA, or paste a token address." /> : <EmptyState {...empties[sort]} />
+        ) : (
+          <ul>
+            {list.map((t) => (
+              <li key={t.address}>
+                <TokenRow token={t} />
+              </li>
+            ))}
+          </ul>
         )}
       </div>
-      {loading ? (
-        <RowSkeletons />
-      ) : failed ? (
-        <EmptyState title="Can't reach the musdy server" body="Prices and coins load once it's back." />
-      ) : list.length === 0 ? (
-        needle ? <EmptyState title={`Nothing matches "${q.trim()}"`} /> : <EmptyState {...empties[sort]} />
-      ) : (
-        <ul>
-          {list.map((t) => (
-            <li key={t.address}>
-              <TokenRow token={t} />
-            </li>
-          ))}
-        </ul>
-      )}
+      <RightRail>
+        <RailList title="Top movers" tokens={movers} />
+        <RailList title="Just launched" tokens={launches} />
+      </RightRail>
     </>
+  );
+}
+
+function RailList({ title, tokens }: { title: string; tokens: TokenInfo[] }) {
+  if (tokens.length === 0) return null;
+  return (
+    <section>
+      <h2 className="mb-2 px-2 text-[17px] leading-[22px] font-medium tracking-[-0.01em]">{title}</h2>
+      <ul>
+        {tokens.map((t) => (
+          <li key={t.address}>
+            <TokenRow token={t} compact />
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }

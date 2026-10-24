@@ -2,33 +2,41 @@
 import Link from "next/link";
 import type { TokenInfo } from "shared";
 import { useLivePrice } from "@/hooks/use-live";
-import { price, usd } from "@/lib/format";
+import { compact as short, price, toNum } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import { CurveBar } from "./ui/curve-bar";
-import { PctChip } from "./ui/pnl";
+import { Change } from "./ui/pnl";
 import { TokenIcon } from "./ui/token-icon";
 
-export function TokenRow({ token }: { token: TokenInfo }) {
+export function TokenRow({ token, compact = false }: { token: TokenInfo; compact?: boolean }) {
   const live = useLivePrice(token.address);
   const p = live?.priceMusd ?? BigInt(token.priceMusd);
   const change = live?.change24h ?? token.change24h;
+  const onCurve = token.curveProgress !== null && token.venue === "curve";
   return (
-    <Link href={`/token/${token.address}`} className="press flex min-h-[64px] items-center gap-3 border-b border-line px-4 py-3" data-testid="token-row">
-      <TokenIcon token={token} size={40} />
+    <Link
+      href={`/token/${token.address}`}
+      className={cn("press flex items-center gap-3 transition-colors hover:bg-surface-3 lg:rounded-[14px]", compact ? "min-h-[56px] px-2 py-2" : "min-h-[68px] px-4 py-3 lg:mx-2 lg:px-3")}
+      data-testid={compact ? undefined : "token-row"}
+    >
+      <TokenIcon token={token} size={compact ? 36 : 44} />
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-[15px] leading-[22px] font-semibold">{token.symbol}</span>
-        {token.curveProgress !== null && token.venue === "curve" ? (
-          <span className="mt-1 block max-w-[160px]">
-            <CurveBar progress={token.curveProgress} />
-          </span>
-        ) : (
-          <span className="block truncate text-[14px] leading-5 text-muted">
-            {token.name} <span className="text-[12px]">· MC {usd(BigInt(token.marketCapMusd))}</span>
-          </span>
-        )}
+        <span className="flex items-baseline gap-2">
+          <span className="truncate text-[16px] leading-5 font-medium">{token.symbol}</span>
+          {!compact && token.name !== token.symbol && <span className="hidden truncate text-[13px] text-muted sm:inline">{token.name}</span>}
+        </span>
+        <span className="mt-1 flex items-center gap-2 text-[13px] leading-[17px] text-muted">
+          <span className="shrink-0 tabular-nums">${short(toNum(BigInt(token.marketCapMusd)), 1)} MC</span>
+          {onCurve && !compact && (
+            <span className="w-[96px]">
+              <CurveBar progress={token.curveProgress ?? 0} />
+            </span>
+          )}
+        </span>
       </span>
       <span className="flex flex-col items-end gap-1">
-        <span className="text-[15px] leading-[22px] font-medium tabular-nums">{price(p)}</span>
-        <PctChip value={change} />
+        <span className="text-[16px] leading-5 font-medium tabular-nums">{price(p)}</span>
+        <Change value={change} />
       </span>
     </Link>
   );

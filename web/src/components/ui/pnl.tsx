@@ -24,3 +24,17 @@ export function Pnl({ value, className = "", ...rest }: { value: bigint; classNa
     </span>
   );
 }
+
+export function Change({ value: raw, className = "" }: { value: number; className?: string }) {
+  const value = Math.round(raw * 10_000) / 10_000 || 0;
+  return (
+    <span className={`inline-flex items-center gap-1 text-[13px] leading-4 font-medium tabular-nums ${tone(value)} ${className}`}>
+      {value !== 0 && (
+        <svg width="8" height="7" viewBox="0 0 7 6" aria-hidden className={value < 0 ? "rotate-180" : ""}>
+          <path d="M3.5 0 7 6H0z" fill="currentColor" />
+        </svg>
+      )}
+      {pct(value).replace(/^[+-]/, "")}
+    </span>
+  );
+}

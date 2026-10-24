@@ -16,6 +16,9 @@ import { parseDollars, usd } from "@/lib/format";
 import { openSheet } from "@/lib/ui";
 import { publicClient } from "@/lib/chain";
 import { liveTokens, lk } from "@/lib/live";
+import { useIsDesktop } from "@/hooks/use-media-query";
+import { cn } from "@/lib/utils";
+import { RightRail } from "../right-rail";
 
 const rules = LaunchBody.shape.launch.shape;
 const issue = (r: { safeParse: (v: unknown) => { success: boolean; error?: { issues: { message: string }[] } } }, v: string) => {
@@ -36,7 +39,8 @@ async function launchedToken(hash: Hex, user: Address): Promise<Address | null> 
 
 const nowSec = () => Math.floor(Date.now() / 1000);
 
-const field = "h-12 w-full rounded-[14px] bg-surface px-4 text-[16px] outline-none placeholder:text-muted focus:bg-raised";
+const field = "h-[52px] w-full rounded-[14px] border border-border bg-surface px-4 text-[16px] outline-none transition-colors placeholder:text-faint focus:border-accent-hi";
+const labelCls = "text-[13px] leading-[17px] font-medium text-muted";
 
 export function LaunchScreen() {
   return (
@@ -104,6 +108,30 @@ function LaunchForm() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [confirmed, address, tx?.hash]);
 
+  const desktop = useIsDesktop();
+  const preview = (
+    <section aria-label="Preview" data-testid="launch-preview">
+      <h2 className="mb-3 text-[17px] leading-[22px] font-medium tracking-[-0.01em]">Preview</h2>
+      <div className="rounded-[14px] border border-border p-4">
+        <div className="flex items-center gap-3">
+          <TokenIcon token={{ symbol: symbol || "?", image: imageOk && image ? image : null }} size={44} />
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[16px] leading-5 font-medium">{symbol || "TICKER"}</p>
+            <p className="mt-1 truncate text-[13px] leading-[17px] text-muted">{name.trim() || "Coin name"}</p>
+          </div>
+          <span className="text-right">
+            <span className="block text-[16px] leading-5 font-medium tabular-nums">{usd(initialBuy, true)}</span>
+            <span className="mt-1 block text-[13px] leading-[17px] text-muted">First buy</span>
+          </span>
+        </div>
+        <div className="mt-4">
+          <CurveBar progress={0} />
+        </div>
+        <p className="mt-2 text-[13px] leading-[17px] text-muted">Starts on a launch curve and moves to a Mezo pool once about $4,250 is raised.</p>
+      </div>
+    </section>
+  );
+
   const submit = () => {
     launching.current = { symbol, at: nowSec() };
     went.current = false;
@@ -111,33 +139,16 @@ function LaunchForm() {
   };
 
   return (
-    <div className="flex flex-col gap-6 px-4 pt-2 pb-8">
-      <section className="rounded-[20px] bg-surface p-4" aria-label="Preview" data-testid="launch-preview">
-        <p className="label">Preview</p>
-        <div className="mt-3 flex items-center gap-3">
-          <TokenIcon token={{ symbol: symbol || "?", image: imageOk && image ? image : null }} size={48} />
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-[17px] leading-[22px] font-semibold">{symbol || "TICKER"}</p>
-            <p className="truncate text-[14px] leading-5 text-muted">{name.trim() || "Coin name"}</p>
-          </div>
-          <span className="text-right text-[12px] leading-4 text-muted">
-            first buy
-            <br />
-            <span className="text-[15px] leading-[22px] font-medium text-text">{usd(initialBuy, true)}</span>
-          </span>
-        </div>
-        <div className="mt-4">
-          <CurveBar progress={0} />
-        </div>
-        <p className="mt-2 text-[12px] leading-4 text-muted">Starts on a launch curve and moves to a Mezo pool once about $4,250 is raised.</p>
-      </section>
+    <div className="flex flex-col gap-5 px-4 pt-2 pb-8 lg:px-6">
+      <p className="text-[15px] leading-[21px] text-muted">Name it, pick a ticker and make the first buy. No gas, no wallet popups.</p>
+      {!desktop && preview}
 
       <label className="flex flex-col gap-1.5">
-        <span className="text-[12px] leading-4 font-medium text-muted">Name</span>
+        <span className={labelCls}>Name</span>
         <input value={name} onChange={(e) => setName(e.target.value)} maxLength={32} placeholder="What it's called" className={field} />
       </label>
       <label className="flex flex-col gap-1.5">
-        <span className="text-[12px] leading-4 font-medium text-muted">Ticker, up to 10 characters</span>
+        <span className={labelCls}>Ticker, up to 10 characters</span>
         <input
           value={symbol}
           onChange={(e) => setSymbol(e.target.value.toUpperCase().replace(/\s/g, "").slice(0, 10))}
@@ -148,7 +159,7 @@ function LaunchForm() {
         />
       </label>
       <label className="flex flex-col gap-1.5">
-        <span className="text-[12px] leading-4 font-medium text-muted">Image URL, optional</span>
+        <span className={labelCls}>Image URL, optional</span>
         <input
           value={image}
           onChange={(e) => setImage(e.target.value.trim())}
@@ -161,7 +172,7 @@ function LaunchForm() {
         {imageError && <span className="text-[12px] text-muted">{imageError === "Invalid url" ? "That doesn't look like a link. Use http or https, 256 bytes at most." : `${imageError[0].toUpperCase()}${imageError.slice(1)}.`}</span>}
       </label>
       <div className="flex flex-col gap-1.5">
-        <label htmlFor="first-buy" className="text-[12px] leading-4 font-medium text-muted">
+        <label htmlFor="first-buy" className={labelCls}>
           First buy in USD, optional
         </label>
         <input
@@ -174,20 +185,31 @@ function LaunchForm() {
         />
         <div className="mt-1 flex gap-2">
           {[0, 10, 50, 100].map((n) => (
-            <button key={n} onClick={() => setBuy(n ? String(n) : "")} className="press h-11 flex-1 rounded-full bg-raised text-[14px] font-medium">
+            <button
+              key={n}
+              onClick={() => setBuy(n ? String(n) : "")}
+              className={cn(
+                "press h-9 flex-1 rounded-[10px] border text-[14px] font-semibold transition-colors",
+                (n ? String(n) : "") === buy ? "border-border-strong bg-surface text-text" : "border-border-strong bg-transparent text-muted hover:text-text",
+              )}
+            >
               {n ? `$${n}` : "None"}
             </button>
           ))}
         </div>
         {short && (
-          <button onClick={() => openSheet("deposit")} className="mt-1 self-start text-[13px] text-muted underline">
-            You have {usd(cash ?? 0n, true)} cash. Add more
-          </button>
+          <p className="mt-1 flex items-center gap-2 text-[13px] text-down">
+            You have {usd(cash ?? 0n, true)} cash.
+            <Button variant="secondary" size="sm" onClick={() => openSheet("deposit")}>
+              Deposit
+            </Button>
+          </p>
         )}
       </div>
       <Button variant="primary" size="lg" className="w-full" disabled={!ok} onClick={submit} data-testid="launch-submit">
         {sending ? "Launching" : symbol ? `Launch ${symbol}` : "Launch"}
       </Button>
+      {desktop && <RightRail>{preview}</RightRail>}
     </div>
   );
 }
