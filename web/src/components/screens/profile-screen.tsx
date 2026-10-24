@@ -99,7 +99,7 @@ function ProfileView({ address }: { address: Address }) {
           {self && (
             <button
               onClick={() => setEditing(true)}
-              aria-label="Edit handle"
+              aria-label="Change name"
               className="absolute -right-1 -bottom-1 grid h-7 w-7 cursor-pointer place-items-center rounded-full border-2 border-bg bg-black text-white"
             >
               <PencilSimpleIcon size={14} weight="fill" />

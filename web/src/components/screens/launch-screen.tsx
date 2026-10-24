@@ -18,7 +18,11 @@ import { publicClient } from "@/lib/chain";
 import { liveTokens, lk } from "@/lib/live";
 import { useIsDesktop } from "@/hooks/use-media-query";
 import { cn } from "@/lib/utils";
+import { hashOf, marbleUri } from "@/lib/art";
 import { RightRail } from "../right-rail";
+
+// art links go on chain forever, so they use the public app url, never the host this ran on
+const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://musdy.fun";
 
 const rules = LaunchBody.shape.launch.shape;
 const issue = (r: { safeParse: (v: unknown) => { success: boolean; error?: { issues: { message: string }[] } } }, v: string) => {
@@ -36,6 +40,9 @@ async function launchedToken(hash: Hex, user: Address): Promise<Address | null> 
     return null;
   }
 }
+
+const ART_COUNT = 6;
+const artSeed = (name: string, symbol: string, i: number) => hashOf(`${name.trim()}:${symbol}:${i}`).toString(36);
 
 const nowSec = () => Math.floor(Date.now() / 1000);
 
@@ -60,6 +67,7 @@ function LaunchForm() {
   const [name, setName] = useState("");
   const [symbol, setSymbol] = useState("");
   const [image, setImage] = useState("");
+  const [art, setArt] = useState(0);
   const [buy, setBuy] = useState("");
   const { address } = useSession();
   const { run, sending, confirmed, txId } = useTxRun();
@@ -70,7 +78,9 @@ function LaunchForm() {
   const initialBuy = parseDollars(buy);
   const nameOk = issue(rules.name, name.trim()) === null;
   const symbolOk = issue(rules.symbol, symbol) === null;
-  const imageError = image === "" ? null : issue(rules.image, image);
+  const custom = image !== "";
+  const seeds = Array.from({ length: ART_COUNT }, (_, i) => artSeed(name, symbol, i));
+  const imageError = custom ? issue(rules.image, image) : null;
   const imageOk = imageError === null;
   const short = cash !== null && initialBuy > cash;
   const ok = nameOk && symbolOk && imageOk && !short && !sending;
@@ -114,7 +124,7 @@ function LaunchForm() {
       <h2 className="mb-3 text-[17px] leading-[22px] font-medium tracking-[-0.01em]">Preview</h2>
       <div className="rounded-[14px] border border-border p-4">
         <div className="flex items-center gap-3">
-          <TokenIcon token={{ symbol: symbol || "?", image: imageOk && image ? image : null }} size={44} />
+          <TokenIcon token={{ symbol: symbol || "?", image: custom ? (imageOk ? image : null) : marbleUri(seeds[art]), name, address: custom ? undefined : seeds[art] }} size={44} />
           <div className="min-w-0 flex-1">
             <p className="truncate text-[16px] leading-5 font-medium">{symbol || "TICKER"}</p>
             <p className="mt-1 truncate text-[13px] leading-[17px] text-muted">{name.trim() || "Coin name"}</p>
@@ -135,7 +145,8 @@ function LaunchForm() {
   const submit = () => {
     launching.current = { symbol, at: nowSec() };
     went.current = false;
-    return run(() => actions.launch({ name: name.trim(), symbol, image, initialBuy }));
+    const picked = custom ? image : `${appUrl}/art/${seeds[art]}.svg`;
+    return run(() => actions.launch({ name: name.trim(), symbol, image: picked, initialBuy }));
   };
 
   return (
@@ -158,19 +169,47 @@ function LaunchForm() {
           className={`${field} font-semibold uppercase`}
         />
       </label>
-      <label className="flex flex-col gap-1.5">
-        <span className={labelCls}>Image URL, optional</span>
+      <div className="flex flex-col gap-1.5">
+        <span id="art-label" className={labelCls}>
+          Image
+        </span>
+        <div role="radiogroup" aria-labelledby="art-label" className="flex flex-wrap gap-2.5">
+          {seeds.map((seed, i) => {
+            const on = !custom && art === i;
+            return (
+              <button
+                key={i}
+                type="button"
+                role="radio"
+                aria-checked={on}
+                aria-label={`Generated art ${i + 1}`}
+                onClick={() => {
+                  setArt(i);
+                  setImage("");
+                }}
+                className={cn(
+                  "press size-12 cursor-pointer rounded-full p-0.5 ring-2 transition-[box-shadow,opacity]",
+                  on ? "ring-accent-hi" : "opacity-70 ring-transparent hover:opacity-100",
+                )}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={marbleUri(seed)} alt="" className="size-full rounded-full" />
+              </button>
+            );
+          })}
+        </div>
         <input
           value={image}
           onChange={(e) => setImage(e.target.value.trim())}
-          placeholder="https://"
+          aria-label="Image URL"
+          placeholder="Or paste an image link, https://"
           inputMode="url"
           autoCapitalize="off"
           autoCorrect="off"
-          className={field}
+          className={`${field} mt-1`}
         />
         {imageError && <span className="text-[12px] text-muted">{imageError === "Invalid url" ? "That doesn't look like a link. Use http or https, 256 bytes at most." : `${imageError[0].toUpperCase()}${imageError.slice(1)}.`}</span>}
-      </label>
+      </div>
       <div className="flex flex-col gap-1.5">
         <label htmlFor="first-buy" className={labelCls}>
           First buy in USD, optional

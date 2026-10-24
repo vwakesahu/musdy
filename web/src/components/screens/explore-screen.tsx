@@ -4,12 +4,12 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { TokenSort, type TokenInfo } from "shared";
 import { RowSkeletons } from "../feed-list";
+import { UnderlineTabs } from "../underline-tabs";
 import { ScreenHeader } from "../screen-header";
 import { TokenRow } from "../token-row";
 import { EmptyState } from "../ui/empty-state";
 import { MagnifyingGlassIcon, XIcon } from "@phosphor-icons/react";
 import { RightRail } from "../right-rail";
-import { cn } from "@/lib/utils";
 import { api } from "@/lib/http";
 import { liveTokens, lk } from "@/lib/live";
 import { useStore } from "@/lib/store";
@@ -88,29 +88,17 @@ export function ExploreScreen() {
         </label>
       </div>
       {!needle && (
-        <div role="tablist" aria-label="Sort" className="mt-2 flex border-b border-border">
-          {(
-            [
-              ["trending", "Trending"],
-              ["new", "New"],
-              ["stocks", "Stocks"],
-            ] as const
-          ).map(([value, label]) => (
-            <button
-              key={value}
-              type="button"
-              role="tab"
-              aria-selected={sort === value}
-              onClick={() => setSort(value)}
-              className={cn(
-                "relative h-12 flex-1 text-[16px] font-medium transition-colors",
-                sort === value ? "text-text after:absolute after:inset-x-0 after:-bottom-px after:h-0.5 after:bg-accent-hi" : "text-muted hover:text-text-2",
-              )}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+        <UnderlineTabs
+          label="Sort"
+          className="mt-2"
+          value={sort}
+          onChange={setSort}
+          options={[
+            { value: "trending", label: "Trending" },
+            { value: "new", label: "New" },
+            { value: "stocks", label: "Stocks" },
+          ]}
+        />
       )}
       <div className="pt-2">
         {loading ? (

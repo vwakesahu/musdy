@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { motion, useReducedMotion } from "motion/react";
 import { topicKey, type FeedScope } from "shared";
 import { FunnelSimpleIcon, TrophyIcon } from "@phosphor-icons/react";
 import { FeedList } from "../feed-list";
@@ -46,6 +47,7 @@ export function FeedScreen() {
   const [scope, setScope] = useState<FeedScope>("global");
   const [side, setSide] = useState<Side>("all");
   const { address, ready } = useSession();
+  const reduced = useReducedMotion();
   const following = scope === "following";
   const topic = following ? (address ? topicKey(`feed:following:${address}`) : null) : topicKey("feed:global");
   const feed = useTradeList(
@@ -82,24 +84,25 @@ export function FeedScreen() {
         ]}
         right={<SideFilter value={side} onChange={setSide} />}
       />
-      {following && ready && !address ? (
-        <EmptyState title="Log in to see who you follow" body="Follow traders from their profile and their buys land here." action={<div className="w-[300px]"><LoginOptions /></div>} />
-      ) : (
-        <FeedList
-          key={scope}
-          items={items}
-          live={feed.live}
-          loading={feed.loading}
-          error={feed.error}
-          empty={
-            following ? (
-              <EmptyState title="Your following feed is empty" body="Follow traders from their profile or the leaderboard and their trades show up here." />
-            ) : (
-              <EmptyState title="No trades yet" body="Every buy and sell on musdy shows up here live. Be the first." />
-            )
-          }
-        />
-      )}
+      <motion.div key={scope} initial={{ opacity: reduced ? 1 : 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.18, ease: "easeOut" }}>
+        {following && ready && !address ? (
+          <EmptyState title="Log in to see who you follow" body="Follow traders from their profile and their buys land here." action={<div className="w-[300px]"><LoginOptions /></div>} />
+        ) : (
+          <FeedList
+            items={items}
+            live={feed.live}
+            loading={feed.loading}
+            error={feed.error}
+            empty={
+              following ? (
+                <EmptyState title="Your following feed is empty" body="Follow traders from their profile or the leaderboard and their trades show up here." />
+              ) : (
+                <EmptyState title="No trades yet" body="Every buy and sell on musdy shows up here live. Be the first." />
+              )
+            }
+          />
+        )}
+      </motion.div>
       <FeedRail />
     </>
   );

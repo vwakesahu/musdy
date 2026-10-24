@@ -2,6 +2,8 @@
 
 import { Avatar as AvatarPrimitive } from "@base-ui/react/avatar";
 import type React from "react";
+import { useMemo } from "react";
+import { blockiesSvg, emojiAvatarForAddress, svgUri } from "@/lib/art";
 import { cn } from "@/lib/utils";
 
 const AVATAR_GROUP_CUT =
@@ -117,22 +119,26 @@ export function AvatarGroupCount({
 
 export { AvatarPrimitive };
 
-const FALLBACKS = ["#516bf6", "#21c85e", "#f5b70a", "#ff5b3a", "#a66bff", "#2ec5d3"];
-const hash = (s: string) => {
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
-  return h;
-};
-
 export type AvatarUser = { address: string; handle: string | null; avatar?: string | null };
 
 export function UserAvatar({ user, size = 40, className }: { user: AvatarUser; size?: number; className?: string }): React.ReactElement {
-  const key = (user.handle ?? user.address).toLowerCase();
-  const letter = (user.handle ?? user.address.slice(2, 3)).slice(0, 1).toUpperCase();
+  const emoji = user.handle ? emojiAvatarForAddress(user.address) : null;
   return (
-    <Avatar aria-hidden className={className} style={{ "--avatar-size": `${size}px`, fontSize: size * 0.42 } as React.CSSProperties}>
+    <Avatar aria-hidden data-avatar={emoji ? "emoji" : "blockie"} className={className} style={{ "--avatar-size": `${size}px` } as React.CSSProperties}>
       {user.avatar && <AvatarImage src={user.avatar} alt="" />}
-      <AvatarFallback style={{ background: FALLBACKS[hash(key) % FALLBACKS.length] }}>{letter}</AvatarFallback>
+      {emoji ? (
+        <span className="absolute inset-0 grid place-items-center leading-none" style={{ background: emoji.color, fontSize: size * 0.55 }}>
+          {emoji.emoji}
+        </span>
+      ) : (
+        <BlockieImg address={user.address} />
+      )}
     </Avatar>
   );
+}
+
+function BlockieImg({ address }: { address: string }) {
+  const src = useMemo(() => svgUri(blockiesSvg(address)), [address]);
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src={src} alt="" className="absolute inset-0 size-full [image-rendering:pixelated]" />;
 }

@@ -19,6 +19,7 @@ import { EmptyState } from "../ui/empty-state";
 import { Pnl } from "../ui/pnl";
 import { Skeleton } from "../ui/skeleton";
 import { TokenIcon } from "../ui/token-icon";
+import { UnderlineTabs } from "../underline-tabs";
 import { useTradeList } from "@/hooks/use-feed";
 import { useLivePrice, useLiveToken, useProfile } from "@/hooks/use-live";
 import { useIsDesktop } from "@/hooks/use-media-query";
@@ -56,7 +57,7 @@ function TokenView({ address }: { address: Address }) {
   const desktop = useIsDesktop();
   const { address: me } = useSession();
   const [range, setRange] = useState(1);
-  const [tab, setTab] = useState<"holders" | "trades">("holders");
+  const [tab, setTab] = useState<"holders" | "trades">("trades");
   const [sheet, setSheet] = useState<Side | null>(null);
   const [side, setSide] = useState<Side>("buy");
   const [opens, setOpens] = useState(0);
@@ -220,27 +221,16 @@ function TokenView({ address }: { address: Address }) {
         </section>
       )}
 
-      <div className="mt-6 flex border-b border-border px-4 lg:px-6" role="tablist">
-        {(
-          [
-            ["holders", `Holders${token ? ` (${token.holders.toLocaleString("en-US")})` : ""}`],
-            ["trades", "Trades"],
-          ] as const
-        ).map(([k, label]) => (
-          <button
-            key={k}
-            role="tab"
-            aria-selected={tab === k}
-            onClick={() => setTab(k)}
-            className={cn(
-              "relative h-12 flex-1 cursor-pointer text-[16px] font-medium lg:flex-none lg:px-6",
-              tab === k ? "text-text after:absolute after:inset-x-0 after:-bottom-px after:h-0.5 after:bg-accent-hi" : "text-muted hover:text-text-2",
-            )}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+      <UnderlineTabs
+        className="mt-6 px-4 lg:px-6"
+        tabClassName="lg:flex-none lg:px-6"
+        value={tab}
+        onChange={setTab}
+        options={[
+          { value: "trades", label: "Trades" },
+          { value: "holders", label: `Holders${token ? ` (${token.holders.toLocaleString("en-US")})` : ""}` },
+        ]}
+      />
 
       {tab === "holders" ? (
         topBuyers.length > 0 ? (
