@@ -56,7 +56,10 @@ export const profileMessage = (handle: string, issued: string) => `musdy profile
 export const followMessage = (target: Address, follow: boolean, issued: string) =>
   `musdy ${follow ? "follow" : "unfollow"}\ntarget: ${target.toLowerCase()}\nissued: ${issued}`;
 
+export const faucetMessage = (address: Address, issued: string) => `musdy faucet\naddress: ${address.toLowerCase()}\nissued: ${issued}`;
+
 // permit domains differ per token. MUSD exposes eip712Domain() and nonces(owner).
 // the BTC precompile has no eip712Domain(), its domain is name "BTC" version "1", and its nonce getter is nonce(owner).
+// sign by trying eip712Domain() and nonces() first and fall back to this only when they revert.
 export const btcPermitDomain = (chainId: number, btc: Address) =>
   ({ name: "BTC", version: "1", chainId, verifyingContract: btc }) as const;

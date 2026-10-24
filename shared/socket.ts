@@ -3,14 +3,18 @@
 import { z } from "zod";
 import { FeedItem, TokenInfo, TxStatus, zAddress, zUint } from "./types";
 
-export const Topic = z.union([
-  z.literal("feed:global"),
-  z.literal("tokens"),
-  z.literal("prices"),
-  z.string().regex(/^feed:following:0x[0-9a-fA-F]{40}$/),
-  z.string().regex(/^token:0x[0-9a-fA-F]{40}$/),
-  z.string().regex(/^user:0x[0-9a-fA-F]{40}$/),
-]);
+// topics are lowercase on the wire, build them with topicKey so routing never depends on case
+export const Topic = z
+  .union([
+    z.literal("feed:global"),
+    z.literal("tokens"),
+    z.literal("prices"),
+    z.string().regex(/^feed:following:0x[0-9a-fA-F]{40}$/),
+    z.string().regex(/^token:0x[0-9a-fA-F]{40}$/),
+    z.string().regex(/^user:0x[0-9a-fA-F]{40}$/),
+  ])
+  .transform((t) => t.toLowerCase());
+export const topicKey = (t: string) => t.toLowerCase();
 
 export const ClientMsg = z.discriminatedUnion("type", [
   z.object({ type: z.literal("hello"), address: zAddress.optional() }),

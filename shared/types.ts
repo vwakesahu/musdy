@@ -38,6 +38,7 @@ export const TokenInfo = TokenRef.extend({
 });
 export type TokenInfo = z.infer<typeof TokenInfo>;
 
+export const VENUES = ["pool", "curve"] as const; // index matches the solidity Venue enum
 export const FeedItem = z.object({
   id: z.string(), // txHash:logIndex
   block: z.number(),

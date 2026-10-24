@@ -22,8 +22,9 @@ export const WithdrawBody = z.object({
 export const LaunchBody = z.object({
   launch: z.object({
     user: zAddress,
-    name: z.string().min(1).max(32),
-    symbol: z.string().min(1).max(10),
+    // limits are utf8 bytes like the contract checks
+    name: z.string().min(1).refine((v) => new TextEncoder().encode(v).length <= 32, "name is over 32 bytes"),
+    symbol: z.string().min(1).refine((v) => new TextEncoder().encode(v).length <= 10, "symbol is over 10 bytes"),
     image: z.string().url().max(256).or(z.literal("")),
     initialBuy: zUint,
     nonce: zUint,
@@ -40,14 +41,24 @@ export const PermitDepositBody = z.object({
   r: zHex,
   s: zHex,
 });
-export const FaucetBody = z.object({ address: zAddress });
+export const FaucetBody = z.object({ address: zAddress, issued: z.string(), sig: zHex });
 export const ProfileBody = z.object({ address: zAddress, handle: z.string().regex(/^[a-z0-9_]{3,15}$/), issued: z.string(), sig: zHex });
 export const FollowBody = z.object({ address: zAddress, target: zAddress, follow: z.boolean(), issued: z.string(), sig: zHex });
 
 // every POST that submits a chain tx answers with this, then progress arrives as tx messages on user:<addr>
 export const Accepted = TxStatus;
 
-export const Health = z.object({ ok: z.boolean(), block: z.number(), chainId: z.number(), relayer: zAddress, relayerBtc: zUint });
+export const Health = z.object({ ok: z.boolean(), block: z.number(), chainId: z.number(), relayer: zAddress, relayerBtc: zUint, faucet: z.boolean() });
+
+// query params, parse them with these on the server and type them with these on the web
+export const TokenSort = z.enum(["trending", "new", "stocks"]);
+export const CandleTf = z.enum(["1m", "5m", "1h", "1d"]);
+export const PnlWindow = z.enum(["d1", "d7", "all"]);
+export const FeedScope = z.enum(["global", "following"]);
+export type TokenSort = z.infer<typeof TokenSort>;
+export type CandleTf = z.infer<typeof CandleTf>;
+export type PnlWindow = z.infer<typeof PnlWindow>;
+export type FeedScope = z.infer<typeof FeedScope>;
 export const Quote = z.object({ amountOut: zUint, fee: zUint, priceImpact: z.number(), venue: z.enum(["pool", "curve"]) });
 export const Nonce = z.object({ nonce: zUint });
 
@@ -70,7 +81,7 @@ export const routes = {
   withdraw: "/actions/withdraw", // WithdrawBody -> Accepted
   launch: "/actions/launch", // LaunchBody -> Accepted
   deposit: "/actions/deposit", // PermitDepositBody -> Accepted
-  faucet: "/faucet", // FaucetBody -> Accepted, testnet and local only
+  faucet: "/faucet", // FaucetBody -> Accepted, only when Health.faucet is true
   profile: "/profile", // ProfileBody -> Profile
   follow: "/follow", // FollowBody -> { ok: true }
 } as const;

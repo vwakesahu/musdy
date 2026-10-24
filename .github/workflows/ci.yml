@@ -14,3 +14,5 @@ jobs:
       - run: pnpm typecheck && pnpm test
       - run: cd contracts && forge test
         if: hashFiles('contracts/foundry.toml') != ''
+      - run: cd contracts && forge test --match-path 'test/fork/*' --fork-url https://rpc.test.mezo.org
+        if: hashFiles('contracts/foundry.toml') != ''

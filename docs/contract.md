@@ -56,7 +56,7 @@ invariants. realMusd equals the MUSD the launchpad holds for that token until gr
 
 ### local stand ins
 
-anvil has no mezo. `contracts/src/mocks/` has `MockERC20Permit` (for MUSD and BTC), `MockPoolFactory`, `MockPool` and `MockRouter`, constant product with 0.3% fee, matching the `IMezoPools` subset exactly. they're for local dev and tests only. a fork test suite runs the vault against the real mezo testnet router and MUSD (`forge test --match-path test/fork/*` with `--fork-url mezo_testnet`).
+anvil has no mezo. `contracts/src/mocks/` has `MockERC20Permit` (for MUSD and BTC), `MockPoolFactory`, `MockPool`, `MockRouter`, and `MockBtcPermit` which copies the BTC precompile (permit domain name "BTC", nonce getter `nonce(owner)`, no `eip712Domain()`), constant product with 0.3% fee, matching the `IMezoPools` subset exactly. they're for local dev and tests only. a fork test suite runs the vault against the real mezo testnet router and MUSD (`forge test --match-path test/fork/*` with `--fork-url mezo_testnet`).
 
 ### deploy
 
@@ -66,7 +66,7 @@ anvil has no mezo. `contracts/src/mocks/` has `MockERC20Permit` (for MUSD and BT
 
 code form is `shared/socket.ts`. one websocket at `ws://host:8080/ws`.
 
-client sends `hello {address?}` once, then `subscribe {topic}` and `unsubscribe {topic}`. topics are `feed:global`, `feed:following:<addr>`, `token:<addr>`, `user:<addr>`, `tokens`, `prices`.
+topics are lowercase on the wire, both sides build them with `topicKey` from shared. client sends `hello {address?}` once, then `subscribe {topic}` and `unsubscribe {topic}`. topics are `feed:global`, `feed:following:<addr>`, `token:<addr>`, `user:<addr>`, `tokens`, `prices`.
 
 server sends `welcome {serverTime, block, chainId}` on connect. `trade {topic, item, replay}` for every `Traded` event to feed:global, token:<token>, user:<trader>, and feed:following:<x> for every x following the trader. on subscribe to a feed or token topic the newest 50 are replayed oldest first with replay true. `token {topic, token}` on tokens when a coin launches, graduates, or its card changes. `prices {topic, block, prices}` once per block with only what moved. `balances {topic, block, vault, wallet}` on user:<addr> after any change, wallet is the user's own MUSD and BTC outside the vault, which drives auto deposit. `tx {topic, tx}` on user:<addr> for pending, confirmed, failed of anything the relayer sent for them. `error {code, message}` for bad messages.
 
@@ -78,7 +78,9 @@ code form is `shared/http.ts`, the `routes` map has every path and what it retur
 
 the server checks every signed body before spending gas: schema, deadline, nonce matches chain, signature recovers to user, and a `simulateContract` passes. a failed simulation is a 400 with the revert name, never a sent tx.
 
-profile and follow use personal_sign messages from `shared/eip712.ts`, valid for 5 minutes.
+profile, follow and faucet use personal_sign messages from `shared/eip712.ts`, valid for 5 minutes. the faucet also has a per ip limit and a global hourly cap, and `/health` says whether it's on, the web never guesses that from the chain id.
+
+the relayer locks `user:nonce` (and `owner:token` for permits) synchronously before its first await, so a duplicate POST is a 409 and never a second broadcast. a tx whose receipt times out stays pending until the chain nonce says otherwise.
 
 ## env
 
@@ -90,4 +92,4 @@ web. `NEXT_PUBLIC_PRIVY_APP_ID`, `NEXT_PUBLIC_CHAIN_ID`, `NEXT_PUBLIC_RPC_URL`, 
 
 ## acceptance criteria to tests
 
-AC1 web e2e `login.spec.ts`. AC2 contracts `test_depositWithPermit_*`, server `deposit.test.ts`, e2e `deposit.spec.ts`. AC3 server `faucet.test.ts`. AC4 and AC5 contracts `test_trade_*`, server `trade.test.ts`, e2e `trade.spec.ts`. AC6 contracts `test_launch_*`, e2e `launch.spec.ts`. AC7 contracts `test_graduation_*`, `invariant_curve_*`. AC8 server `feed.test.ts`, e2e `feed.spec.ts`. AC9 contracts `test_trade_ref`, e2e `copy.spec.ts`. AC10 server `pnl.test.ts`, `leaderboard.test.ts`. AC11 server `profile.test.ts`, e2e `profile.spec.ts`. AC12 contracts `test_withdraw_*`, e2e `withdraw.spec.ts`. AC13 contracts `test_escapeHatch`. AC14 server `socket.test.ts` kills and reconnects a client and checks the replay.
+AC1 web e2e `login.spec.ts`. AC2 contracts `test_depositWithPermit_*` and `test_fork_depositWithPermit`, server `deposit.test.ts`, e2e `deposit.spec.ts` for MUSD and BTC. AC3 server `faucet.test.ts`. AC4 and AC5 contracts `test_trade_*`, server `trade.test.ts`, e2e `trade.spec.ts`. AC6 contracts `test_launch_*`, e2e `launch.spec.ts`. AC7 contracts `test_graduation_*`, `invariant_curve_*`. AC8 server `feed.test.ts`, e2e `feed.spec.ts`. AC9 contracts `test_trade_ref`, e2e `copy.spec.ts`. AC10 server `pnl.test.ts`, `leaderboard.test.ts`. AC11 server `profile.test.ts`, e2e `profile.spec.ts`. AC12 contracts `test_withdraw_*`, e2e `withdraw.spec.ts`. AC13 contracts `test_escapeHatch`. AC14 server `socket.test.ts` kills and reconnects a client and checks the replay.
