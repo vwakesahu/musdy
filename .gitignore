@@ -1,0 +1,13 @@
+node_modules
+.env
+.env.local
+*.db
+*.db-*
+out/
+contracts/out/
+contracts/cache/
+contracts/broadcast/*/31337/
+web/.next/
+web/test-results/
+web/playwright-report/
+.DS_Store

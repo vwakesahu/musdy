@@ -1,0 +1,5 @@
+packages: [web, server, shared]
+allowBuilds:
+  unrs-resolver: true
+  sharp: true
+  esbuild: true
