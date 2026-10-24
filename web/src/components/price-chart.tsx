@@ -1,32 +1,36 @@
 "use client";
 import { useEffect, useRef } from "react";
-import { ColorType, LineSeries, createChart, type AutoscaleInfo, type IChartApi, type ISeriesApi, type UTCTimestamp } from "lightweight-charts";
+import { AreaSeries, ColorType, LineStyle, createChart, type AutoscaleInfo, type IChartApi, type ISeriesApi, type UTCTimestamp } from "lightweight-charts";
 import type { Candle } from "shared";
 import { priceOfNumber } from "@/lib/format";
 
 const MIN_HALF_RANGE = 0.02;
+const UP = "#21c85e";
+const DOWN = "#ff5b3a";
 
-export function PriceChart({ candles }: { candles: Candle[] }) {
+export function PriceChart({ candles, className = "h-[280px] lg:h-[360px]" }: { candles: Candle[]; className?: string }) {
   const el = useRef<HTMLDivElement>(null);
   const chart = useRef<IChartApi | null>(null);
-  const series = useRef<ISeriesApi<"Line"> | null>(null);
+  const series = useRef<ISeriesApi<"Area"> | null>(null);
 
   useEffect(() => {
     if (!el.current) return;
     const c = createChart(el.current, {
       autoSize: true,
-      layout: { background: { type: ColorType.Solid, color: "transparent" }, textColor: "#8B8696", attributionLogo: false, fontFamily: "inherit" },
+      layout: { background: { type: ColorType.Solid, color: "transparent" }, textColor: "#9999a3", attributionLogo: false, fontFamily: "inherit" },
       grid: { vertLines: { visible: false }, horzLines: { visible: false } },
-      rightPriceScale: { visible: true, borderVisible: false, scaleMargins: { top: 0.12, bottom: 0.12 } },
+      rightPriceScale: { visible: false, scaleMargins: { top: 0.14, bottom: 0.08 } },
       leftPriceScale: { visible: false },
       timeScale: { visible: false, borderVisible: false },
-      crosshair: { horzLine: { visible: false, labelVisible: false }, vertLine: { color: "#2A2633", labelVisible: false } },
+      crosshair: { horzLine: { visible: false, labelVisible: false }, vertLine: { color: "#2c2b35", labelVisible: false } },
       handleScroll: false,
       handleScale: false,
     });
-    series.current = c.addSeries(LineSeries, {
+    series.current = c.addSeries(AreaSeries, {
       lineWidth: 2,
-      priceLineVisible: false,
+      priceLineVisible: true,
+      priceLineStyle: LineStyle.Dashed,
+      priceLineWidth: 1,
       lastValueVisible: false,
       crosshairMarkerRadius: 4,
       priceFormat: { type: "custom", formatter: priceOfNumber, minMove: 1e-15, base: 1e15 },
@@ -53,10 +57,15 @@ export function PriceChart({ candles }: { candles: Candle[] }) {
     const data = [...candles].sort((a, b) => a.t - b.t).map((x) => ({ time: x.t as UTCTimestamp, value: x.c }));
     const first = data[0]?.value ?? 0;
     const last = data[data.length - 1]?.value ?? 0;
-    s.applyOptions({ color: last < first ? "#FF5C6C" : "#2EE59D" });
+    const col = last < first ? DOWN : UP;
+    s.applyOptions({ lineColor: col, priceLineColor: col, topColor: `${col}47`, bottomColor: `${col}00` });
     s.setData(data);
     chart.current?.timeScale().fitContent();
   }, [candles]);
 
-  return <div ref={el} className="chart-reveal h-[220px] w-full" data-testid="price-chart" />;
+  return (
+    <div className={`dot-grid relative w-full ${className}`}>
+      <div ref={el} className="chart-reveal absolute inset-0" data-testid="price-chart" />
+    </div>
+  );
 }
