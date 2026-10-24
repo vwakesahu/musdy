@@ -2,7 +2,7 @@
 
 each one is testable. the package that proves it is in docs/contract.md.
 
-AC1 login. a new user signs in with email or google through privy and lands on the feed with a mezo address and a $0.00 balance. on local anvil the dev login (`NEXT_PUBLIC_DEV_KEY`) does the same without privy.
+AC1 login. a new user signs in with google through privy and lands on the feed with a mezo address and a $0.00 balance. on local anvil the dev login (`NEXT_PUBLIC_DEV_KEY`) does the same without privy.
 
 AC2 auto deposit. MUSD or BTC that arrives in the user's own mezo address gets swept into the vault without the user paying gas. the app notices the wallet balance over the socket, signs a permit silently, the relayer submits `depositWithPermit`. the balance updates live.
 

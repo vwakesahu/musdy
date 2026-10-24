@@ -11,7 +11,7 @@ export function LoginOptions() {
     <div className="flex flex-col gap-3">
       {s.canPrivy && (
         <Button variant="accent" className="h-[52px] w-full" onClick={s.loginPrivy}>
-          Continue with email, Google or Apple
+          Continue with Google
         </Button>
       )}
       {s.canDev && (

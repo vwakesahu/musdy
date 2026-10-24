@@ -1,6 +1,6 @@
 # musdy
 
-fomo on mezo. you log in with email or google, you get one USD balance that's MUSD on mezo, and you buy and sell anything from it. bitcoin, tokenized stocks, and coins people launch right here. you see what everyone else is buying, live, and you copy them in one tap. nobody sees gas, a bridge or a chain switch. musdy.fun
+fomo on mezo. you log in with google, you get one USD balance that's MUSD on mezo, and you buy and sell anything from it. bitcoin, tokenized stocks, and coins people launch right here. you see what everyone else is buying, live, and you copy them in one tap. nobody sees gas, a bridge or a chain switch. musdy.fun
 
 ## how it works
 
@@ -28,7 +28,7 @@ the server indexes every vault and launchpad event into sqlite, works out prices
 
 one `.env` at the repo root, copy `.env.example`. for local it already works, it's all anvil keys.
 
-`NEXT_PUBLIC_PRIVY_APP_ID` comes from dashboard.privy.io, turn on email, google and apple and embedded wallets for evm. without it the app shows a setup screen, local still works through the dev login.
+`NEXT_PUBLIC_PRIVY_APP_ID` comes from dashboard.privy.io, google is the only login method, with embedded wallets for evm turned on. the app id is public, it goes in the root `.env`. without it the app shows a setup screen, local still works through the dev login.
 
 `RELAYER_KEY` pays every user's gas, on testnet it needs test BTC from faucet.test.mezo.org. `FAUCET_KEY` holds MUSD for the testnet faucet button, borrow it against test BTC on testnet.mezo.org. leave it empty and the faucet is off.
 
