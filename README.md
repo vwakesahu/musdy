@@ -1,8 +1,22 @@
-<img src="web/public/brand/app-icon-512.png" width="72" alt="musdy" />
-
-# musdy
-
-live at https://musdy.fun
+<div align="center">
+  <img src="web/public/brand/app-icon-512.png" width="88" alt="musdy" />
+  <h1>musdy</h1>
+  <p>buy any coin on any chain. settle on mezo.</p>
+  <p>
+    <a href="https://musdy.fun">app</a> ·
+    <a href="https://x.com/vwakesahu">x</a> ·
+    <a href="https://explorer.test.mezo.org/address/0xE6bdDc38313ff3E1484109c82f0cA69200Fa1119">vault on mezo</a> ·
+    <a href="#architecture">architecture</a> ·
+    <a href="#proof">proof</a>
+  </p>
+  <p>
+    <img src="web/public/tokens/btc.svg" width="22" alt="btc" />&nbsp;
+    <img src="web/public/tokens/musd.svg" width="22" alt="musd" />&nbsp;
+    <img src="web/public/chains/base.svg" width="22" alt="base" />&nbsp;
+    <img src="web/public/chains/bsc.svg" width="22" alt="bnb chain" />&nbsp;
+    <img src="web/public/chains/solana.svg" width="22" alt="solana" />
+  </p>
+</div>
 
 fomo on mezo. log in with google and you get one dollar balance. buy bitcoin, stocks and coins people launch on musdy from it, see what everyone else is buying as it happens, and copy any trade in one tap. no gas, no bridges, no wallet popups. musdy.fun
 
