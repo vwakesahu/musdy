@@ -5,7 +5,9 @@ export type Address = `0x${string}`;
 export const zAddress = z.string().regex(/^0x[0-9a-fA-F]{40}$/).transform((s) => s as Address);
 export const zHex = z.string().regex(/^0x[0-9a-fA-F]*$/).transform((s) => s as `0x${string}`);
 // bigints travel as decimal strings, 18 decimals unless the token says otherwise
-export const zUint = z.string().regex(/^\d+$/);
+export const zUint = z.string().regex(/^\d{1,78}$/); // fits a uint256
+// signed off chain messages carry this, an iso 8601 timestamp with a zone, valid for 5 minutes
+export const zIssued = z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/);
 
 export const VENUES = ["pool", "curve"] as const; // index matches the solidity Venue enum
 export const zVenue = z.enum(VENUES);

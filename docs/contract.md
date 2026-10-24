@@ -68,7 +68,7 @@ code form is `shared/socket.ts`. one websocket at `ws://host:8080/ws`.
 
 topics are lowercase on the wire, both sides build them with `topicKey` from shared. client sends `hello {address?}` once, then `subscribe {topic}` and `unsubscribe {topic}`. topics are `feed:global`, `feed:following:<addr>`, `token:<addr>`, `user:<addr>`, `tokens`, `prices`.
 
-server sends `welcome {serverTime, block, chainId}` on connect. `trade {topic, item, replay}` for every `Traded` event to feed:global, token:<token>, user:<trader>, and feed:following:<x> for every x following the trader. on subscribe to a feed or token topic the newest 50 are replayed oldest first with replay true. `token {topic, token}` on tokens when a coin launches, graduates, or its card changes. `prices {topic, block, prices}` once per block with only what moved. `balances {topic, block, vault, wallet}` on user:<addr> after any change, wallet is the user's own MUSD and BTC outside the vault, which drives auto deposit. `tx {topic, tx}` on user:<addr> for pending, confirmed, failed of anything the relayer sent for them. `error {code, message}` for bad messages.
+server sends `welcome {serverTime, block, chainId}` on connect. `trade {topic, item, replay}` for every `Traded` event to feed:global, token:<token>, user:<trader>, and feed:following:<x> for every x following the trader. on subscribe to a feed, token or user topic the newest 50 trades are replayed oldest first with replay true. `token {topic, token}` on tokens when a coin launches, graduates, or its card changes. `prices {topic, block, prices}` once per block with only what moved. `balances {topic, block, vault, wallet}` on user:<addr> after any change, wallet is the user's own MUSD and BTC outside the vault, which drives auto deposit. `tx {topic, tx}` on user:<addr> for pending, confirmed, failed of anything the relayer sent for them. `error {code, message}` for bad messages, rate limits and caps, the web shows it, never drops it.
 
 the client reconnects with backoff 0.5s doubling to 8s, resubscribes, and dedupes trades by id.
 
@@ -86,7 +86,9 @@ the relayer locks `user:nonce` (and `owner:token` for permits) synchronously bef
 
 contracts. `RPC_URL`, `DEPLOYER_KEY` (local is anvil account 0, testnet is the creator's own key, never in the repo).
 
-server. `PORT` 8080, `CHAIN_ID`, `RPC_URL`, `RPC_WS`, `RELAYER_KEY` (pays gas, needs test BTC), `FAUCET_KEY` (holds MUSD, optional, faucet off without it), `DB_PATH` default `./musdy.db`.
+server. `PORT` 8080, `CHAIN_ID`, `RPC_URL`, `RPC_WS`, `RELAYER_KEY` (pays gas, needs test BTC), `FAUCET_KEY` (holds MUSD, optional, faucet off without it), `DB_PATH` default `./musdy.db`, `FAUCET_HOURLY_CAP` default 50, `TRUST_PROXY` (1 only behind a proxy you control, then the client ip is the rightmost x-forwarded-for entry the proxy added).
+
+the relayer pays all gas for every signed action, no cash or rate based metering for now (decided 2026-10-24). permit domains are read with `readPermitDomain` from shared on both sides, and signed messages carry `issued` in the `zIssued` format.
 
 web. `NEXT_PUBLIC_PRIVY_APP_ID`, `NEXT_PUBLIC_CHAIN_ID`, `NEXT_PUBLIC_RPC_URL`, `NEXT_PUBLIC_SERVER_URL` (http://localhost:8080), `NEXT_PUBLIC_SOCKET_URL` (ws://localhost:8080/ws), `NEXT_PUBLIC_DEV_KEY` (local e2e only, a throwaway anvil key, the app refuses it on any chain but 31337).
 

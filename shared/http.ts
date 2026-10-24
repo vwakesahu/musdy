@@ -1,6 +1,6 @@
 // the http contract. request bodies are validated with these on the server and built with them on the web.
 import { z } from "zod";
-import { Candle, Deployment, FeedItem, LeaderRow, Profile, TokenInfo, TxStatus, zAddress, zHex, zUint, zVenue } from "./types";
+import { Candle, Deployment, FeedItem, LeaderRow, Profile, TokenInfo, TxStatus, zAddress, zHex, zUint, zVenue, zIssued } from "./types";
 
 export const TradeBody = z.object({
   trade: z.object({
@@ -46,9 +46,9 @@ export const PermitDepositBody = z.object({
   r: zHex,
   s: zHex,
 });
-export const FaucetBody = z.object({ address: zAddress, issued: z.string(), sig: zHex });
-export const ProfileBody = z.object({ address: zAddress, handle: z.string().regex(/^[a-z0-9_]{3,15}$/), issued: z.string(), sig: zHex });
-export const FollowBody = z.object({ address: zAddress, target: zAddress, follow: z.boolean(), issued: z.string(), sig: zHex });
+export const FaucetBody = z.object({ address: zAddress, issued: zIssued, sig: zHex });
+export const ProfileBody = z.object({ address: zAddress, handle: z.string().regex(/^[a-z0-9_]{3,15}$/), issued: zIssued, sig: zHex });
+export const FollowBody = z.object({ address: zAddress, target: zAddress, follow: z.boolean(), issued: zIssued, sig: zHex });
 
 // every POST that submits a chain tx answers with this, then progress arrives as tx messages on user:<addr>
 export const Accepted = TxStatus;
