@@ -1,6 +1,6 @@
 // the http contract. request bodies are validated with these on the server and built with them on the web.
 import { z } from "zod";
-import { Candle, Deployment, FeedItem, LeaderRow, Profile, TokenInfo, TxStatus, zAddress, zHex, zUint } from "./types";
+import { Candle, Deployment, FeedItem, LeaderRow, Profile, TokenInfo, TxStatus, zAddress, zHex, zUint, zVenue } from "./types";
 
 export const TradeBody = z.object({
   trade: z.object({
@@ -25,7 +25,12 @@ export const LaunchBody = z.object({
     // limits are utf8 bytes like the contract checks
     name: z.string().min(1).refine((v) => new TextEncoder().encode(v).length <= 32, "name is over 32 bytes"),
     symbol: z.string().min(1).refine((v) => new TextEncoder().encode(v).length <= 10, "symbol is over 10 bytes"),
-    image: z.string().url().max(256).or(z.literal("")),
+    image: z
+      .string()
+      .url()
+      .refine((u) => /^https?:\/\//.test(u), "image must be an http(s) url")
+      .refine((v) => new TextEncoder().encode(v).length <= 256, "image url is over 256 bytes")
+      .or(z.literal("")),
     initialBuy: zUint,
     nonce: zUint,
     deadline: zUint,
@@ -59,7 +64,7 @@ export type TokenSort = z.infer<typeof TokenSort>;
 export type CandleTf = z.infer<typeof CandleTf>;
 export type PnlWindow = z.infer<typeof PnlWindow>;
 export type FeedScope = z.infer<typeof FeedScope>;
-export const Quote = z.object({ amountOut: zUint, fee: zUint, priceImpact: z.number(), venue: z.enum(["pool", "curve"]) });
+export const Quote = z.object({ amountOut: zUint, fee: zUint, priceImpact: z.number(), venue: zVenue });
 export const Nonce = z.object({ nonce: zUint });
 
 export const routes = {

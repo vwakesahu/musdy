@@ -7,6 +7,11 @@ export const zHex = z.string().regex(/^0x[0-9a-fA-F]*$/).transform((s) => s as `
 // bigints travel as decimal strings, 18 decimals unless the token says otherwise
 export const zUint = z.string().regex(/^\d+$/);
 
+export const VENUES = ["pool", "curve"] as const; // index matches the solidity Venue enum
+export const zVenue = z.enum(VENUES);
+export const TOKEN_KINDS = ["musd", "btc", "stock", "launch", "other"] as const;
+export const zTokenKind = z.enum(TOKEN_KINDS);
+
 export const UserRef = z.object({
   address: zAddress,
   handle: z.string().nullable(),
@@ -24,8 +29,8 @@ export const TokenRef = z.object({
 export type TokenRef = z.infer<typeof TokenRef>;
 
 export const TokenInfo = TokenRef.extend({
-  kind: z.enum(["musd", "btc", "stock", "launch", "other"]),
-  venue: z.enum(["pool", "curve"]),
+  kind: zTokenKind,
+  venue: zVenue,
   creator: zAddress.nullable(),
   priceMusd: zUint, // MUSD per 1 whole token, 1e18 scaled
   change24h: z.number(), // fraction, 0.12 is +12%
@@ -38,7 +43,6 @@ export const TokenInfo = TokenRef.extend({
 });
 export type TokenInfo = z.infer<typeof TokenInfo>;
 
-export const VENUES = ["pool", "curve"] as const; // index matches the solidity Venue enum
 export const FeedItem = z.object({
   id: z.string(), // txHash:logIndex
   block: z.number(),
@@ -51,7 +55,7 @@ export const FeedItem = z.object({
   priceMusd: zUint,
   marketCapMusd: zUint, // at the time of the trade
   ref: UserRef.nullable(), // the trader this one copied
-  venue: z.enum(["pool", "curve"]),
+  venue: zVenue,
   txHash: zHex,
 });
 export type FeedItem = z.infer<typeof FeedItem>;
@@ -94,6 +98,7 @@ export const LeaderRow = z.object({
 });
 export type LeaderRow = z.infer<typeof LeaderRow>;
 
+// candle prices are MUSD per whole token and v is MUSD volume, floats in whole units for the chart only
 export const Candle = z.object({ t: z.number(), o: z.number(), h: z.number(), l: z.number(), c: z.number(), v: z.number() });
 export type Candle = z.infer<typeof Candle>;
 
@@ -115,6 +120,6 @@ export const Deployment = z.object({
   router: zAddress,
   factory: zAddress,
   startBlock: z.number(),
-  tokens: z.array(z.object({ address: zAddress, symbol: z.string(), name: z.string(), decimals: z.number(), kind: z.enum(["musd", "btc", "stock", "launch", "other"]) })),
+  tokens: z.array(z.object({ address: zAddress, symbol: z.string(), name: z.string(), decimals: z.number(), kind: zTokenKind })),
 });
 export type Deployment = z.infer<typeof Deployment>;

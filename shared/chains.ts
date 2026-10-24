@@ -1,5 +1,6 @@
 import { defineChain } from "viem";
 import type { Address } from "./types";
+import type { TOKEN_KINDS } from "./types";
 
 export const mezoTestnet = defineChain({
   id: 31611,
@@ -19,7 +20,7 @@ export const mezoMainnet = defineChain({
   blockExplorers: { default: { name: "Mezo Explorer", url: "https://explorer.mezo.org" } },
 });
 
-export type TokenKind = "musd" | "btc" | "stock" | "launch" | "other";
+export type TokenKind = (typeof TOKEN_KINDS)[number];
 
 export interface KnownToken {
   address: Address;

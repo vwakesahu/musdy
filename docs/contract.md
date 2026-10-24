@@ -44,7 +44,7 @@ constructor `(musd, router, virtualMusd, owner)`. `virtualToken` starts at 1,073
 
 `createToken(name, symbol, image, creator)` deploys a `MusdyToken`, mints the whole supply to the launchpad. anyone. name 1 to 32 bytes, symbol 1 to 10, image up to 256, else `BadMetadata`. emits `TokenCreated`.
 
-`buy(token, musdIn, minTokensOut, to)` pulls MUSD from msg.sender, tokensOut = vT - k / (vM + musdIn). if that passes the remaining curve supply it caps, computes musdUsed for the cap and refunds the rest to msg.sender. then if tokensSold == CURVE_SUPPLY it graduates in the same call. emits `CurveTrade`.
+`buy(token, musdIn, minTokensOut, to)` requires `to == msg.sender` so locked tokens can only reach the buyer, never a pool before graduation. it pulls MUSD from msg.sender, tokensOut = vT - k / (vM + musdIn). if that passes the remaining curve supply it caps, computes musdUsed for the cap and refunds the rest to msg.sender. then if tokensSold == CURVE_SUPPLY it graduates in the same call. emits `CurveTrade`.
 
 `sell(token, tokensIn, minMusdOut, to)` pulls tokens, musdOut = vM - k / (vT + tokensIn). emits `CurveTrade`.
 
@@ -76,7 +76,7 @@ the client reconnects with backoff 0.5s doubling to 8s, resubscribes, and dedupe
 
 code form is `shared/http.ts`, the `routes` map has every path and what it returns. json in and out, bigints as decimal strings, errors are `{code, message}` with a 4xx or 5xx. the signed POSTs answer with a `TxStatus` right away and the rest comes over the socket.
 
-the server checks every signed body before spending gas: schema, deadline, nonce matches chain, signature recovers to user, and a `simulateContract` passes. a failed simulation is a 400 with the revert name, never a sent tx.
+the server checks every signed body before spending gas: schema, deadline, nonce matches chain, signature recovers to user (for permits that's the permit signature over the token's own domain and nonce), and a `simulateContract` passes. the indexer only tracks MUSD, BTC, the tokens in deployments.json and tokens the launchpad created, everything else in a Deposited or Withdrawn event is ignored. a failed simulation is a 400 with the revert name, never a sent tx.
 
 profile, follow and faucet use personal_sign messages from `shared/eip712.ts`, valid for 5 minutes. the faucet also has a per ip limit and a global hourly cap, and `/health` says whether it's on, the web never guesses that from the chain id.
 
