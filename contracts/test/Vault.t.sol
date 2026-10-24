@@ -7,6 +7,7 @@ import {IMusdyLaunchpad} from "../src/interfaces/IMusdyLaunchpad.sol";
 import {MusdyVault} from "../src/MusdyVault.sol";
 import {MusdyToken} from "../src/MusdyToken.sol";
 import {MockERC20Permit} from "../src/mocks/MockERC20Permit.sol";
+import {MockBtcPermit} from "../src/mocks/MockBtcPermit.sol";
 
 contract VaultTest is Base {
     bytes32 internal constant PERMIT_TYPEHASH =
@@ -90,6 +91,66 @@ contract VaultTest is Base {
     function test_deposit_zeroReverts() public {
         vm.expectRevert(IMusdyVault.ZeroAmount.selector);
         vault.deposit(address(musd), 0, alice);
+    }
+
+    function test_deposit_zeroOnBehalfOfReverts() public {
+        musd.mint(bob, 1e18);
+        vm.startPrank(bob);
+        musd.approve(address(vault), 1e18);
+        vm.expectRevert(MusdyVault.ZeroAddress.selector);
+        vault.deposit(address(musd), 1e18, address(0));
+        vm.stopPrank();
+    }
+
+    function test_depositWithPermit_btcPrecompileDomain() public {
+        MockBtcPermit pbtc = new MockBtcPermit();
+        assertEq(pbtc.name(), "BTC");
+        assertEq(pbtc.decimals(), 18);
+        (bool ok,) = address(pbtc).staticcall(abi.encodeWithSignature("nonces(address)", alice));
+        assertFalse(ok);
+        (ok,) = address(pbtc).staticcall(abi.encodeWithSignature("eip712Domain()"));
+        assertFalse(ok);
+        pbtc.mint(alice, 2e18);
+        uint256 deadline = block.timestamp + 100;
+        bytes32 domain = keccak256(
+            abi.encode(
+                keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
+                keccak256("BTC"),
+                keccak256("1"),
+                block.chainid,
+                address(pbtc)
+            )
+        );
+        assertEq(pbtc.DOMAIN_SEPARATOR(), domain);
+        assertEq(pbtc.PERMIT_TYPEHASH(), PERMIT_TYPEHASH);
+        bytes32 structHash =
+            keccak256(abi.encode(PERMIT_TYPEHASH, alice, address(vault), 2e18, pbtc.nonce(alice), deadline));
+        (uint8 v, bytes32 r, bytes32 s) =
+            vm.sign(aliceKey, keccak256(abi.encodePacked("\x19\x01", domain, structHash)));
+        vm.prank(relayer);
+        vault.depositWithPermit(alice, address(pbtc), 2e18, deadline, v, r, s);
+        assertEq(vault.balanceOf(alice, address(pbtc)), 2e18);
+        assertEq(pbtc.balanceOf(alice), 0);
+        assertEq(pbtc.nonce(alice), 1);
+        assertEq(vault.balanceOf(relayer, address(pbtc)), 0);
+    }
+
+    // a standing allowance can be swept by anyone, but only into the owner's own vault balance
+    function test_depositWithPermit_thirdPartySweepCreditsOwner() public {
+        musd.mint(alice, 40e18);
+        vm.prank(alice);
+        musd.approve(address(vault), 40e18);
+        address stranger = makeAddr("stranger");
+        vm.prank(stranger);
+        vault.depositWithPermit(alice, address(musd), 40e18, block.timestamp + 100, 27, bytes32(0), bytes32(0));
+        assertEq(vault.balanceOf(alice, address(musd)), 40e18);
+        assertEq(vault.balanceOf(stranger, address(musd)), 0);
+        assertEq(vault.balanceOf(relayer, address(musd)), 0);
+        assertEq(vault.balanceOf(feeTo, address(musd)), 0);
+        assertEq(musd.balanceOf(address(vault)), 40e18);
+        vm.prank(alice);
+        vault.withdraw(address(musd), 40e18, alice);
+        assertEq(musd.balanceOf(alice), 40e18);
     }
 
     function test_depositWithPermit_relayed() public {

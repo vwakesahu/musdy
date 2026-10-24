@@ -3,6 +3,8 @@ pragma solidity 0.8.28;
 
 import {Test} from "forge-std/Test.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
+import {IERC5267} from "@openzeppelin/contracts/interfaces/IERC5267.sol";
 import {MusdyLaunchpad} from "../../src/MusdyLaunchpad.sol";
 import {MusdyVault} from "../../src/MusdyVault.sol";
 import {MusdyToken} from "../../src/MusdyToken.sol";
@@ -52,6 +54,47 @@ contract MezoForkTest is Test {
         assertEq(vault.factory(), 0x4947243CC818b627A5D06d14C4eCe7398A23Ce1A);
         (address pool,) = vault.poolFor(NVDA);
         assertTrue(pool != address(0));
+    }
+
+    function test_fork_depositWithPermit() public {
+        uint256 key = 0xB0B;
+        address owner = vm.addr(key);
+        address relayer = makeAddr("relayer");
+        deal(MUSD, owner, 250e18);
+        (, string memory name, string memory version, uint256 chainId, address verifying,,) =
+            IERC5267(MUSD).eip712Domain();
+        assertEq(chainId, 31611);
+        assertEq(verifying, MUSD);
+        bytes32 domain = keccak256(
+            abi.encode(
+                keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
+                keccak256(bytes(name)),
+                keccak256(bytes(version)),
+                chainId,
+                verifying
+            )
+        );
+        assertEq(domain, IERC20Permit(MUSD).DOMAIN_SEPARATOR());
+        uint256 deadline = block.timestamp + 600;
+        uint256 n = IERC20Permit(MUSD).nonces(owner);
+        bytes32 structHash = keccak256(
+            abi.encode(
+                keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)"),
+                owner,
+                address(vault),
+                250e18,
+                n,
+                deadline
+            )
+        );
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(key, keccak256(abi.encodePacked("\x19\x01", domain, structHash)));
+        vm.prank(relayer);
+        vault.depositWithPermit(owner, MUSD, 250e18, deadline, v, r, s);
+        assertEq(vault.balanceOf(owner, MUSD), 250e18);
+        assertEq(vault.balanceOf(relayer, MUSD), 0);
+        assertEq(IERC20(MUSD).balanceOf(owner), 0);
+        assertEq(IERC20Permit(MUSD).nonces(owner), n + 1);
+        assertEq(IERC20(MUSD).allowance(owner, address(vault)), 0);
     }
 
     function test_fork_buySellNvda() public {

@@ -30,6 +30,13 @@ contract CurveHandler is Test {
         }
     }
 
+    function createToken(uint256 who) external {
+        if (tokens.length >= 12) return;
+        address creator = traders[who % 3];
+        vm.prank(creator);
+        tokens.push(lp.createToken("Coin", "C", "", creator));
+    }
+
     function tokenCount() external view returns (uint256) {
         return tokens.length;
     }

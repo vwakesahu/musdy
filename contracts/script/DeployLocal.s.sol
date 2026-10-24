@@ -3,6 +3,7 @@ pragma solidity 0.8.28;
 
 import {DeploymentWriter} from "./DeploymentWriter.sol";
 import {MockERC20Permit} from "../src/mocks/MockERC20Permit.sol";
+import {MockBtcPermit} from "../src/mocks/MockBtcPermit.sol";
 import {MockPoolFactory} from "../src/mocks/MockPoolFactory.sol";
 import {MockRouter} from "../src/mocks/MockRouter.sol";
 import {MusdyLaunchpad} from "../src/MusdyLaunchpad.sol";
@@ -24,14 +25,15 @@ contract DeployLocal is DeploymentWriter {
         vm.startBroadcast(key);
 
         musd = new MockERC20Permit("Mezo USD", "MUSD");
-        MockERC20Permit btc = new MockERC20Permit("Bitcoin", "BTC");
+        // BTC copies the precompile permit (domain "BTC", nonce(owner)) so the web permit path works locally
+        MockBtcPermit btc = new MockBtcPermit();
         MockERC20Permit nvda = new MockERC20Permit("NVIDIA", "NVDA");
         MockERC20Permit tsla = new MockERC20Permit("Tesla", "TSLA");
         MockERC20Permit googl = new MockERC20Permit("Alphabet", "GOOGL");
         MockPoolFactory factory = new MockPoolFactory();
         router = new MockRouter(address(factory));
 
-        _seed(btc, 100e18, 78_700);
+        _seed(MockERC20Permit(address(btc)), 100e18, 78_700);
         _seed(nvda, 20_000e18, 151);
         _seed(tsla, 7_000e18, 431);
         _seed(googl, 9_000e18, 333);

@@ -16,16 +16,38 @@ contract VaultHandler is Test {
     uint256[3] internal keys = [uint256(0x5001), 0x5002, 0x5003];
     address public feeTo;
 
+    address public vaultOwner;
+
     mapping(address => uint256) public ghostNonce;
     bool public unauthorizedDecrease;
+    bool public sweepMisCredited;
+    uint256 public replaySuccess;
+    uint256 public tamperSuccess;
+    uint256 public launches;
+    uint256 public sweeps;
 
-    constructor(MusdyVault vault_, MockERC20Permit musd_, address[] memory tokens_, address feeTo_) {
+    IMusdyVault.Trade[] internal doneTrades;
+    bytes[] internal doneTradeSigs;
+    IMusdyVault.Withdraw[] internal doneWithdraws;
+    bytes[] internal doneWithdrawSigs;
+
+    bytes32 internal constant PERMIT_TYPEHASH =
+        keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)");
+
+    constructor(
+        MusdyVault vault_,
+        MockERC20Permit musd_,
+        address[] memory tokens_,
+        address feeTo_,
+        address vaultOwner_
+    ) {
         vault = vault_;
         musd = musd_;
         launchpad = vault.launchpad();
         router = vault.router();
         tokens = tokens_;
         feeTo = feeTo_;
+        vaultOwner = vaultOwner_;
     }
 
     function actor(uint256 i) public view returns (address) {
@@ -74,8 +96,11 @@ contract VaultHandler is Test {
         amount = bound(amount, 1, bal);
         IMusdyVault.Trade memory t =
             IMusdyVault.Trade(a, token, isBuy, amount, 0, address(0), vault.nonces(a), block.timestamp + 1);
-        try vault.executeTrade(t, _sig(who, vault.hashTrade(t))) {
+        bytes memory sig = _sig(who, vault.hashTrade(t));
+        try vault.executeTrade(t, sig) {
             ghostNonce[a]++;
+            doneTrades.push(t);
+            doneTradeSigs.push(sig);
         } catch {}
     }
 
@@ -87,9 +112,97 @@ contract VaultHandler is Test {
         amount = bound(amount, 1, bal);
         IMusdyVault.Withdraw memory w =
             IMusdyVault.Withdraw(a, token, amount, address(0xBEEF), vault.nonces(a), block.timestamp + 1);
-        try vault.executeWithdraw(w, _sig(who, vault.hashWithdraw(w))) {
+        bytes memory sig = _sig(who, vault.hashWithdraw(w));
+        try vault.executeWithdraw(w, sig) {
             ghostNonce[a]++;
+            doneWithdraws.push(w);
+            doneWithdrawSigs.push(sig);
         } catch {}
+    }
+
+    // resubmits an already executed (struct, sig) pair, which must never go through again
+    function replay(uint256 idx, bool asTrade) external watch(type(uint256).max) {
+        if (asTrade && doneTrades.length > 0) {
+            uint256 i = idx % doneTrades.length;
+            try vault.executeTrade(doneTrades[i], doneTradeSigs[i]) {
+                replaySuccess++;
+            } catch {}
+        } else if (doneWithdraws.length > 0) {
+            uint256 i = idx % doneWithdraws.length;
+            try vault.executeWithdraw(doneWithdraws[i], doneWithdrawSigs[i]) {
+                replaySuccess++;
+            } catch {}
+        }
+    }
+
+    // signs a valid action for the current nonce, then changes to, amountIn or token before submitting
+    function tamper(uint256 who, uint256 field, uint256 seed) external watch(type(uint256).max) {
+        address a = actor(who);
+        uint256 mode = field % 3;
+        if (mode == 0) {
+            uint256 bal = vault.balanceOf(a, address(musd));
+            if (bal == 0) return;
+            IMusdyVault.Withdraw memory w =
+                IMusdyVault.Withdraw(a, address(musd), bal, a, vault.nonces(a), block.timestamp + 1);
+            bytes memory sig = _sig(who, vault.hashWithdraw(w));
+            w.to = address(uint160(bound(seed, 1, type(uint160).max)));
+            if (w.to == a) w.to = address(0xBAD);
+            try vault.executeWithdraw(w, sig) {
+                tamperSuccess++;
+            } catch {}
+            return;
+        }
+        uint256 musdBal = vault.balanceOf(a, address(musd));
+        if (musdBal < 2) return;
+        IMusdyVault.Trade memory t = IMusdyVault.Trade(
+            a, tokens[1], true, musdBal / 2, 0, address(0), vault.nonces(a), block.timestamp + 1
+        );
+        bytes memory tsig = _sig(who, vault.hashTrade(t));
+        if (mode == 1) {
+            t.amountIn = bound(seed, 1, musdBal);
+            if (t.amountIn == musdBal / 2) t.amountIn = musdBal;
+        } else {
+            t.token = tokens[2 + seed % (tokens.length - 2)];
+        }
+        try vault.executeTrade(t, tsig) {
+            tamperSuccess++;
+        } catch {}
+    }
+
+    function launch(uint256 who, uint256 buy) external watch(who) {
+        address a = actor(who);
+        uint256 bal = vault.balanceOf(a, address(musd));
+        uint256 initialBuy = bal == 0 ? 0 : bound(buy, 1, bal);
+        IMusdyVault.Launch memory l =
+            IMusdyVault.Launch(a, "Inv Coin", "INV", "", initialBuy, vault.nonces(a), block.timestamp + 1);
+        try vault.executeLaunch(l, _sig(who, vault.hashLaunch(l))) returns (address token, uint256) {
+            ghostNonce[a]++;
+            launches++;
+            tokens.push(token);
+        } catch {}
+    }
+
+    // the permit owner signs, a different actor submits; only the owner may be credited
+    function depositWithPermitRelayed(uint256 who, uint256 by, uint256 amount) external watch(type(uint256).max) {
+        if (who % 3 == by % 3) return;
+        address o = actor(who);
+        address caller = actor(by);
+        amount = bound(amount, 1, 50_000e18);
+        musd.mint(o, amount);
+        uint256 ownerBefore = vault.balanceOf(o, address(musd));
+        uint256 callerBefore = vault.balanceOf(caller, address(musd));
+        _relayPermit(who, caller, amount);
+        sweeps++;
+        if (vault.balanceOf(o, address(musd)) != ownerBefore + amount) sweepMisCredited = true;
+        if (vault.balanceOf(caller, address(musd)) != callerBefore) sweepMisCredited = true;
+    }
+
+    // fee recipient stays inside the tracked set so solvency still sums every holder
+    function setFee(uint256 who, uint256 bps) external watch(type(uint256).max) {
+        address recipient = who % 4 == 3 ? feeTo : actor(who);
+        uint16 b = uint16(bound(bps, 0, vault.MAX_FEE_BPS()));
+        vm.prank(vaultOwner);
+        vault.setFee(recipient, b);
     }
 
     function escape(uint256 who, uint256 tSeed, uint256 amount) external watch(who) {
@@ -114,6 +227,17 @@ contract VaultHandler is Test {
         } catch {}
     }
 
+    function _relayPermit(uint256 who, address caller, uint256 amount) internal {
+        address o = actor(who);
+        uint256 deadline = block.timestamp + 1;
+        bytes32 structHash =
+            keccak256(abi.encode(PERMIT_TYPEHASH, o, address(vault), amount, musd.nonces(o), deadline));
+        (uint8 v, bytes32 r, bytes32 s) =
+            vm.sign(keys[who % 3], keccak256(abi.encodePacked("\x19\x01", musd.DOMAIN_SEPARATOR(), structHash)));
+        vm.prank(caller);
+        vault.depositWithPermit(o, address(musd), amount, deadline, v, r, s);
+    }
+
     function _sig(uint256 who, bytes32 digest) internal view returns (bytes memory) {
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(keys[who % 3], digest);
         return abi.encodePacked(r, s, v);
@@ -131,7 +255,7 @@ contract VaultInvariantTest is Base {
         tokens[2] = address(nvda);
         vm.prank(address(0xC0FFEE));
         tokens[3] = launchpad.createToken("Curve", "CRV", "", address(0xC0FFEE));
-        handler = new VaultHandler(vault, musd, tokens, feeTo);
+        handler = new VaultHandler(vault, musd, tokens, feeTo, owner);
         targetContract(address(handler));
     }
 
@@ -155,6 +279,18 @@ contract VaultInvariantTest is Base {
             address a = handler.actor(i);
             assertEq(vault.nonces(a), handler.ghostNonce(a));
         }
+    }
+
+    function invariant_vault_noReplay() public view {
+        assertEq(handler.replaySuccess(), 0);
+    }
+
+    function invariant_vault_noTamper() public view {
+        assertEq(handler.tamperSuccess(), 0);
+    }
+
+    function invariant_vault_permitSweepCreditsOwnerOnly() public view {
+        assertFalse(handler.sweepMisCredited());
     }
 
     function invariant_vault_noLingeringAllowance() public view {

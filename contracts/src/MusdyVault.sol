@@ -96,6 +96,7 @@ contract MusdyVault is IMusdyVault, EIP712, Ownable, ReentrancyGuard {
     }
 
     function deposit(address token, uint256 amount, address onBehalfOf) external nonReentrant {
+        if (onBehalfOf == address(0)) revert ZeroAddress();
         _pull(token, msg.sender, amount, onBehalfOf);
     }
 
@@ -109,6 +110,7 @@ contract MusdyVault is IMusdyVault, EIP712, Ownable, ReentrancyGuard {
         bytes32 s
     ) external nonReentrant {
         // a front run permit already set the allowance, so only a short allowance is fatal
+        // anyone can sweep a standing allowance this way, but only into owner's own vault balance, which owner can withdraw any time
         try IERC20Permit(token).permit(owner, address(this), amount, deadline, v, r, s) {}
         catch {
             if (IERC20(token).allowance(owner, address(this)) < amount) revert Insufficient();

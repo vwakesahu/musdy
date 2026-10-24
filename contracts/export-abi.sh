@@ -14,5 +14,7 @@ emit "$(pick MusdyLaunchpad.sol/MusdyLaunchpad.json IMusdyLaunchpad.sol/IMusdyLa
 emit IMezoPools.sol/IMezoRouter.json routerAbi
 emit IMezoPools.sol/IMezoPoolFactory.json poolFactoryAbi
 emit IMezoPools.sol/IMezoPool.json poolAbi
-{ for f in vaultAbi launchpadAbi routerAbi poolFactoryAbi poolAbi; do echo "export * from \"./$f\";"; done; } > $out/index.ts
+emit MusdyToken.sol/MusdyToken.json musdyTokenAbi
+emit IERC20PermitLike.sol/IERC20PermitLike.json erc20PermitAbi
+{ for f in vaultAbi launchpadAbi routerAbi poolFactoryAbi poolAbi musdyTokenAbi erc20PermitAbi; do echo "export * from \"./$f\";"; done; } > $out/index.ts
 echo "abis -> shared/abi"
