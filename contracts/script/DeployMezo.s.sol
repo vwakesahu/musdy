@@ -24,13 +24,14 @@ contract DeployMezo is DeploymentWriter {
         MusdyVault vault = new MusdyVault(MUSD, BTC, ROUTER, address(launchpad), deployer, 50, deployer);
         vm.stopBroadcast();
 
-        TokenEntry[] memory tokens = new TokenEntry[](6);
+        TokenEntry[] memory tokens = new TokenEntry[](7);
         tokens[0] = TokenEntry(MUSD, "MUSD", "Mezo USD", "musd");
         tokens[1] = TokenEntry(BTC, "BTC", "Bitcoin", "btc");
         tokens[2] = TokenEntry(0x0dd342913752311E88BBfb0184E3f55FAeFc866a, "NVDA", "NVIDIA", "stock");
         tokens[3] = TokenEntry(0x012296B64995A9E3dB50249AFdB409a9954b1457, "GOOGL", "Alphabet", "stock");
         tokens[4] = TokenEntry(0x7AdC67AB18eFa1Ce921e4054C01C5A8E8699375D, "TSLA", "Tesla", "stock");
-        tokens[5] = TokenEntry(0xdd8Bf5ACa0579bEE7e6cd20AC7683E279a5f7d48, "mT", "Threshold", "other");
+        tokens[5] = TokenEntry(0x9E15Eb378a6428aa9880bF7aa1C333929fDB199F, "COIN", "Coinbase", "stock");
+        tokens[6] = TokenEntry(0xE8856cD7F6dd14962bF00Df2738C93957BdD4904, "CRCL", "Circle", "stock");
         _write(Addrs(address(vault), address(launchpad), MUSD, BTC, ROUTER, factory, startBlock), tokens);
     }
 }

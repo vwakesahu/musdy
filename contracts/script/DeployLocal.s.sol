@@ -31,23 +31,31 @@ contract DeployLocal is DeploymentWriter {
         MockPoolFactory factory = new MockPoolFactory();
         router = new MockRouter(address(factory));
 
-        _seed(MockERC20Permit(address(btc)), 100e18, 78_700);
-        _seed(nvda, 20_000e18, 151);
-        _seed(tsla, 7_000e18, 431);
-        _seed(googl, 9_000e18, 333);
+        _seed(MockERC20Permit(address(btc)), 100e18, vm.envOr("PRICE_BTC", uint256(78_700e18)));
+        _seed(nvda, 20_000e18, vm.envOr("PRICE_NVDA", uint256(151e18)));
+        _seed(tsla, 7_000e18, vm.envOr("PRICE_TSLA", uint256(431e18)));
+        _seed(googl, 9_000e18, vm.envOr("PRICE_GOOGL", uint256(333e18)));
 
         MusdyLaunchpad launchpad = new MusdyLaunchpad(address(musd), address(router), 1500e18, deployer);
         MusdyVault vault =
             new MusdyVault(address(musd), address(btc), address(router), address(launchpad), deployer, 50, deployer);
         musd.mint(FAUCET, 1_000_000e18);
+
+        // deployed last so every earlier address stays where the existing deployments.json has it
+        MockERC20Permit coin = new MockERC20Permit("Coinbase", "COIN");
+        MockERC20Permit crcl = new MockERC20Permit("Circle", "CRCL");
+        _seed(coin, 10_000e18, vm.envOr("PRICE_COIN", uint256(165e18)));
+        _seed(crcl, 15_000e18, vm.envOr("PRICE_CRCL", uint256(86e18)));
         vm.stopBroadcast();
 
-        TokenEntry[] memory tokens = new TokenEntry[](5);
+        TokenEntry[] memory tokens = new TokenEntry[](7);
         tokens[0] = TokenEntry(address(musd), "MUSD", "Mezo USD", "musd");
         tokens[1] = TokenEntry(address(btc), "BTC", "Bitcoin", "btc");
         tokens[2] = TokenEntry(address(nvda), "NVDA", "NVIDIA", "stock");
         tokens[3] = TokenEntry(address(tsla), "TSLA", "Tesla", "stock");
         tokens[4] = TokenEntry(address(googl), "GOOGL", "Alphabet", "stock");
+        tokens[5] = TokenEntry(address(coin), "COIN", "Coinbase", "stock");
+        tokens[6] = TokenEntry(address(crcl), "CRCL", "Circle", "stock");
         _write(
             Addrs(
                 address(vault),
@@ -62,8 +70,8 @@ contract DeployLocal is DeploymentWriter {
         );
     }
 
-    function _seed(MockERC20Permit token, uint256 tokenAmt, uint256 price) internal {
-        uint256 musdAmt = tokenAmt * price;
+    function _seed(MockERC20Permit token, uint256 tokenAmt, uint256 priceWad) internal {
+        uint256 musdAmt = tokenAmt * priceWad / 1e18;
         token.mint(deployer, tokenAmt);
         musd.mint(deployer, musdAmt);
         token.approve(address(router), tokenAmt);

@@ -28,15 +28,22 @@ export interface KnownToken {
   name: string;
   decimals: number;
   kind: TokenKind;
+  logo?: string;
 }
 
+const LOGO_SYMBOLS = ["MUSD", "BTC", "MEZO", "NVDA", "GOOGL", "TSLA", "COIN", "CRCL"];
+
+export const tokenLogo = (symbol: string): string | undefined =>
+  LOGO_SYMBOLS.includes(symbol) ? `/tokens/${symbol.toLowerCase()}.svg` : undefined;
+
 export const testnetTokens: KnownToken[] = [
-  { address: "0x118917a40FAF1CD7a13dB0Ef56C86De7973Ac503", symbol: "MUSD", name: "Mezo USD", decimals: 18, kind: "musd" },
-  { address: "0x7b7C000000000000000000000000000000000000", symbol: "BTC", name: "Bitcoin", decimals: 18, kind: "btc" },
-  { address: "0x0dd342913752311E88BBfb0184E3f55FAeFc866a", symbol: "NVDA", name: "NVIDIA", decimals: 18, kind: "stock" },
-  { address: "0x012296B64995A9E3dB50249AFdB409a9954b1457", symbol: "GOOGL", name: "Alphabet", decimals: 18, kind: "stock" },
-  { address: "0x7AdC67AB18eFa1Ce921e4054C01C5A8E8699375D", symbol: "TSLA", name: "Tesla", decimals: 18, kind: "stock" },
-  { address: "0xdd8Bf5ACa0579bEE7e6cd20AC7683E279a5f7d48", symbol: "mT", name: "Threshold", decimals: 18, kind: "other" },
+  { address: "0x118917a40FAF1CD7a13dB0Ef56C86De7973Ac503", symbol: "MUSD", name: "Mezo USD", decimals: 18, kind: "musd", logo: "/tokens/musd.svg" },
+  { address: "0x7b7C000000000000000000000000000000000000", symbol: "BTC", name: "Bitcoin", decimals: 18, kind: "btc", logo: "/tokens/btc.svg" },
+  { address: "0x0dd342913752311E88BBfb0184E3f55FAeFc866a", symbol: "NVDA", name: "NVIDIA", decimals: 18, kind: "stock", logo: "/tokens/nvda.svg" },
+  { address: "0x012296B64995A9E3dB50249AFdB409a9954b1457", symbol: "GOOGL", name: "Alphabet", decimals: 18, kind: "stock", logo: "/tokens/googl.svg" },
+  { address: "0x7AdC67AB18eFa1Ce921e4054C01C5A8E8699375D", symbol: "TSLA", name: "Tesla", decimals: 18, kind: "stock", logo: "/tokens/tsla.svg" },
+  { address: "0x9E15Eb378a6428aa9880bF7aa1C333929fDB199F", symbol: "COIN", name: "Coinbase", decimals: 18, kind: "stock", logo: "/tokens/coin.svg" },
+  { address: "0xE8856cD7F6dd14962bF00Df2738C93957BdD4904", symbol: "CRCL", name: "Circle", decimals: 18, kind: "stock", logo: "/tokens/crcl.svg" },
 ];
 
 export const testnetPools = {

@@ -1,5 +1,5 @@
 import { erc20Abi, type Address } from "viem";
-import { CandleTf, FeedScope, launchpadAbi, PnlWindow, TokenSort, vaultAbi, type Deployment, type Health } from "shared";
+import { CandleTf, FeedScope, launchpadAbi, PnlWindow, TokenSort, tokenLogo, vaultAbi, type Deployment, type Health } from "shared";
 import { applyFollow, applyProfile } from "./auth";
 import { BlockLoop } from "./blocks";
 import { buildCandles, TF_SECONDS } from "./candles";
@@ -49,7 +49,7 @@ export const startApp = async (env: Env, deployment?: Deployment, opts: AppOpts 
     pub.readContract({ address: dep.launchpad, abi: launchpadAbi, functionName: "TOTAL_SUPPLY" }),
   ]);
   const seededAt = Math.floor(Date.now() / 1000);
-  for (const t of dep.tokens) store.seedToken({ ...t, createdAt: seededAt });
+  for (const t of dep.tokens) store.seedToken({ ...t, image: tokenLogo(t.symbol) ?? null, createdAt: seededAt });
   const supplies = await readMany<bigint>(pub, dep.tokens.map((t) => ({ address: t.address, abi: erc20Abi, functionName: "totalSupply" }) as const));
   dep.tokens.forEach((t, i) => {
     const s = supplies[i];

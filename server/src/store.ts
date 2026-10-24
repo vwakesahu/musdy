@@ -116,12 +116,13 @@ export class Store {
     this.db.query("INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(key, value);
   }
 
-  seedToken(t: { address: string; symbol: string; name: string; decimals: number; kind: TokenKind; createdAt: number }) {
+  seedToken(t: { address: string; symbol: string; name: string; image?: string | null; decimals: number; kind: TokenKind; createdAt: number }) {
     this.db
       .query(
-        "INSERT OR IGNORE INTO tokens (address, symbol, name, image, decimals, kind, created_at) VALUES (?, ?, ?, NULL, ?, ?, ?)",
+        "INSERT OR IGNORE INTO tokens (address, symbol, name, image, decimals, kind, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
       )
-      .run(lc(t.address), t.symbol, t.name, t.decimals, t.kind, t.createdAt);
+      .run(lc(t.address), t.symbol, t.name, t.image ?? null, t.decimals, t.kind, t.createdAt);
+    if (t.image) this.db.query("UPDATE tokens SET image = ? WHERE address = ?").run(t.image, lc(t.address));
   }
 
   insertLaunchToken(t: {
