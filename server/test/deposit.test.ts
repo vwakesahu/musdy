@@ -7,6 +7,7 @@ import { Actor, deadline, post } from "./helpers/actors";
 
 const permitAbi = parseAbi([
   "function nonces(address owner) view returns (uint256)",
+  "function nonce(address owner) view returns (uint256)",
   "function eip712Domain() view returns (bytes1, string, string, uint256, address, bytes32, uint256[])",
 ]);
 
@@ -17,12 +18,23 @@ describe.skipIf(!CONTRACTS_READY)(`auto deposit with permit${SKIP_NOTE}`, () => 
   }, 120000);
   afterAll(async () => s && (await s.stop()));
 
+  // MUSD exposes eip712Domain() and nonces(), the BTC precompile copy has neither and uses its fixed domain and nonce(owner)
+  const permitDomain = async (a: Actor, token: Address) => {
+    try {
+      const [, name, version, chainId, verifyingContract] = await a.pub.readContract({ address: token, abi: permitAbi, functionName: "eip712Domain" });
+      const nonce = await a.pub.readContract({ address: token, abi: permitAbi, functionName: "nonces", args: [a.address] });
+      return { domain: { name, version, chainId: Number(chainId), verifyingContract }, nonce };
+    } catch {
+      const nonce = await a.pub.readContract({ address: token, abi: permitAbi, functionName: "nonce", args: [a.address] });
+      return { domain: btcPermitDomain(31337, token), nonce };
+    }
+  };
+
   const signPermit = async (a: Actor, token: Address, amount: bigint) => {
-    const [, name, version, chainId, verifyingContract] = await a.pub.readContract({ address: token, abi: permitAbi, functionName: "eip712Domain" });
-    const nonce = await a.pub.readContract({ address: token, abi: permitAbi, functionName: "nonces", args: [a.address] });
+    const { domain, nonce } = await permitDomain(a, token);
     const dl = deadline();
     const sig = await a.account.signTypedData({
-      domain: { name, version, chainId: Number(chainId), verifyingContract },
+      domain,
       types: permitTypes,
       primaryType: "Permit",
       message: { owner: a.address, spender: s.dep.vault, value: amount, nonce, deadline: BigInt(dl) },

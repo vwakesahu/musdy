@@ -1,9 +1,13 @@
 import type { ServerWebSocket } from "bun";
-import { ClientMsg, type FeedItem, type ServerMsg } from "shared";
+import { ClientMsg, topicKey, type FeedItem, type ServerMsg } from "shared";
 import { log } from "./log";
 
 export interface WsData {
   id: number;
+  ip: string;
+  // token bucket for inbound messages
+  tokens: number;
+  refilled: number;
   address: string | null;
   // lowercase topics this socket is subscribed to
   subs: Set<string>;
@@ -18,20 +22,45 @@ export interface HubDeps {
   onSubscribe?(topic: string): void;
 }
 
-const MAX_TOPICS = 200;
-const MAX_FRAME = 4096;
-
-export const normTopic = (topic: string) => topic.toLowerCase();
+export const MAX_TOPICS = 64;
+export const MAX_FRAME = 4096;
+export const MAX_SOCKETS_PER_IP = 32;
+// inbound messages per second per socket, with a burst of two seconds
+export const MSG_RATE = 20;
+const MSG_BURST = MSG_RATE * 2;
+export const CLOSE_RATE_LIMIT = 1008;
 
 export class Hub {
   private topics = new Map<string, Set<Ws>>();
   private watched = new Map<string, number>();
+  private perIp = new Map<string, number>();
   private nextId = 1;
 
   constructor(private deps: HubDeps) {}
 
-  newData(): WsData {
-    return { id: this.nextId++, address: null, subs: new Set() };
+  // call before upgrading. null means the ip already has too many sockets
+  admit(ip: string): WsData | null {
+    const n = this.perIp.get(ip) ?? 0;
+    if (n >= MAX_SOCKETS_PER_IP) return null;
+    this.perIp.set(ip, n + 1);
+    return { id: this.nextId++, ip, tokens: MSG_BURST, refilled: Date.now(), address: null, subs: new Set() };
+  }
+
+  // an admitted socket that never opened
+  release(data: WsData) {
+    const n = (this.perIp.get(data.ip) ?? 1) - 1;
+    if (n <= 0) this.perIp.delete(data.ip);
+    else this.perIp.set(data.ip, n);
+  }
+
+  private allow(ws: Ws): boolean {
+    const d = ws.data;
+    const now = Date.now();
+    d.tokens = Math.min(MSG_BURST, d.tokens + ((now - d.refilled) / 1000) * MSG_RATE);
+    d.refilled = now;
+    if (d.tokens < 1) return false;
+    d.tokens -= 1;
+    return true;
   }
 
   send(ws: Ws, msg: ServerMsg) {
@@ -43,6 +72,10 @@ export class Hub {
   }
 
   message(ws: Ws, raw: string | Buffer) {
+    if (!this.allow(ws)) {
+      log("ws.rate_limited", { id: ws.data.id, ip: ws.data.ip });
+      return ws.close(CLOSE_RATE_LIMIT, "rate limit");
+    }
     const text = typeof raw === "string" ? raw : raw.toString("utf8");
     if (text.length > MAX_FRAME) return this.send(ws, { type: "error", code: "too_large", message: "message too large" });
     let json: unknown;
@@ -68,7 +101,7 @@ export class Hub {
       }
       return;
     }
-    const topic = normTopic(msg.topic);
+    const topic = msg.topic;
     if (msg.type === "unsubscribe") {
       ws.data.subs.delete(topic);
       this.topics.get(topic)?.delete(ws);
@@ -90,6 +123,7 @@ export class Hub {
     ws.data.subs.clear();
     if (ws.data.address) this.unwatch(ws.data.address);
     ws.data.address = null;
+    this.release(ws.data);
   }
 
   private unwatch(addr: string) {
@@ -99,11 +133,11 @@ export class Hub {
   }
 
   hasSubscribers(topic: string): boolean {
-    return (this.topics.get(normTopic(topic))?.size ?? 0) > 0;
+    return (this.topics.get(topicKey(topic))?.size ?? 0) > 0;
   }
 
   publish(topic: string, make: (topic: string) => ServerMsg) {
-    const t = normTopic(topic);
+    const t = topicKey(topic);
     const set = this.topics.get(t);
     if (!set?.size) return;
     const frame = JSON.stringify(make(t));

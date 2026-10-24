@@ -6,10 +6,13 @@ import { readMany } from "./reads";
 import type { Store } from "./store";
 
 type Bal = { token: Address; amount: string };
+type Snap = { vault: Bal[]; wallet: Bal[] };
 
 // pushes vault and wallet balances to user:<addr> for every address that said hello
 export class Watcher {
   private last = new Map<string, string>();
+  // one chain read per address per block, however many hellos and subscribes ask for it
+  private reads = new Map<string, { block: number; snap: Promise<Snap | null> }>();
 
   constructor(
     private pub: PublicClient<Transport, Chain>,
@@ -19,7 +22,19 @@ export class Watcher {
     private block: () => number,
   ) {}
 
-  private async read(addr: string): Promise<{ vault: Bal[]; wallet: Bal[] } | null> {
+  private snapshot(a: string): Promise<Snap | null> {
+    const block = this.block();
+    const hit = this.reads.get(a);
+    if (hit && hit.block === block) return hit.snap;
+    const snap = this.read(a).catch((e: unknown) => {
+      if (this.reads.get(a)?.snap === snap) this.reads.delete(a);
+      throw e;
+    });
+    this.reads.set(a, { block, snap });
+    return snap;
+  }
+
+  private async read(addr: string): Promise<Snap | null> {
     const user = getAddress(addr);
     const vaultTokens = [...new Set([this.dep.musd.toLowerCase(), ...this.store.heldTokens(addr)])].map((t) => getAddress(t));
     const walletTokens = [this.dep.musd, this.dep.btc];
@@ -35,8 +50,11 @@ export class Watcher {
 
   async push(addr: string, force: boolean) {
     const a = addr.toLowerCase();
-    const snap = await this.read(a);
-    if (!snap) return log("watcher.read_failed", { address: a });
+    const snap = await this.snapshot(a);
+    if (!snap) {
+      this.reads.delete(a);
+      return log("watcher.read_failed", { address: a });
+    }
     const key = JSON.stringify(snap);
     if (!force && this.last.get(a) === key) return;
     this.last.set(a, key);
@@ -47,6 +65,7 @@ export class Watcher {
   async tick() {
     const watched = new Set(this.hub.watchedAddresses());
     for (const a of this.last.keys()) if (!watched.has(a)) this.last.delete(a);
+    for (const a of this.reads.keys()) if (!watched.has(a)) this.reads.delete(a);
     await Promise.all(
       [...watched].map((a) => this.push(a, false).catch((e) => log("watcher.error", { address: a, error: errMessage(e) }))),
     );

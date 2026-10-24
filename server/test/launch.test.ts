@@ -1,6 +1,8 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import type { TokenInfo } from "shared";
+import { PriceBook } from "../src/price-book";
 import { WAD } from "../src/pricing";
+import { Views } from "../src/views";
 import { CONTRACTS_READY, SKIP_NOTE, startStack, type Stack } from "./helpers/anvil";
 import { Actor, get } from "./helpers/actors";
 
@@ -38,5 +40,14 @@ describe.skipIf(!CONTRACTS_READY)(`launch and graduation${SKIP_NOTE}`, () => {
     expect(BigInt(sold.priceMusd) < BigInt(info.priceMusd)).toBe(true);
     await creator.submit("/actions/withdraw", await creator.withdrawBody(coin.address, held / 10n, creator.address));
     expect(await creator.walletBalance(coin.address)).toBe(held / 10n);
+
+    // the positions the indexer kept event by event equal a replay of all history
+    const store = s.app.store;
+    const views = new Views(store, new PriceBook(store), s.dep.musd.toLowerCase(), 0n, () => s.app.block());
+    const key = (p: { user: string; token: string }) => `${p.user}:${p.token}`;
+    const sorted = <T extends { user: string; token: string }>(xs: T[]) => [...xs].sort((x, y) => key(x).localeCompare(key(y)));
+    const kept = sorted(store.allPositions());
+    expect(kept.filter((p) => p.token === coin.address.toLowerCase())).toHaveLength(5);
+    expect(kept).toEqual(sorted(views.recomputePositions()));
   }, 90000);
 });

@@ -10,6 +10,8 @@ export interface Ctx {
   params: Record<string, string>;
   query: URLSearchParams;
   body: unknown;
+  // the caller's ip, x-forwarded-for first
+  ip: string;
 }
 export type Handlers = Record<RouteName, (ctx: Ctx) => Promise<unknown> | unknown>;
 
@@ -30,7 +32,11 @@ export const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body, replacer), { status, headers: { "content-type": "application/json", ...CORS } });
 const fail = (status: number, code: string, message: string) => json({ code, message }, status);
 
-export const handleHttp = async (req: Request, handlers: Handlers): Promise<Response> => {
+// the first x-forwarded-for hop, else the socket address
+export const clientIp = (req: Request, socketIp: string | null | undefined): string =>
+  req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || socketIp || "unknown";
+
+export const handleHttp = async (req: Request, handlers: Handlers, ip = "unknown"): Promise<Response> => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
   const url = new URL(req.url);
   const route = compiled.find((r) => r.re.test(url.pathname));
@@ -47,7 +53,7 @@ export const handleHttp = async (req: Request, handlers: Handlers): Promise<Resp
     }
   }
   try {
-    return json(await handlers[route.name]({ params, query: url.searchParams, body }));
+    return json(await handlers[route.name]({ params, query: url.searchParams, body, ip }));
   } catch (e) {
     if (e instanceof HttpError) {
       log("http.rejected", { route: route.name, status: e.status, code: e.code });

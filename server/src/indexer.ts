@@ -1,5 +1,5 @@
 import { erc20Abi, type Chain, type PublicClient, type Transport } from "viem";
-import { launchpadAbi, vaultAbi, type Deployment } from "shared";
+import { launchpadAbi, vaultAbi, VENUES, type Deployment } from "shared";
 import { log } from "./log";
 import type { PriceBook } from "./price-book";
 import { curvePrice, toFloat, tradePrice } from "./pricing";
@@ -18,6 +18,8 @@ export interface IndexerDeps {
   // only called for rows that were new, and only once the block range is committed
   onTrade?(row: TradeRow): void;
   onToken?(address: string): void;
+  // MUSD value of a token amount at a time, what a token deposit enters a position at
+  valueAt?(token: string, amount: bigint, ts: number): bigint;
 }
 
 type Curve = { virtualMusd: bigint; virtualToken: bigint; tokensSold: bigint };
@@ -27,12 +29,14 @@ export class Indexer {
   private chunk: number;
   private vault: string;
   private launchpad: string;
+  private musd: string;
   private tsCache = new Map<bigint, number>();
 
   constructor(private d: IndexerDeps) {
     this.chunk = d.chunk ?? 2000;
     this.vault = d.dep.vault.toLowerCase();
     this.launchpad = d.dep.launchpad.toLowerCase();
+    this.musd = d.dep.musd.toLowerCase();
   }
 
   lastBlock(): number {
@@ -125,6 +129,8 @@ export class Indexer {
             const token = store.token(a.token);
             const decimals = token?.decimals ?? 18;
             const price = tradePrice(a.isBuy, a.musdAmount, a.fee, a.tokenAmount, decimals);
+            const venue = VENUES[a.venue];
+            if (!venue) throw new Error(`unknown venue ${a.venue} in ${id}`);
             const row: TradeRow = {
               id,
               block,
@@ -138,18 +144,18 @@ export class Indexer {
               token_amount: a.tokenAmount.toString(),
               fee: a.fee.toString(),
               ref: a.ref.toLowerCase(),
-              venue: a.venue === 1 ? "curve" : "pool",
+              venue,
               price: price.toString(),
               price_f: toFloat(price),
               musd_f: toFloat(a.musdAmount),
             };
             if (store.insertTrade(row)) {
-              if (price > 0n && a.venue !== 1) book.record(row.token, at, block, price);
+              if (price > 0n && venue === "pool") book.record(row.token, at, block, price);
               newTrades.push(row);
             }
           } else if (l.eventName === "Deposited" || l.eventName === "Withdrawn") {
             const a = l.args;
-            store.insertTransfer({
+            const isNew = store.insertTransfer({
               id,
               block,
               log_index: l.logIndex,
@@ -160,6 +166,11 @@ export class Indexer {
               amount: a.amount.toString(),
               to_addr: l.eventName === "Withdrawn" ? l.args.to : null,
             });
+            // MUSD is cash, only other tokens make a position
+            if (isNew && a.token.toLowerCase() !== this.musd) {
+              const deposit = l.eventName === "Deposited";
+              store.applyFlow(a.user, a.token, { kind: deposit ? "in" : "out", amount: a.amount, musd: deposit ? (this.d.valueAt?.(a.token, a.amount, at) ?? 0n) : 0n });
+            }
           } else if (l.eventName === "Launched") {
             store.insertLaunch(id, block, at, l.args.user, l.args.token);
           }

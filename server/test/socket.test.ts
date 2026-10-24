@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import type { Server } from "bun";
 import type { FeedItem, ServerMsg } from "shared";
 import { openDb } from "../src/db";
-import { Hub, type WsData } from "../src/hub";
+import { CLOSE_RATE_LIMIT, Hub, MAX_SOCKETS_PER_IP, MAX_TOPICS, type WsData } from "../src/hub";
 import { PriceBook } from "../src/price-book";
 import { Store } from "../src/store";
 import { Views } from "../src/views";
@@ -54,7 +54,11 @@ describe("socket hub", () => {
     });
     server = Bun.serve<WsData>({
       port: 0,
-      fetch: (req, srv) => (srv.upgrade(req, { data: hub.newData() }) ? undefined : new Response("no", { status: 400 })),
+      fetch: (req, srv) => {
+        const data = hub.admit(req.headers.get("x-forwarded-for") ?? "local");
+        if (!data) return new Response("too many", { status: 429 });
+        return srv.upgrade(req, { data }) ? undefined : new Response("no", { status: 400 });
+      },
       websocket: { open: (ws) => hub.open(ws), message: (ws, m) => hub.message(ws, m), close: (ws) => hub.close(ws) },
     });
     url = `ws://localhost:${server.port}/ws`;
@@ -141,6 +145,38 @@ describe("socket hub", () => {
     expect(stranger.messages).toHaveLength(0);
     follower.close();
     stranger.close();
+  });
+
+  test("a socket that floods messages is closed, a normal one stays up", async () => {
+    const calm = await TestSocket.open(url);
+    const flood = await TestSocket.open(url);
+    await flood.next((m) => m.type === "welcome");
+    for (let i = 0; i < 200; i++) flood.send({ type: "unsubscribe", topic: "prices" });
+    expect(await flood.closed).toBe(CLOSE_RATE_LIMIT);
+    calm.send({ type: "subscribe", topic: "feed:global" });
+    await calm.next((m) => m.type === "trade");
+    calm.close();
+  });
+
+  test("subscriptions per socket are capped", async () => {
+    const s = await TestSocket.open(url);
+    for (let i = 0; i <= MAX_TOPICS; i++) {
+      s.send({ type: "subscribe", topic: `user:0x${i.toString(16).padStart(40, "0")}` });
+      // stay under the rate limit
+      if (i % 15 === 14) await Bun.sleep(1000);
+    }
+    expect(await s.next((m) => m.type === "error")).toMatchObject({ code: "too_many_topics" });
+    s.close();
+  }, 15000);
+
+  test("sockets per ip are capped before the upgrade, a closed socket frees its slot", () => {
+    const h = new Hub({ welcome: () => ({ type: "welcome", serverTime: 0, block: 0, chainId: 31337 }), replay: () => null });
+    const admitted = Array.from({ length: MAX_SOCKETS_PER_IP }, () => h.admit("9.9.9.9"));
+    expect(admitted.every((d) => d !== null)).toBe(true);
+    expect(h.admit("9.9.9.9")).toBeNull();
+    expect(h.admit("8.8.8.8")).not.toBeNull();
+    h.release(admitted[0]!);
+    expect(h.admit("9.9.9.9")).not.toBeNull();
   });
 
   test("unsubscribe stops delivery", async () => {

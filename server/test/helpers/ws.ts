@@ -3,7 +3,10 @@ import { ServerMsg } from "shared";
 export class TestSocket {
   readonly messages: ServerMsg[] = [];
   private waiters: { pred: (m: ServerMsg) => boolean; resolve: (m: ServerMsg) => void }[] = [];
+  // resolves with the close code once the server or the client closes the socket
+  readonly closed: Promise<number>;
   private constructor(private ws: WebSocket) {
+    this.closed = new Promise((resolve) => ws.addEventListener("close", (e) => resolve(e.code)));
     ws.onmessage = (e) => {
       const msg = ServerMsg.parse(JSON.parse(String(e.data)));
       this.messages.push(msg);

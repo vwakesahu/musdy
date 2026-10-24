@@ -1,7 +1,6 @@
-import type { Candle } from "shared";
+import type { Candle, CandleTf } from "shared";
 
-export const TF_SECONDS = { "1m": 60, "5m": 300, "1h": 3600, "1d": 86400 } as const;
-export type Tf = keyof typeof TF_SECONDS;
+export const TF_SECONDS: Record<CandleTf, number> = { "1m": 60, "5m": 300, "1h": 3600, "1d": 86400 };
 
 export interface Tick {
   ts: number;
@@ -10,7 +9,7 @@ export interface Tick {
 }
 
 // ticks must be sorted by time, oldest first
-export const buildCandles = (ticks: Tick[], tf: Tf): Candle[] => {
+export const buildCandles = (ticks: Tick[], tf: CandleTf): Candle[] => {
   const size = TF_SECONDS[tf];
   const out: Candle[] = [];
   for (const tick of ticks) {

@@ -2,7 +2,7 @@ import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { Deployment } from "shared";
-import { startApp, type App } from "../../src/app";
+import { startApp, type App, type AppOpts } from "../../src/app";
 import { Env } from "../../src/env";
 
 const ROOT = resolve(import.meta.dir, "../../..");
@@ -78,7 +78,7 @@ export interface Stack {
 
 export const tempDb = () => join(mkdtempSync(join(tmpdir(), "musdy-")), "test.db");
 
-export const startStack = async (overrides: Partial<Record<keyof Env, string>> = {}): Promise<Stack> => {
+export const startStack = async (overrides: Partial<Record<keyof Env, string>> = {}, opts: AppOpts = {}): Promise<Stack> => {
   const anvil = await startAnvil();
   const dep = await deployLocal(anvil.rpc);
   const env = Env.parse({
@@ -91,7 +91,7 @@ export const startStack = async (overrides: Partial<Record<keyof Env, string>> =
     DB_PATH: tempDb(),
     ...overrides,
   });
-  const app = await startApp(env, dep);
+  const app = await startApp(env, dep, opts);
   return {
     anvil,
     dep,

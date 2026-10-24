@@ -83,4 +83,22 @@ export const migrations: string[] = [
   CREATE TABLE follow_issued (follower TEXT NOT NULL, target TEXT NOT NULL, issued INTEGER NOT NULL, PRIMARY KEY (follower, target));
   CREATE TABLE faucet (address TEXT PRIMARY KEY, last_at INTEGER NOT NULL);
   `,
+  `
+  CREATE TABLE positions (
+    user TEXT NOT NULL,
+    token TEXT NOT NULL,
+    amount TEXT NOT NULL,
+    cost TEXT NOT NULL,
+    realized TEXT NOT NULL,
+    bought TEXT NOT NULL,
+    volume TEXT NOT NULL,
+    trades INTEGER NOT NULL,
+    PRIMARY KEY (user, token)
+  );
+  CREATE INDEX positions_token ON positions (token);
+  CREATE INDEX transfers_ts ON transfers (ts);
+  CREATE TABLE faucet_claims (address TEXT NOT NULL, ip TEXT NOT NULL, at INTEGER NOT NULL);
+  CREATE INDEX faucet_claims_ip ON faucet_claims (ip, at);
+  CREATE INDEX faucet_claims_at ON faucet_claims (at);
+  `,
 ];

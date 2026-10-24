@@ -70,6 +70,47 @@ describe("leaderboard ranking", () => {
   });
 });
 
+describe("positions table", () => {
+  test("kept incrementally it matches a full recompute after buys, partial fills, sells and transfers", () => {
+    const store = new Store(openDb(tempDb()));
+    store.seedToken({ address: TOKEN, symbol: "TKN", name: "Token", decimals: 18, kind: "stock", createdAt: 0 });
+    const book = new PriceBook(store);
+    book.record(TOKEN, now - 7200, 1, 2n * WAD);
+    const views = new Views(store, book, "0x00000000000000000000000000000000000000bb", 1n, () => 100);
+    const A = "0x4444444444444444444444444444444444444444";
+    const B = "0x5555555555555555555555555555555555555555";
+    let log = 0;
+    const transfer = (user: string, kind: "deposit" | "withdraw", amount: bigint, ts: number) => {
+      n++;
+      store.tx(() => {
+        store.insertTransfer({ id: `0x${n.toString(16).padStart(64, "0")}:${log++}`, block: n, log_index: 0, ts, kind, user, token: TOKEN, amount: amount.toString(), to_addr: null });
+        store.applyFlow(user, TOKEN, { kind: kind === "deposit" ? "in" : "out", amount, musd: kind === "deposit" ? views.value(TOKEN, amount, ts) : 0n });
+      });
+    };
+    store.insertTrade(trade(A, true, 20n * WAD, 10n * WAD, now - 7000));
+    // a partial curve fill: less MUSD used than asked, fewer tokens out
+    store.insertTrade(trade(A, true, 7n * WAD, 3n * WAD, now - 6000));
+    store.insertTrade(trade(B, true, 9n * WAD, 4n * WAD, now - 5500));
+    store.insertTrade(trade(A, false, 9n * WAD, 4n * WAD, now - 5000));
+    transfer(A, "deposit", 5n * WAD, now - 4000);
+    transfer(A, "withdraw", 2n * WAD, now - 3000);
+    store.insertTrade(trade(B, false, 11n * WAD, 4n * WAD, now - 2000));
+    // selling more than tracked clamps to zero
+    store.insertTrade(trade(A, false, 30n * WAD, 100n * WAD, now - 1000));
+    store.insertTrade(trade(B, true, 3n * WAD, WAD, now - 500));
+
+    const key = (p: { user: string; token: string }) => `${p.user}:${p.token}`;
+    const sort = <T extends { user: string; token: string }>(xs: T[]) => [...xs].sort((x, y) => key(x).localeCompare(key(y)));
+    const incremental = sort(store.allPositions());
+    expect(incremental).toEqual(sort(views.recomputePositions()));
+    expect(incremental.map((p) => [p.user, p.amount, p.trades])).toEqual([
+      [A, 0n, 4],
+      [B, WAD, 3],
+    ]);
+    expect(views.holderCount(TOKEN)).toBe(1);
+  });
+});
+
 describe.skipIf(!CONTRACTS_READY)(`leaderboard against anvil${SKIP_NOTE}`, () => {
   let s: Stack;
   beforeAll(async () => {

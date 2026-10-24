@@ -1,13 +1,12 @@
 import { erc20Abi, type Address } from "viem";
-import { z } from "zod";
-import { launchpadAbi, vaultAbi, type Deployment, type Health } from "shared";
+import { CandleTf, FeedScope, launchpadAbi, PnlWindow, TokenSort, vaultAbi, type Deployment, type Health } from "shared";
 import { applyFollow, applyProfile } from "./auth";
-import { buildCandles, TF_SECONDS, type Tf } from "./candles";
+import { buildCandles, TF_SECONDS } from "./candles";
 import { makeClients } from "./chain";
 import { openDb } from "./db";
 import { deploymentFor, faucetEnabled, type Env } from "./env";
 import { HttpError, simulationError } from "./errors";
-import { handleHttp, param, qAddress, qBool, qOptional, qUint, type Handlers } from "./http";
+import { clientIp, handleHttp, param, qAddress, qBool, qOptional, qUint, type Handlers } from "./http";
 import { Hub, type WsData } from "./hub";
 import { Indexer } from "./indexer";
 import { errMessage, log } from "./log";
@@ -15,7 +14,7 @@ import { PriceBook } from "./price-book";
 import { Pricer } from "./pricer";
 import { readMany } from "./reads";
 import { Relayer } from "./relayer";
-import { Sender } from "./sender";
+import { Sender, type SenderOpts } from "./sender";
 import { Store } from "./store";
 import { Views } from "./views";
 import { Watcher } from "./watcher";
@@ -32,7 +31,11 @@ export interface App {
 
 const CANDLE_COUNT = 500;
 
-export const startApp = async (env: Env, deployment?: Deployment): Promise<App> => {
+export interface AppOpts {
+  sender?: SenderOpts;
+}
+
+export const startApp = async (env: Env, deployment?: Deployment, opts: AppOpts = {}): Promise<App> => {
   const dep = deployment ?? deploymentFor(env.CHAIN_ID);
   if (dep.chainId !== env.CHAIN_ID) throw new Error(`deployment is for chain ${dep.chainId}, CHAIN_ID is ${env.CHAIN_ID}`);
   const clients = makeClients(env);
@@ -55,6 +58,11 @@ export const startApp = async (env: Env, deployment?: Deployment): Promise<App> 
 
   let current = Number(await pub.getBlockNumber());
   const views = new Views(store, book, musd, curveSupply, () => current);
+  // positions are kept incrementally, a database from before the table existed gets them rebuilt once
+  if (store.getMeta("positions_built") !== "1") {
+    views.rebuildPositions();
+    store.setMeta("positions_built", "1");
+  }
 
   const hub: Hub = new Hub({
     welcome: () => ({ type: "welcome", serverTime: Date.now(), block: current, chainId: env.CHAIN_ID }),
@@ -79,12 +87,15 @@ export const startApp = async (env: Env, deployment?: Deployment): Promise<App> 
     launchTotalSupply: launchSupply,
     onTrade: (row) => hub.publishTrade(views.feedItem(row), store.followers(row.user)),
     onToken: publishToken,
+    valueAt: views.value,
   });
   const pricer = new Pricer(pub, store, book, views, dep);
 
-  const relayerSender = new Sender(clients.relayer, pub, "relayer");
-  const faucetSender = clients.faucet && faucetEnabled(env) ? new Sender(clients.faucet, pub, "faucet") : null;
-  const relayer = new Relayer({ pub, relayer: relayerSender, faucet: faucetSender, dep, chainId: env.CHAIN_ID, hub, store });
+  const relayerSender = new Sender(clients.relayer, pub, "relayer", opts.sender);
+  const faucetSender = clients.faucet && faucetEnabled(env) ? new Sender(clients.faucet, pub, "faucet", opts.sender) : null;
+  relayerSender.start();
+  faucetSender?.start();
+  const relayer = new Relayer({ pub, relayer: relayerSender, faucet: faucetSender, dep, chainId: env.CHAIN_ID, hub, store, faucetHourlyCap: env.FAUCET_HOURLY_CAP });
 
   log("indexer.backfill_start", { from: indexer.lastBlock() + 1, to: current });
   await indexer.syncTo(current);
@@ -141,9 +152,10 @@ export const startApp = async (env: Env, deployment?: Deployment): Promise<App> 
       chainId: env.CHAIN_ID,
       relayer: relayerSender.address,
       relayerBtc: (await pub.getBalance({ address: relayerSender.address })).toString(),
+      faucet: !!faucetSender,
     }),
     config: () => dep,
-    tokens: ({ query }) => views.tokens(param(z.enum(["trending", "new", "stocks"]).default("trending"), query.get("sort"), "sort")),
+    tokens: ({ query }) => views.tokens(param(TokenSort.default("trending"), query.get("sort"), "sort")),
     token: ({ params }) => {
       const t = views.token(param(qAddress, params.address, "address"));
       if (!t) throw new HttpError(404, "not_found", "unknown token");
@@ -151,14 +163,14 @@ export const startApp = async (env: Env, deployment?: Deployment): Promise<App> 
     },
     candles: ({ params, query }) => {
       const token = param(qAddress, params.address, "address");
-      const tf: Tf = param(z.enum(["1m", "5m", "1h", "1d"]).default("1m"), query.get("tf"), "tf");
+      const tf = param(CandleTf.default("1m"), query.get("tf"), "tf");
       const since = Math.floor(Date.now() / 1000) - TF_SECONDS[tf] * CANDLE_COUNT;
       return buildCandles(store.tokenTicks(token, since).map((r) => ({ ts: r.ts, price: r.price_f, volume: r.musd_f })), tf);
     },
     tokenTrades: ({ params, query }) =>
       views.feed(store.tokenTrades(param(qAddress, params.address, "address"), param(qOptional, query.get("before"), "before"))),
     feed: ({ query }) => {
-      const scope = param(z.enum(["global", "following"]).default("global"), query.get("scope"), "scope");
+      const scope = param(FeedScope.default("global"), query.get("scope"), "scope");
       const before = param(qOptional, query.get("before"), "before");
       if (scope === "global") return views.feed(store.globalTrades(before));
       return views.feed(store.followingTrades(param(qAddress, query.get("address"), "address"), before));
@@ -171,7 +183,7 @@ export const startApp = async (env: Env, deployment?: Deployment): Promise<App> 
     },
     userTrades: ({ params, query }) =>
       views.feed(store.userTrades(param(qAddress, params.address, "address"), param(qOptional, query.get("before"), "before"))),
-    leaderboard: ({ query }) => views.leaderboard(param(z.enum(["d1", "d7", "all"]).default("d1"), query.get("window"), "window")),
+    leaderboard: ({ query }) => views.leaderboard(param(PnlWindow.default("d1"), query.get("window"), "window")),
     quote: async ({ query }) => {
       const token = param(qAddress, query.get("token"), "token");
       const isBuy = param(qBool, query.get("isBuy"), "isBuy");
@@ -207,7 +219,7 @@ export const startApp = async (env: Env, deployment?: Deployment): Promise<App> 
     withdraw: ({ body }) => relayer.withdraw(body),
     launch: ({ body }) => relayer.launch(body),
     deposit: ({ body }) => relayer.deposit(body),
-    faucet: ({ body }) => relayer.faucet(body),
+    faucet: ({ body, ip }) => relayer.faucet(body, ip),
     profile: async ({ body }) => {
       const user: Address = await applyProfile(store, body);
       const cash = await pub.readContract({ address: dep.vault, abi: vaultAbi, functionName: "balanceOf", args: [user, dep.musd] });
@@ -222,13 +234,20 @@ export const startApp = async (env: Env, deployment?: Deployment): Promise<App> 
   const server = Bun.serve<WsData>({
     port: env.PORT,
     fetch(req, srv) {
+      const ip = clientIp(req, srv.requestIP(req)?.address);
       if (new URL(req.url).pathname === "/ws") {
-        if (srv.upgrade(req, { data: hub.newData() })) return undefined;
+        const data = hub.admit(ip);
+        if (!data) return new Response("too many sockets from this address", { status: 429 });
+        if (srv.upgrade(req, { data })) return undefined;
+        hub.release(data);
         return new Response("websocket upgrade failed", { status: 400 });
       }
-      return handleHttp(req, handlers);
+      return handleHttp(req, handlers, ip);
     },
     websocket: {
+      maxPayloadLength: 16 * 1024,
+      backpressureLimit: 1024 * 1024,
+      closeOnBackpressureLimit: true,
       open: (ws) => hub.open(ws),
       message: (ws, raw) => hub.message(ws, raw),
       close: (ws) => hub.close(ws),
@@ -253,6 +272,9 @@ export const startApp = async (env: Env, deployment?: Deployment): Promise<App> 
     stop: async () => {
       unwatch();
       clearInterval(retry);
+      relayer.stop();
+      relayerSender.stop();
+      faucetSender?.stop();
       await clients.close();
       await server.stop(true);
       store.db.close();

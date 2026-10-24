@@ -1,20 +1,18 @@
 import { getAddress, zeroAddress } from "viem";
-import type { Address, FeedItem, LeaderRow, Pnl, Position, Profile, TokenInfo, TokenRef, UserRef } from "shared";
+import type { Address, FeedItem, LeaderRow, Pnl, PnlWindow, Position, Profile, TokenInfo, TokenRef, TokenSort, UserRef } from "shared";
 import type { PriceBook } from "./price-book";
-import { pnlWindow, replay, type Flow, type PnlWindow, type ValueFn } from "./pnl";
+import { pnlWindow, replay, WINDOW_SECONDS, type Flow, type ValueFn } from "./pnl";
 import { curvePrice, ratio, valueOf } from "./pricing";
-import type { Store, TokenRow, TradeRow } from "./store";
-
-export type TokenSort = "trending" | "new" | "stocks";
+import type { PositionState, Store, TokenRow, TradeRow } from "./store";
 
 const addr = (a: string): Address => getAddress(a);
 const now = () => Math.floor(Date.now() / 1000);
 const LIST_LIMIT = 100;
+// the leaderboard is recomputed at most this often
+export const LEADER_TTL_MS = 3000;
 
 export class Views {
-  private leaderCache = new Map<string, LeaderRow[]>();
-  private leaderBlock = -1;
-  private holders: { block: number; counts: Map<string, number> } | null = null;
+  private leaderCache = new Map<PnlWindow, { at: number; rows: LeaderRow[] }>();
 
   constructor(
     private store: Store,
@@ -36,8 +34,7 @@ export class Views {
   }
 
   holderCount(token: string): number {
-    if (this.holders?.block !== this.block()) this.holders = { block: this.block(), counts: this.store.holderCounts() };
-    return this.holders.counts.get(token.toLowerCase()) ?? 0;
+    return this.store.holderCount(token);
   }
 
   feedItem(t: TradeRow): FeedItem {
@@ -172,16 +169,40 @@ export class Views {
     return flows.sort((a, b) => a.block - b.block || a.log - b.log);
   }
 
+  // every position from full history, the indexer keeps the same thing incrementally in the positions table
+  recomputePositions(): PositionState[] {
+    const out: PositionState[] = [];
+    const users = new Set([...this.store.traders(), ...this.store.allPositions().map((p) => p.user)]);
+    for (const user of users) {
+      const flows = this.flows(user);
+      for (const [token, h] of replay(flows)) {
+        const p: PositionState = { user, token, ...h, bought: 0n, volume: 0n, trades: 0 };
+        for (const f of flows) {
+          if (f.token !== token || (f.kind !== "buy" && f.kind !== "sell")) continue;
+          p.volume += f.musd;
+          p.trades++;
+          if (f.kind === "buy") p.bought += f.musd;
+        }
+        out.push(p);
+      }
+    }
+    return out;
+  }
+
+  rebuildPositions() {
+    this.store.replacePositions(this.recomputePositions());
+  }
+
   positions(user: string): Position[] {
     const out: Position[] = [];
-    for (const [token, h] of replay(this.flows(user))) {
+    for (const h of this.store.positionsOf(user)) {
       if (h.amount === 0n) continue;
-      const row = this.store.token(token);
+      const row = this.store.token(h.token);
       if (!row) continue;
       const value = valueOf(h.amount, this.priceOf(row), row.decimals);
       const pnl = value - h.cost;
       out.push({
-        token: this.tokenRef(token),
+        token: this.tokenRef(h.token),
         amount: h.amount.toString(),
         avgCostMusd: ((h.cost * 10n ** BigInt(row.decimals)) / h.amount).toString(),
         valueMusd: value.toString(),
@@ -219,38 +240,56 @@ export class Views {
     };
   }
 
+  // all time pnl comes straight from the positions table. a window only replays history for users who
+  // moved inside it, everyone else held still, so their window pnl is the mark to market move of their holdings
   leaderboard(window: PnlWindow): LeaderRow[] {
-    if (this.leaderBlock !== this.block()) {
-      this.leaderCache.clear();
-      this.leaderBlock = this.block();
-    }
     const cached = this.leaderCache.get(window);
-    if (cached) return cached;
+    if (cached && Date.now() - cached.at < LEADER_TTL_MS) return cached.rows;
     const ts = now();
-    const since = window === "all" ? 0 : ts - (window === "d1" ? 86400 : 7 * 86400);
-    const rows: Omit<LeaderRow, "rank">[] = [];
-    for (const user of this.store.traders()) {
-      const flows = this.flows(user);
-      const pnl = pnlWindow(flows, ts, window, this.value);
-      let volume = 0n;
-      let bought = 0n;
-      let trades = 0;
-      for (const f of flows) {
-        if (f.ts < since || (f.kind !== "buy" && f.kind !== "sell")) continue;
-        volume += f.musd;
-        if (f.kind === "buy") bought += f.musd;
-        trades++;
+    const byUser = new Map<string, PositionState[]>();
+    for (const p of this.store.allPositions()) byUser.set(p.user, [...(byUser.get(p.user) ?? []), p]);
+
+    const stats = new Map<string, { volume: bigint; bought: bigint; trades: number }>();
+    let active = new Set<string>();
+    const since = window === "all" ? 0 : ts - WINDOW_SECONDS[window];
+    if (window === "all") {
+      for (const [user, ps] of byUser)
+        stats.set(user, ps.reduce((s, p) => ({ volume: s.volume + p.volume, bought: s.bought + p.bought, trades: s.trades + p.trades }), { volume: 0n, bought: 0n, trades: 0 }));
+    } else {
+      active = this.store.activeSince(since);
+      for (const t of this.store.tradeAmountsSince(since)) {
+        const s = stats.get(t.user) ?? { volume: 0n, bought: 0n, trades: 0 };
+        const m = BigInt(t.musd_amount);
+        s.volume += m;
+        if (t.is_buy) s.bought += m;
+        s.trades++;
+        stats.set(t.user, s);
       }
-      if (pnl === 0n && trades === 0) continue;
+    }
+
+    const rows: Omit<LeaderRow, "rank">[] = [];
+    for (const [user, ps] of byUser) {
+      // only traders rank
+      if (!ps.some((p) => p.trades > 0)) continue;
+      let pnl = 0n;
+      if (window === "all") {
+        for (const p of ps) pnl += p.realized + (p.amount > 0n ? this.value(p.token, p.amount, ts) - p.cost : 0n);
+      } else if (active.has(user)) {
+        pnl = pnlWindow(this.flows(user), ts, window, this.value);
+      } else {
+        for (const p of ps) if (p.amount > 0n) pnl += this.value(p.token, p.amount, ts) - this.value(p.token, p.amount, since);
+      }
+      const s = stats.get(user) ?? { volume: 0n, bought: 0n, trades: 0 };
+      if (pnl === 0n && s.trades === 0) continue;
       // pct is pnl over MUSD spent buying in the window
-      rows.push({ user: this.userRef(user), pnlMusd: pnl.toString(), pnlPct: ratio(pnl, bought), volumeMusd: volume.toString(), trades });
+      rows.push({ user: this.userRef(user), pnlMusd: pnl.toString(), pnlPct: ratio(pnl, s.bought), volumeMusd: s.volume.toString(), trades: s.trades });
     }
     rows.sort((a, b) => {
       const d = BigInt(b.pnlMusd) - BigInt(a.pnlMusd);
       return d === 0n ? 0 : d > 0n ? 1 : -1;
     });
     const out = rows.slice(0, LIST_LIMIT).map((r, i) => ({ rank: i + 1, ...r }));
-    this.leaderCache.set(window, out);
+    this.leaderCache.set(window, { at: Date.now(), rows: out });
     return out;
   }
 }

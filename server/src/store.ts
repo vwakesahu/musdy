@@ -1,5 +1,6 @@
 import type { Database } from "bun:sqlite";
 import type { TokenInfo } from "shared";
+import { applyFlow, type Flow, type Holding } from "./pnl";
 
 export type TokenKind = TokenInfo["kind"];
 
@@ -63,6 +64,39 @@ export interface PriceRow {
   block: number;
   price: string;
 }
+
+// running average cost holding of one user in one token, kept by the indexer as events land
+export interface PositionRow {
+  user: string;
+  token: string;
+  amount: string;
+  cost: string;
+  realized: string;
+  bought: string;
+  volume: string;
+  trades: number;
+}
+
+export interface PositionState extends Holding {
+  user: string;
+  token: string;
+  bought: bigint;
+  volume: bigint;
+  trades: number;
+}
+
+export const toPosition = (r: PositionRow): PositionState => ({
+  user: r.user,
+  token: r.token,
+  amount: BigInt(r.amount),
+  cost: BigInt(r.cost),
+  realized: BigInt(r.realized),
+  bought: BigInt(r.bought),
+  volume: BigInt(r.volume),
+  trades: r.trades,
+});
+
+export type FaucetClaim = "ok" | "address" | "ip" | "global";
 
 const lc = (a: string) => a.toLowerCase();
 export const PAGE = 50;
@@ -149,8 +183,9 @@ export class Store {
   }
 
   // events. every insert is idempotent on txHash:logIndex and reports whether it was new
+  // a new trade also moves the trader's position, in the caller's transaction
   insertTrade(t: TradeRow): boolean {
-    return (
+    const isNew =
       this.db
         .query(
           `INSERT OR IGNORE INTO trades (id, block, log_index, ts, tx_hash, user, token, is_buy, musd_amount, token_amount, fee, ref, venue, price, price_f, musd_f)
@@ -173,8 +208,10 @@ export class Store {
           t.price,
           t.price_f,
           t.musd_f,
-        ).changes === 1
-    );
+        ).changes === 1;
+    if (isNew)
+      this.applyFlow(t.user, t.token, { kind: t.is_buy ? "buy" : "sell", amount: BigInt(t.token_amount), musd: BigInt(t.musd_amount) });
+    return isNew;
   }
 
   insertTransfer(t: TransferRow): boolean {
@@ -383,24 +420,65 @@ export class Store {
     return !!this.db.query("SELECT 1 FROM follows WHERE follower = ? AND target = ?").get(lc(follower), lc(target));
   }
 
-  // addresses with a non zero vault balance per token, rebuilt from every balance moving event
-  holderCounts(): Map<string, number> {
-    const bal = new Map<string, bigint>();
-    const add = (token: string, user: string, d: bigint) => {
-      const k = `${token}:${user}`;
-      bal.set(k, (bal.get(k) ?? 0n) + d);
-    };
-    for (const t of this.db.query<{ token: string; user: string; is_buy: number; token_amount: string }, []>("SELECT token, user, is_buy, token_amount FROM trades").all())
-      add(t.token, t.user, t.is_buy ? BigInt(t.token_amount) : -BigInt(t.token_amount));
-    for (const t of this.db.query<{ token: string; user: string; kind: string; amount: string }, []>("SELECT token, user, kind, amount FROM transfers").all())
-      add(t.token, t.user, t.kind === "deposit" ? BigInt(t.amount) : -BigInt(t.amount));
-    const out = new Map<string, number>();
-    for (const [k, v] of bal) {
-      if (v <= 0n) continue;
-      const token = k.slice(0, k.indexOf(":"));
-      out.set(token, (out.get(token) ?? 0) + 1);
+  // positions
+  position(user: string, token: string): PositionState | null {
+    const r = this.db.query<PositionRow, [string, string]>("SELECT * FROM positions WHERE user = ? AND token = ?").get(lc(user), lc(token));
+    return r ? toPosition(r) : null;
+  }
+
+  private writePosition(p: PositionState) {
+    this.db
+      .query(
+        `INSERT INTO positions (user, token, amount, cost, realized, bought, volume, trades) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(user, token) DO UPDATE SET amount = excluded.amount, cost = excluded.cost, realized = excluded.realized,
+         bought = excluded.bought, volume = excluded.volume, trades = excluded.trades`,
+      )
+      .run(lc(p.user), lc(p.token), p.amount.toString(), p.cost.toString(), p.realized.toString(), p.bought.toString(), p.volume.toString(), p.trades);
+  }
+
+  applyFlow(user: string, token: string, f: Pick<Flow, "kind" | "amount" | "musd">) {
+    const p = this.position(user, token) ?? { user: lc(user), token: lc(token), amount: 0n, cost: 0n, realized: 0n, bought: 0n, volume: 0n, trades: 0 };
+    applyFlow(p, f);
+    if (f.kind === "buy" || f.kind === "sell") {
+      p.volume += f.musd;
+      p.trades++;
+      if (f.kind === "buy") p.bought += f.musd;
     }
-    return out;
+    this.writePosition(p);
+  }
+
+  replacePositions(rows: PositionState[]) {
+    this.tx(() => {
+      this.db.exec("DELETE FROM positions");
+      for (const p of rows) this.writePosition(p);
+    });
+  }
+
+  positionsOf(user: string): PositionState[] {
+    return this.db.query<PositionRow, [string]>("SELECT * FROM positions WHERE user = ?").all(lc(user)).map(toPosition);
+  }
+
+  allPositions(): PositionState[] {
+    return this.db.query<PositionRow, []>("SELECT * FROM positions").all().map(toPosition);
+  }
+
+  // addresses holding a non zero amount of the token
+  holderCount(token: string): number {
+    return this.db.query<{ n: number }, [string]>("SELECT COUNT(*) AS n FROM positions WHERE token = ? AND amount != '0'").get(lc(token))?.n ?? 0;
+  }
+
+  // users with any trade or transfer at or after ts
+  activeSince(ts: number): Set<string> {
+    return new Set(
+      this.db
+        .query<{ user: string }, [number, number]>("SELECT user FROM trades WHERE ts >= ? UNION SELECT user FROM transfers WHERE ts >= ?")
+        .all(ts, ts)
+        .map((r) => r.user),
+    );
+  }
+
+  tradeAmountsSince(ts: number): { user: string; is_buy: number; musd_amount: string }[] {
+    return this.db.query<{ user: string; is_buy: number; musd_amount: string }, [number]>("SELECT user, is_buy, musd_amount FROM trades WHERE ts >= ?").all(ts);
   }
 
   followCounts(address: string): { followers: number; following: number } {
@@ -410,18 +488,26 @@ export class Store {
     return { followers, following };
   }
 
-  // faucet. claim is atomic: it only succeeds if the last claim is older than `since`
-  claimFaucet(address: string, now: number, since: number): boolean {
-    return (
-      this.db
-        .query(
-          "INSERT INTO faucet (address, last_at) VALUES (?, ?) ON CONFLICT(address) DO UPDATE SET last_at = excluded.last_at WHERE faucet.last_at < ?",
-        )
-        .run(lc(address), now, since).changes === 1
-    );
+  // faucet. one transaction checks the address, the ip and the global hourly cap, then records the claim
+  claimFaucet(address: string, ip: string, now: number, limits: { period: number; perIp: number; hourly: number }): FaucetClaim {
+    const a = lc(address);
+    return this.tx((): FaucetClaim => {
+      const last = this.db.query<{ last_at: number }, [string]>("SELECT last_at FROM faucet WHERE address = ?").get(a)?.last_at;
+      if (last !== undefined && last >= now - limits.period) return "address";
+      const byIp = this.db.query<{ n: number }, [string, number]>("SELECT COUNT(*) AS n FROM faucet_claims WHERE ip = ? AND at > ?").get(ip, now - 86400)?.n ?? 0;
+      if (byIp >= limits.perIp) return "ip";
+      const hour = this.db.query<{ n: number }, [number]>("SELECT COUNT(*) AS n FROM faucet_claims WHERE at > ?").get(now - 3600)?.n ?? 0;
+      if (hour >= limits.hourly) return "global";
+      this.db.query("INSERT INTO faucet (address, last_at) VALUES (?, ?) ON CONFLICT(address) DO UPDATE SET last_at = excluded.last_at").run(a, now);
+      this.db.query("INSERT INTO faucet_claims (address, ip, at) VALUES (?, ?, ?)").run(a, ip, now);
+      return "ok";
+    });
   }
 
   releaseFaucet(address: string, at: number) {
-    this.db.query("DELETE FROM faucet WHERE address = ? AND last_at = ?").run(lc(address), at);
+    this.tx(() => {
+      this.db.query("DELETE FROM faucet WHERE address = ? AND last_at = ?").run(lc(address), at);
+      this.db.query("DELETE FROM faucet_claims WHERE address = ? AND at = ?").run(lc(address), at);
+    });
   }
 }

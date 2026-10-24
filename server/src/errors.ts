@@ -1,5 +1,5 @@
 import { BaseError, ContractFunctionRevertedError, decodeErrorResult, parseAbi } from "viem";
-import { launchpadAbi } from "shared";
+import { launchpadAbi, musdyTokenAbi } from "shared";
 
 export class HttpError extends Error {
   constructor(
@@ -16,15 +16,13 @@ const isError = <T extends { type: string }>(x: T): x is Extract<T, { type: "err
 // errors that can bubble out of the launchpad, tokens and openzeppelin during a vault call
 const extraErrors = [
   ...launchpadAbi.filter(isError),
+  // Locked, OnlyLaunchpad and the erc20 errors
+  ...musdyTokenAbi.filter(isError),
   ...parseAbi([
-    "error ERC20InsufficientBalance(address sender, uint256 balance, uint256 needed)",
-    "error ERC20InsufficientAllowance(address spender, uint256 allowance, uint256 needed)",
     "error ERC2612ExpiredSignature(uint256 deadline)",
     "error ERC2612InvalidSigner(address signer, address owner)",
     "error ReentrancyGuardReentrantCall()",
     "error SafeERC20FailedOperation(address token)",
-    "error Locked()",
-    "error OnlyLaunchpad()",
   ]),
 ];
 
