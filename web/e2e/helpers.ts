@@ -53,8 +53,11 @@ export async function devLogin(page: Page, path = "/") {
   await page.goto(path);
   const pill = page.getByTestId("balance-pill");
   if (await pill.isVisible().catch(() => false)) return;
-  await page.getByRole("button", { name: "Log in" }).first().click();
-  await page.getByRole("dialog").getByTestId("dev-login").click();
+  const entry = page.getByRole("button", { name: "Log in" }).or(page.getByTestId("dev-login")).first();
+  await entry.waitFor();
+  const inline = (await entry.getAttribute("data-testid")) === "dev-login";
+  await entry.click();
+  if (!inline) await page.getByRole("dialog").getByTestId("dev-login").click();
   await expect(pill).toBeVisible();
 }
 

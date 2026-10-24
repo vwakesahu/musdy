@@ -93,7 +93,7 @@ export function DepositSheet({ open, onOpenChange }: { open: boolean; onOpenChan
             <ChainLogo chainId={env.chainId} />
             <span className="min-w-0 flex-1">
               <span className="block text-[16px] leading-5 font-medium">Mezo</span>
-              <span className="mt-0.5 block text-[13px] leading-[17px] text-muted">MUSD or BTC, lands in seconds</span>
+              <span className="mt-0.5 block text-[13px] leading-[17px] text-muted">Mezo network only, MUSD or BTC</span>
             </span>
             <span className="flex items-center gap-1 rounded-[6px] bg-up-soft px-1.5 text-[11px] leading-5 font-semibold text-up-sm">
               <LightningIcon size={11} weight="fill" />
@@ -141,8 +141,9 @@ export function DepositSheet({ open, onOpenChange }: { open: boolean; onOpenChan
           chainId={step}
           name="Mezo"
           address={address}
-          note="Send MUSD or BTC on Mezo. It moves into your cash on its own."
+          note="Mezo network only, MUSD or BTC. It moves into your cash on its own."
           incoming={incoming}
+          ownUsdc
           onBack={() => setStep(null)}
         />
       ) : (
@@ -188,6 +189,7 @@ function RemoteStep({ user, chainId, name, fallbackIcon, onBack }: { user: Addre
       address={d.address}
       note="Send any token, it lands as dollars in your balance."
       min={d.minUsd}
+      ownUsdc={d.address.startsWith("0x")}
       onBack={onBack}
     />
   );
@@ -215,6 +217,7 @@ function AddressStep({
   address,
   note,
   min,
+  ownUsdc = false,
   incoming = [],
   onBack,
 }: {
@@ -224,6 +227,7 @@ function AddressStep({
   address: string;
   note: string;
   min?: number;
+  ownUsdc?: boolean;
   incoming?: { symbol: string; amount: bigint }[];
   onBack: () => void;
 }) {
@@ -261,6 +265,11 @@ function AddressStep({
       {min !== undefined && min > 0 && (
         <p className="w-full px-1 text-[13px] leading-[17px] text-muted">
           Minimum <span className="text-text tabular-nums">${min.toLocaleString("en-US", { maximumFractionDigits: 2 })}</span>. Smaller sends can&apos;t be converted.
+        </p>
+      )}
+      {ownUsdc && (
+        <p className="w-full px-1 text-[13px] leading-[17px] text-muted" data-testid="own-usdc-note">
+          USDC sent to your own musdy address on Base, Arbitrum, Optimism or Ethereum also lands automatically.
         </p>
       )}
       {incoming.map((x) => (

@@ -18,7 +18,7 @@ import { keyOf } from "@/lib/xchain";
 export function PortfolioScreen() {
   return (
     <>
-      <ScreenHeader title="Portfolio" />
+      <ScreenHeader title="Portfolio" login={false} />
       <LoginGate title="Your money, in one number" body="Log in to get a USD balance you can trade stocks, BTC and new coins from.">
         <Portfolio />
       </LoginGate>

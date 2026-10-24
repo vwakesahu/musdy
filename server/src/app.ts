@@ -5,7 +5,7 @@ import { BlockLoop } from "./blocks";
 import { makeClients } from "./chain";
 import { openDb } from "./db";
 import { deploymentFor, faucetEnabled, type Env } from "./env";
-import { simulationError } from "./errors";
+import { HttpError, simulationError } from "./errors";
 import { clientIp, handleHttp, param, qAddress, qBool, qOptional, qUint, type Handlers } from "./http";
 import { Hub, type WsData } from "./hub";
 import { Indexer } from "./indexer";
@@ -186,6 +186,18 @@ export const startApp = async (env: Env, deployment?: Deployment, opts: AppOpts 
       views.feed(store.userTrades(param(qAddress, params.address, "address"), param(qOptional, query.get("before"), "before"))),
     leaderboard: ({ query }) => views.leaderboard(param(PnlWindow.default("d1"), query.get("window"), "window")),
     quote: async ({ query }) => {
+      const chainParam = query.get("chainId");
+      if (chainParam && Number(chainParam) !== dep.chainId) {
+        const solver = kit.solver;
+        if (!solver) throw new HttpError(503, "solver_off", "trading coins on other chains is off on this server");
+        const coin = query.get("token") ?? "";
+        const xBuy = param(qBool, query.get("isBuy"), "isBuy");
+        const xIn = param(qUint, query.get("amountIn"), "amountIn");
+        const q = await solver.quote(Number(chainParam), coin, xBuy, xIn).catch((e: unknown) => {
+          throw new HttpError(400, "no_quote", `no route for this coin right now: ${errMessage(e).slice(0, 120)}`);
+        });
+        return { amountOut: q.amountOut.toString(), fee: q.fee.toString(), priceImpact: q.impact, venue: "relay" satisfies Venue };
+      }
       const token = param(qAddress, query.get("token"), "token");
       const isBuy = param(qBool, query.get("isBuy"), "isBuy");
       const amountIn = param(qUint, query.get("amountIn"), "amountIn");

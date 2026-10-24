@@ -11,9 +11,9 @@ export const tokenHref = (t: ChainRef) => `/token/${t.chainId}/${t.address}`;
 export type ChainMeta = { name: string; icon: string };
 
 const CHAINS: Record<number, ChainMeta> = {
-  [SOLANA]: { name: "Solana", icon: "/chains/solana.png" },
-  8453: { name: "Base", icon: "/chains/base.png" },
-  56: { name: "BNB Chain", icon: "/chains/bsc.png" },
+  [SOLANA]: { name: "Solana", icon: "/chains/solana.svg" },
+  8453: { name: "Base", icon: "/chains/base.svg" },
+  56: { name: "BNB Chain", icon: "/chains/bsc.svg" },
   1: { name: "Ethereum", icon: "/chains/ethereum.png" },
   42161: { name: "Arbitrum", icon: "/chains/arbitrum.png" },
 };

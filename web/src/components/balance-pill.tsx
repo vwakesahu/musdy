@@ -19,11 +19,12 @@ export function Cash({ value, className }: { value: bigint; className?: string }
   );
 }
 
-export function BalancePill() {
+export function BalancePill({ login = true }: { login?: boolean }) {
   const { address, ready } = useSession();
   const cash = useCash();
   if (!ready) return <Skeleton className="h-9 w-28 rounded-[10px]" />;
   if (!address) {
+    if (!login) return null;
     return (
       <Button variant="primary" size="sm" className="px-4" onClick={() => openSheet("login")}>
         Log in

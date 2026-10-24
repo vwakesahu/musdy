@@ -24,6 +24,7 @@ import {
   type LaunchBody,
   type PermitDepositBody,
   type ProfileBody,
+  type SweepBody,
   type TradeBody,
   type WithdrawBody,
 } from "shared";
@@ -98,6 +99,7 @@ export const api = {
   withdraw: (body: WithdrawBody) => request(Accepted, routes.withdraw, { body }),
   launch: (body: LaunchBody) => request(Accepted, routes.launch, { body }),
   deposit: (body: PermitDepositBody) => request(Accepted, routes.deposit, { body }),
+  sweep: (body: SweepBody) => request(Accepted, routes.sweep, { body }),
   faucet: (body: FaucetBody) => request(Accepted, routes.faucet, { body }),
   profile: (body: ProfileBody) => request(Profile, routes.profile, { body }),
   follow: (body: FollowBody) => request(ignore, routes.follow, { body }),

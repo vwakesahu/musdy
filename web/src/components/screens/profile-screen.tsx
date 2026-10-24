@@ -30,7 +30,7 @@ export function OwnProfileScreen() {
   const { address } = useSession();
   return (
     <>
-      <ScreenHeader title="Profile" />
+      <ScreenHeader title="Profile" login={false} />
       <LoginGate title="Make a name for yourself" body="Log in to pick a handle, follow traders and show your PnL.">
         {address && <ProfileView address={address} />}
       </LoginGate>
@@ -101,7 +101,7 @@ function ProfileView({ address }: { address: Address }) {
             <button
               onClick={() => setEditing(true)}
               aria-label="Change name"
-              className="absolute -right-1 -bottom-1 grid h-7 w-7 cursor-pointer place-items-center rounded-full border-2 border-bg bg-black text-white"
+              className="absolute -right-1 -bottom-1 grid h-7 w-7 cursor-pointer place-items-center rounded-full border-2 border-bg bg-black text-white after:absolute after:-inset-2"
             >
               <PencilSimpleIcon size={14} weight="fill" />
             </button>

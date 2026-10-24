@@ -169,6 +169,18 @@ export class Solver {
     return sol;
   }
 
+  async quote(chainId: number, token: string, isBuy: boolean, amountIn: bigint): Promise<{ amountOut: bigint; fee: bigint; impact: number }> {
+    const row = { is_buy: isBuy ? 1 : 0, chain_id: chainId, token, amount_in: amountIn.toString() } as unknown as IntentRow;
+    const q = await this.d.relay.quote(this.quoteParams(row));
+    const out = BigInt(q.details.currencyOut.amount);
+    const inUsd = Number(q.details.currencyIn.amountUsd ?? 0);
+    const outUsd = Number(q.details.currencyOut.amountUsd ?? 0);
+    const impact = inUsd > 0 && outUsd > 0 && outUsd < inUsd ? (inUsd - outUsd) / inUsd : 0;
+    if (isBuy) return { amountOut: out, fee: 0n, impact };
+    const { musd, fee } = this.sellNet(out);
+    return { amountOut: musd, fee, impact };
+  }
+
   private quoteParams(row: IntentRow): QuoteParams {
     const evm = this.d.runner.evmAddress;
     if (row.is_buy)

@@ -23,6 +23,7 @@ export function FeedRow({ item, self }: { item: FeedItem; self: boolean }) {
   const now = useNow();
   const current = useCurrentPrice(item.token);
   const at = BigInt(item.priceMusd);
+  const mc = BigInt(item.marketCapMusd);
   const since = item.isBuy && current !== null && at > 0n ? Number(((current - at) * 10_000n) / at) / 10_000 : null;
 
   return (
@@ -45,16 +46,11 @@ export function FeedRow({ item, self }: { item: FeedItem; self: boolean }) {
         </div>
         <div className="mt-2.5 flex items-center gap-2.5 text-[16px] leading-5">
           <TokenIcon token={item.token} size={32} />
-          <span className="flex min-w-0 items-baseline gap-1.5">
-            <span className="shrink-0 font-medium underline decoration-faint decoration-dotted decoration-2 underline-offset-[5px]">{item.token.symbol}</span>
-            <span className="shrink-0">{usd(BigInt(item.musdAmount))}</span>
-            <span className="truncate text-muted">at {usd(BigInt(item.marketCapMusd))} MC</span>
+          <span className="-mb-2 flex h-7 min-w-0 flex-wrap items-baseline gap-x-1.5 gap-y-6 overflow-hidden">
+            <span className="-mb-2 min-w-0 truncate pb-2 font-medium uppercase underline decoration-faint decoration-dotted decoration-2 underline-offset-[5px]">{item.token.symbol}</span>
+            <span className="shrink-0 tabular-nums">{usd(BigInt(item.musdAmount))}</span>
+            {mc > 0n && <span className="shrink-0 text-[14px] whitespace-nowrap text-muted">at {usd(mc)} MC</span>}
           </span>
-          {since !== null && (
-            <span data-testid="since-buy" className="shrink-0">
-              <PctChip value={since} />
-            </span>
-          )}
         </div>
         {item.ref && (
           <p className="mt-2 flex items-center gap-1 text-[13px] leading-[17px] text-muted">
@@ -63,7 +59,16 @@ export function FeedRow({ item, self }: { item: FeedItem; self: boolean }) {
           </p>
         )}
       </div>
-      {item.isBuy && !self && <CopyButton item={item} />}
+      {(since !== null || (item.isBuy && !self)) && (
+        <div className="flex shrink-0 flex-col items-end justify-end gap-1.5 self-stretch">
+          {since !== null && (
+            <span data-testid="since-buy" className="pointer-events-none">
+              <PctChip value={since} />
+            </span>
+          )}
+          {item.isBuy && !self && <CopyButton item={item} />}
+        </div>
+      )}
     </div>
   );
 }

@@ -61,6 +61,7 @@ export function FeedScreen() {
     <>
       <ScreenHeader
         title="Feed"
+        login={false}
         extra={
           <Link href="/leaderboard" aria-label="Leaderboard" className="press grid h-10 w-10 place-items-center rounded-[10px] text-text hover:bg-surface-3 lg:hidden">
             <TrophyIcon size={22} weight="bold" />

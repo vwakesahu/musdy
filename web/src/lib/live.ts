@@ -2,7 +2,8 @@ import type { TokenInfo, TxStatus } from "shared";
 import { createStore } from "./store";
 
 export type LivePrice = { priceMusd: bigint; change24h: number };
-export type Balances = { block: number; vault: Record<string, bigint>; wallet: Record<string, bigint> };
+export type External = { chainId: number; token: string; amount: bigint };
+export type Balances = { block: number; vault: Record<string, bigint>; wallet: Record<string, bigint>; external: External[] };
 
 const key = (a: string) => a.toLowerCase();
 

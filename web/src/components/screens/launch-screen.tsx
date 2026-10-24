@@ -54,7 +54,7 @@ const labelCls = "text-[13px] leading-[17px] font-medium text-muted";
 export function LaunchScreen() {
   return (
     <>
-      <ScreenHeader title="Launch a coin" />
+      <ScreenHeader title="Launch a coin" login={false} />
       <LoginGate title="Launch a coin in one step" body="Log in to name it, pick a ticker and make the first buy. No gas, no wallet popups.">
         <LaunchForm />
       </LoginGate>

@@ -251,7 +251,7 @@ export function TradePanel({ token, priceMusd, change, held, side, faces = [], h
   return (
     <div className="flex flex-col">
       <div className="flex items-center gap-3">
-        <TokenIcon token={token} size={44} />
+        <TokenIcon token={token} size={compactPad ? 44 : 40} />
         <div className="min-w-0 flex-1">
           <p className="truncate text-[17px] leading-[22px] font-medium">{token.symbol}</p>
           <div className="mt-0.5 flex items-center gap-1.5 text-[13px] text-muted">
@@ -270,9 +270,14 @@ export function TradePanel({ token, priceMusd, change, held, side, faces = [], h
         </div>
       </div>
 
-      <div className={cn("flex flex-col items-center", compactPad ? "pt-8 pb-5" : "pt-10 pb-7")}>
+      <div className={cn("flex flex-col items-center", compactPad ? "pt-8 pb-5" : "pt-[clamp(8px,3dvh,40px)] pb-[clamp(4px,2dvh,24px)]")}>
         <span
-          className={cn("max-w-full truncate px-2 text-[64px] leading-[68px] font-medium tracking-[-0.03em] tabular-nums", empty && "text-faint", (short || sellTooMuch) && "text-down", compactPad && "text-[56px] leading-[60px]")}
+          className={cn(
+            "max-w-full truncate px-2 font-medium tracking-[-0.03em] tabular-nums",
+            compactPad ? "text-[56px] leading-[60px]" : "text-[clamp(44px,8dvh,64px)] leading-[1.06]",
+            empty && "text-faint",
+            (short || sellTooMuch) && "text-down",
+          )}
           data-testid="trade-amount"
         >
           {big}
@@ -282,7 +287,7 @@ export function TradePanel({ token, priceMusd, change, held, side, faces = [], h
           type="button"
           onClick={flip}
           aria-label={inToken ? "Enter dollars" : `Enter ${token.symbol}`}
-          className="press mt-2 inline-flex h-8 cursor-pointer items-center gap-2 rounded-md px-2 text-[15px] text-muted tabular-nums hover:text-text-2"
+          className="press mt-1 inline-flex h-8 cursor-pointer items-center gap-2 rounded-md px-2 text-[15px] text-muted tabular-nums hover:text-text-2"
         >
           {sub}
           <ArrowsDownUpIcon size={18} />
@@ -324,10 +329,10 @@ export function TradePanel({ token, priceMusd, change, held, side, faces = [], h
       </div>
 
       <div className="mt-2">
-        <NumberPad size={compactPad ? "sm" : "lg"} onKey={press} />
+        <NumberPad size={compactPad ? "sm" : "fluid"} onKey={press} />
       </div>
 
-      <p className="mt-3 flex min-h-5 items-center justify-between gap-3 text-[14px] leading-5 text-muted tabular-nums" data-testid="trade-quote">
+      <p className="mt-2 flex min-h-5 items-center justify-between gap-3 text-[14px] leading-5 text-muted tabular-nums" data-testid="trade-quote">
         <span className="truncate">
           {isBuy ? (cash !== null ? `${usd(cash)} available` : "") : `${tokenAmount(held, token.decimals)} ${token.symbol} held`}
         </span>
@@ -346,7 +351,7 @@ export function TradePanel({ token, priceMusd, change, held, side, faces = [], h
 
       <div className="mt-3">{cta}</div>
       {demoFill && (
-        <p className="mt-2 text-center text-[13px] text-muted" data-testid="demo-note">
+        <p className="mt-2 text-center text-[12px] leading-4 text-muted" data-testid="demo-note">
           Demo: your balance is Mezo testnet MUSD, the fill is real on {chainLabel(token.chainId)}
         </p>
       )}
@@ -360,7 +365,7 @@ export function TradeSheet({
   ...panel
 }: Omit<PanelProps, "active" | "onDone" | "compactPad"> & { open: boolean; onOpenChange: (o: boolean) => void }) {
   return (
-    <Drawer open={open} onOpenChange={onOpenChange} title={`${panel.side === "buy" ? "Buy" : "Sell"} ${panel.token.symbol}`} hideTitle data-testid="trade-sheet" bodyClassName="pt-4 sm:pt-6">
+    <Drawer open={open} onOpenChange={onOpenChange} title={`${panel.side === "buy" ? "Buy" : "Sell"} ${panel.token.symbol}`} hideTitle data-testid="trade-sheet" bodyClassName="pt-1 sm:pt-6">
       <TradePanel {...panel} active={open} onDone={() => onOpenChange(false)} />
     </Drawer>
   );

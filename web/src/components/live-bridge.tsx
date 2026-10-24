@@ -1,13 +1,15 @@
 "use client";
 import { useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { topicKey, type TokenInfo } from "shared";
+import type { Address } from "viem";
+import { topicKey, vaultAbi, type TokenInfo } from "shared";
 import { useDeployment } from "@/hooks/use-deployment";
 import { useSession } from "@/hooks/use-session";
 import { useTopic } from "@/hooks/use-topic";
 import { api } from "@/lib/http";
 import { BTC_GAS_RESERVE, liveBalances, livePrices, liveTokens, liveTxs, lk } from "@/lib/live";
-import { signPermit } from "@/lib/sign";
+import { publicClient } from "@/lib/chain";
+import { signPermit, signSweep } from "@/lib/sign";
 import { socket } from "@/lib/socket";
 import { errorText, toast } from "@/lib/toast";
 import { keyOf, mezoKey } from "@/lib/xchain";
@@ -23,6 +25,10 @@ const seedPrices = (list: TokenInfo[] | undefined) => {
   });
 };
 
+const SWEEP_MIN = 500_000n;
+const SWEEP_CHAINS: Record<number, string> = { 8453: "Base", 42161: "Arbitrum", 10: "Optimism", 1: "Ethereum" };
+const usd = (usdc: bigint) => `$${(Number(usdc) / 1e6).toFixed(2)}`;
+
 const txDone: Record<string, string> = {
   deposit: "Deposit landed in your balance",
   trade: "Trade filled",
@@ -30,7 +36,7 @@ const txDone: Record<string, string> = {
   launch: "Coin launched",
   faucet: "Faucet MUSD added",
   intent: "Trade filled",
-  bridge: "Sale landed in your cash",
+  bridge: "Deposit landed in your cash",
 };
 
 export function LiveBridge() {
@@ -38,6 +44,13 @@ export function LiveBridge() {
   const dep = useDeployment().data;
   const qc = useQueryClient();
   const attempted = useRef(new Set<string>());
+  const swept = useRef(new Set<string>());
+  const solver = useQuery({
+    queryKey: ["solver", dep?.vault],
+    queryFn: () => publicClient.readContract({ address: dep!.vault, abi: vaultAbi, functionName: "solver" }),
+    enabled: !!dep && !!signer,
+    staleTime: Infinity,
+  }).data;
 
   useEffect(() => {
     socket.identify(address ?? undefined);
@@ -69,7 +82,8 @@ export function LiveBridge() {
   useTopic(address ? topicKey(`user:${address}`) : null, (m) => {
     if (m.type === "balances") {
       const toMap = (xs: { token: string; amount: string }[]) => Object.fromEntries(xs.map((x) => [lk(x.token), BigInt(x.amount)]));
-      liveBalances.set({ block: m.block, vault: toMap(m.vault), wallet: toMap(m.wallet) });
+      const external = (m.external ?? []).map((x) => ({ chainId: x.chainId, token: x.token, amount: BigInt(x.amount) }));
+      liveBalances.set({ block: m.block, vault: toMap(m.vault), wallet: toMap(m.wallet), external });
       void qc.invalidateQueries({ queryKey: ["user"] });
       return;
     }
@@ -100,6 +114,24 @@ export function LiveBridge() {
       }
     });
   }, [signer, dep]);
+
+  useEffect(() => {
+    if (!signer || !solver || /^0x0+$/.test(solver)) return;
+    const sweep = () => {
+      for (const x of liveBalances.get()?.external ?? []) {
+        const name = SWEEP_CHAINS[x.chainId];
+        const key = `${signer.address}:${x.chainId}:${x.amount}`;
+        if (!name || x.amount < SWEEP_MIN || swept.current.has(key)) continue;
+        swept.current.add(key);
+        signSweep(signer, { chainId: x.chainId, token: x.token as Address, amount: x.amount, solver })
+          .then((body) => api.sweep(body))
+          .then(() => toast("info", `Moving ${usd(x.amount)} from ${name} into your balance`))
+          .catch((e: unknown) => toast("error", `Moving ${usd(x.amount)} from ${name}: ${errorText(e)}`));
+      }
+    };
+    sweep();
+    return liveBalances.subscribe(sweep);
+  }, [signer, solver]);
 
   return null;
 }

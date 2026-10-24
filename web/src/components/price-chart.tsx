@@ -8,7 +8,7 @@ const MIN_HALF_RANGE = 0.02;
 const UP = "#21c85e";
 const DOWN = "#ff5b3a";
 
-export function PriceChart({ candles, className = "h-[280px] lg:h-[360px]" }: { candles: Candle[]; className?: string }) {
+export function PriceChart({ candles, className = "h-[clamp(200px,36dvh,280px)] lg:h-[360px]" }: { candles: Candle[]; className?: string }) {
   const el = useRef<HTMLDivElement>(null);
   const chart = useRef<IChartApi | null>(null);
   const series = useRef<ISeriesApi<"Area"> | null>(null);

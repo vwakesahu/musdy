@@ -1,4 +1,4 @@
-import { parseSignature, zeroAddress, type Address } from "viem";
+import { bytesToHex, parseSignature, zeroAddress, type Address } from "viem";
 import {
   domainFor,
   intentTypes,
@@ -6,11 +6,13 @@ import {
   launchTypes,
   permitTypes,
   tradeTypes,
+  transferWithAuthorizationTypes,
   withdrawTypes,
   type Deployment,
   type IntentBody,
   type LaunchBody,
   type PermitDepositBody,
+  type SweepBody,
   type TradeBody,
   type WithdrawBody,
 } from "shared";
@@ -109,4 +111,20 @@ export async function signPermit(signer: Signer, dep: Deployment, token: Address
   });
   const { r, s, v, yParity } = parseSignature(sig);
   return { owner, token, amount: amount.toString(), deadline: dl.toString(), v: Number(v ?? BigInt(yParity + 27)), r, s };
+}
+
+// every native usdc these sweeps accept (base, arbitrum, optimism, ethereum) signs under this domain
+const USDC_DOMAIN = { name: "USD Coin", version: "2" };
+
+export async function signSweep(signer: Signer, s: { chainId: number; token: Address; amount: bigint; solver: Address }): Promise<SweepBody> {
+  const nonce = bytesToHex(crypto.getRandomValues(new Uint8Array(32)));
+  const validBefore = BigInt(Math.floor(Date.now() / 1000) + 3600);
+  const message = { from: signer.address, to: s.solver, value: s.amount, validAfter: 0n, validBefore, nonce };
+  const sig = await signer.signTypedData({
+    domain: { ...USDC_DOMAIN, chainId: s.chainId, verifyingContract: s.token },
+    types: transferWithAuthorizationTypes,
+    primaryType: "TransferWithAuthorization",
+    message,
+  });
+  return { owner: signer.address, chainId: s.chainId, token: s.token, value: s.amount.toString(), validAfter: "0", validBefore: validBefore.toString(), nonce, sig };
 }

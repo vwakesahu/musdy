@@ -153,7 +153,7 @@ function TokenView({ ref_ }: { ref_: ChainToken }) {
   );
 
   return (
-    <div className={cn(desktop ? "pb-10" : "pb-[96px]")}>
+    <div className={cn(desktop && "pb-10")}>
       <TokenHeader token={token} />
 
       <section className="flex items-start justify-between gap-4 px-4 pt-3 lg:px-6">
@@ -183,9 +183,9 @@ function TokenView({ ref_ }: { ref_: ChainToken }) {
 
       <section className="mt-4">
         {candles.isPending ? (
-          <Skeleton className="h-[280px] w-full rounded-none lg:h-[360px]" />
+          <Skeleton className="h-[clamp(200px,36dvh,280px)] w-full rounded-none lg:h-[360px]" />
         ) : shown.length === 0 ? (
-          <div className="dot-grid grid h-[280px] place-items-center px-6 text-center text-[14px] text-muted lg:h-[360px]">
+          <div className="dot-grid grid h-[clamp(200px,36dvh,280px)] place-items-center px-6 text-center text-[14px] text-muted lg:h-[360px]">
             {candles.isError ? "Chart unavailable right now" : "No trades in this range yet"}
           </div>
         ) : (
@@ -321,7 +321,7 @@ function TokenView({ ref_ }: { ref_: ChainToken }) {
         )
       ) : (
         <>
-          <div className="fixed inset-x-0 bottom-[calc(56px+env(safe-area-inset-bottom))] z-20 mx-auto flex w-full max-w-[720px] gap-3 bg-bg px-4 pt-2 pb-3 before:pointer-events-none before:absolute before:inset-x-0 before:-top-6 before:h-6 before:bg-linear-to-t before:from-bg before:to-transparent">
+          <div className="sticky bottom-[calc(56px+env(safe-area-inset-bottom))] z-20 mt-6 flex w-full gap-3 bg-bg px-4 pt-2 pb-3 before:pointer-events-none before:absolute before:inset-x-0 before:-top-6 before:h-6 before:bg-linear-to-t before:from-bg before:to-transparent">
             {held > 0n && (
               <Button variant="secondary" size="lg" className="flex-1" disabled={!token} onClick={() => open("sell")} data-testid="open-sell">
                 Sell
@@ -376,7 +376,7 @@ function TokenHeader({ token }: { token: TokenInfo | undefined }) {
             <TokenIcon token={token} size={40} />
             <div className="min-w-0">
               <h1 className="truncate text-[17px] leading-[22px] font-medium">{token.symbol}</h1>
-              <button onClick={copy} className="flex max-w-full cursor-pointer items-center gap-1 text-[13px] leading-[17px] text-muted hover:text-text-2" aria-label="Copy token address">
+              <button onClick={copy} className="-my-2 flex max-w-full cursor-pointer items-center gap-1 py-2 text-[13px] leading-[17px] text-muted hover:text-text-2" aria-label="Copy token address">
                 <span className="truncate">{token.name}</span>
                 {copied ? <CheckIcon size={13} weight="bold" className="text-up" /> : <CopySimpleIcon size={13} />}
               </button>
