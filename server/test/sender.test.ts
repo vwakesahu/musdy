@@ -6,7 +6,6 @@ import type { Wallet } from "../src/chain";
 import { Sender, type Fees } from "../src/sender";
 import { ANVIL_READY, KEYS, startAnvil, type Anvil } from "./helpers/anvil";
 
-// a locally signed value transfer, the sender broadcasts it
 const signSend = async (wallet: Wallet, to: `0x${string}`, value: bigint, nonce: number, fees?: Fees) =>
   wallet.signTransaction(await wallet.prepareTransactionRequest({ to, value, nonce, gas: 21_000n, ...fees }));
 
@@ -31,7 +30,6 @@ describe.skipIf(!ANVIL_READY)("nonce managed sender on anvil", () => {
     expect(nonces).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
 
     await expect(sender.submit(() => Promise.reject(new Error("boom")))).rejects.toThrow("boom");
-    // a send that used a nonce then failed client side must not leave a gap
     await expect(sender.submit((n) => signSend(wallet, to, parseEther("1000000"), n))).rejects.toThrow();
     const next = await sender.submit(send);
     expect((await pub.getTransaction({ hash: next })).nonce).toBe(10);
@@ -51,7 +49,6 @@ describe.skipIf(!ANVIL_READY)("nonce managed sender on anvil", () => {
     const send = (nonce: number) => signSend(wallet, to, parseEther("0.01"), nonce);
 
     await pub.waitForTransactionReceipt({ hash: await sender.submit(send) });
-    // someone outside the sender uses the same key, so the sender's cached nonce is now spent
     const outsider = createWalletClient({ chain: anvilChain, transport: http(node.rpc), account });
     await pub.waitForTransactionReceipt({ hash: await outsider.sendTransaction({ to, value: parseEther("0.01") }) });
 
@@ -89,11 +86,46 @@ describe.skipIf(!ANVIL_READY)("nonce managed sender on anvil", () => {
     }
   });
 
+  test("after maxBumps the watchdog cancels the nonce with a zero value self transfer at a higher fee, later sends land", async () => {
+    const pub = createPublicClient({ chain: anvilChain, transport: http(node.rpc), pollingInterval: 200 });
+    const account = privateKeyToAccount(generatePrivateKey());
+    const testClient = createTestClient({ mode: "anvil", chain: anvilChain, transport: http(node.rpc) });
+    await testClient.setBalance({ address: account.address, value: parseEther("10") });
+    const wallet = createWalletClient({ chain: anvilChain, transport: http(node.rpc), account });
+    const sender = new Sender(wallet, pub, "cancel", { stuckMs: 100, maxBumps: 1 });
+    const to = privateKeyToAccount(generatePrivateKey()).address;
+    await testClient.setAutomine(false);
+    try {
+      const first = await sender.submit((nonce, fees) => signSend(wallet, to, parseEther("0.01"), nonce, fees));
+      await Bun.sleep(150);
+      const [bumped] = await sender.watchdog();
+      expect(sender.hashesFor(first)).toEqual([first, bumped!]);
+      const b = await pub.getTransaction({ hash: bumped! });
+      await Bun.sleep(150);
+      const [cancel] = await sender.watchdog();
+      expect(cancel).toBeDefined();
+      expect(sender.hashesFor(first)).toEqual([first, bumped!]);
+      expect(sender.cancelsFor(first)).toEqual([cancel!]);
+      const c = await pub.getTransaction({ hash: cancel! });
+      expect([c.nonce, c.to, c.value, c.from]).toEqual([b.nonce, account.address.toLowerCase() as `0x${string}`, 0n, account.address.toLowerCase() as `0x${string}`]);
+      expect(c.maxFeePerGas! > b.maxFeePerGas!).toBe(true);
+      await testClient.mine({ blocks: 1 });
+      expect((await pub.getTransactionReceipt({ hash: cancel! })).status).toBe("success");
+      await expect(pub.getTransactionReceipt({ hash: bumped! })).rejects.toThrow();
+      expect(await pub.getBalance({ address: to })).toBe(0n);
+      await testClient.setAutomine(true);
+      const next = await sender.submit((nonce) => signSend(wallet, to, parseEther("0.01"), nonce));
+      expect((await pub.getTransaction({ hash: next })).nonce).toBe(c.nonce + 1);
+      expect((await pub.waitForTransactionReceipt({ hash: next })).status).toBe("success");
+    } finally {
+      await testClient.setAutomine(true);
+    }
+  });
+
   test("a send whose answer is lost keeps its hash and mines, a definitive rejection still throws", async () => {
     const pub = createPublicClient({ chain: anvilChain, transport: http(node.rpc), pollingInterval: 200 });
     const real = createWalletClient({ chain: anvilChain, transport: http(node.rpc), account: privateKeyToAccount(KEYS.FAUCET_KEY as `0x${string}`) });
     let lose = true;
-    // the node takes the tx, then the response is lost on the way back
     const flaky = new Proxy(real, {
       get(t, p, r) {
         if (p !== "sendRawTransaction") return Reflect.get(t, p, r);
@@ -109,12 +141,10 @@ describe.skipIf(!ANVIL_READY)("nonce managed sender on anvil", () => {
     const hash = await sender.submit((nonce) => signSend(flaky, to, parseEther("0.01"), nonce));
     expect(sender.nonceOf(hash)).not.toBeNull();
     expect((await pub.waitForTransactionReceipt({ hash })).status).toBe("success");
-    // the next send continues at the following nonce
     lose = false;
     const next = await sender.submit((nonce) => signSend(flaky, to, parseEther("0.01"), nonce));
     expect((await pub.getTransaction({ hash: next })).nonce).toBe((await pub.getTransaction({ hash })).nonce + 1);
     await pub.waitForTransactionReceipt({ hash: next });
-    // a reused nonce is a definitive rejection
     await expect(sender.submit(() => signSend(flaky, to, 1n, 0))).rejects.toThrow(/nonce/i);
     expect(await pub.getBalance({ address: to })).toBe(parseEther("0.02"));
   });

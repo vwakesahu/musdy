@@ -1,6 +1,5 @@
 import type { PnlWindow } from "shared";
 
-// average cost accounting. buys add their MUSD (fee included) to cost, sells realize against the average cost.
 export type FlowKind = "buy" | "sell" | "in" | "out";
 
 export interface Flow {
@@ -8,7 +7,6 @@ export interface Flow {
   token: string;
   kind: FlowKind;
   amount: bigint;
-  // MUSD paid on a buy, received on a sell, market value for a token deposit, unused for out
   musd: bigint;
 }
 
@@ -20,7 +18,6 @@ export interface Holding {
 
 export type ValueFn = (token: string, amount: bigint, ts: number) => bigint;
 
-// applies one flow to a holding in place. the indexer uses this for the positions table, replay for history
 export const applyFlow = (h: Holding, f: Pick<Flow, "kind" | "amount" | "musd">): Holding => {
   if (f.kind === "buy" || f.kind === "in") {
     h.amount += f.amount;

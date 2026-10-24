@@ -5,55 +5,95 @@ import { log } from "./log";
 export interface WsData {
   id: number;
   ip: string;
-  // token bucket for inbound messages
   tokens: number;
   refilled: number;
   address: string | null;
-  // how many times hello changed the address
   hellos: number;
-  // lowercase topics this socket is subscribed to
   subs: Set<string>;
 }
 export type Ws = ServerWebSocket<WsData>;
 
 export interface HubDeps {
   welcome(): ServerMsg;
-  // newest 50 trades for a trade topic, oldest first, or null if the topic has no replay
   replay(topic: string): FeedItem[] | null;
   onHello?(address: string): void;
-  // address is the one this socket said hello with, if any
   onSubscribe?(topic: string, address: string | null): void;
   maxWatched?: number;
+  connBurst?: number;
+  connPerSec?: number;
+  helloAddrsPerMin?: number;
+  now?: () => number;
 }
 
 export const MAX_TOPICS = 64;
 export const MAX_FRAME = 4096;
 export const MAX_SOCKETS_PER_IP = 32;
-// inbound messages per second per socket, with a burst of two seconds
 export const MSG_RATE = 20;
 const MSG_BURST = MSG_RATE * 2;
 export const CLOSE_RATE_LIMIT = 1008;
-// hello address changes per socket, and distinct addresses the server watches in total
 export const MAX_HELLOS = 3;
 export const MAX_WATCHED = 2000;
+// upgrade bucket per ip, so a reconnect loop can't mint fresh per socket hello budgets
+export const CONN_BURST = 20;
+export const CONN_PER_SEC = 0.5;
+export const HELLO_ADDRS_PER_MIN = 20;
+const MINUTE = 60_000;
 
 export class Hub {
   private topics = new Map<string, Set<Ws>>();
   private watched = new Map<string, number>();
   private perIp = new Map<string, number>();
+  private conns = new Map<string, { tokens: number; at: number }>();
+  private helloAddrs = new Map<string, Map<string, number>>();
+  private swept = 0;
   private nextId = 1;
+  private now: () => number;
 
-  constructor(private deps: HubDeps) {}
-
-  // call before upgrading. null means the ip already has too many sockets
-  admit(ip: string): WsData | null {
-    const n = this.perIp.get(ip) ?? 0;
-    if (n >= MAX_SOCKETS_PER_IP) return null;
-    this.perIp.set(ip, n + 1);
-    return { id: this.nextId++, ip, tokens: MSG_BURST, refilled: Date.now(), address: null, hellos: 0, subs: new Set() };
+  constructor(private deps: HubDeps) {
+    this.now = deps.now ?? Date.now;
   }
 
-  // an admitted socket that never opened
+  admit(ip: string): WsData | null {
+    const now = this.now();
+    this.sweep(now);
+    const n = this.perIp.get(ip) ?? 0;
+    if (n >= MAX_SOCKETS_PER_IP) return null;
+    const burst = this.deps.connBurst ?? CONN_BURST;
+    const b = this.conns.get(ip) ?? { tokens: burst, at: now };
+    b.tokens = Math.min(burst, b.tokens + ((now - b.at) / 1000) * (this.deps.connPerSec ?? CONN_PER_SEC));
+    b.at = now;
+    this.conns.set(ip, b);
+    if (b.tokens < 1) {
+      log("ws.conn_limited", { ip });
+      return null;
+    }
+    b.tokens -= 1;
+    this.perIp.set(ip, n + 1);
+    return { id: this.nextId++, ip, tokens: MSG_BURST, refilled: now, address: null, hellos: 0, subs: new Set() };
+  }
+
+  private sweep(now: number) {
+    if (now - this.swept < MINUTE) return;
+    this.swept = now;
+    const burst = this.deps.connBurst ?? CONN_BURST;
+    const rate = this.deps.connPerSec ?? CONN_PER_SEC;
+    for (const [ip, b] of this.conns) if (b.tokens + ((now - b.at) / 1000) * rate >= burst) this.conns.delete(ip);
+    for (const [ip, m] of this.helloAddrs) {
+      for (const [a, at] of m) if (now - at >= MINUTE) m.delete(a);
+      if (!m.size) this.helloAddrs.delete(ip);
+    }
+  }
+
+  private helloAllowed(ip: string, addr: string): boolean {
+    const now = this.now();
+    const m = this.helloAddrs.get(ip) ?? new Map<string, number>();
+    for (const [a, at] of m) if (now - at >= MINUTE) m.delete(a);
+    if (!m.has(addr) && m.size >= (this.deps.helloAddrsPerMin ?? HELLO_ADDRS_PER_MIN)) return false;
+    m.set(addr, now);
+    this.helloAddrs.set(ip, m);
+    return true;
+  }
+
   release(data: WsData) {
     const n = (this.perIp.get(data.ip) ?? 1) - 1;
     if (n <= 0) this.perIp.delete(data.ip);
@@ -62,7 +102,7 @@ export class Hub {
 
   private allow(ws: Ws): boolean {
     const d = ws.data;
-    const now = Date.now();
+    const now = this.now();
     d.tokens = Math.min(MSG_BURST, d.tokens + ((now - d.refilled) / 1000) * MSG_RATE);
     d.refilled = now;
     if (d.tokens < 1) return false;
@@ -104,6 +144,8 @@ export class Hub {
         return this.send(ws, { type: "error", code: "too_many_hellos", message: `at most ${MAX_HELLOS} addresses per socket` });
       if (addr && !this.watched.has(addr) && this.watched.size >= (this.deps.maxWatched ?? MAX_WATCHED))
         return this.send(ws, { type: "error", code: "server_busy", message: "the server is watching too many addresses, try again later" });
+      if (addr && !this.helloAllowed(ws.data.ip, addr))
+        return this.send(ws, { type: "error", code: "too_many_hellos", message: "too many addresses from this ip, try again in a minute" });
       if (ws.data.address) this.unwatch(ws.data.address);
       ws.data.address = addr;
       if (addr) {
@@ -145,7 +187,6 @@ export class Hub {
     if (!set.size) this.topics.delete(topic);
   }
 
-  // how many topics have at least one subscriber
   topicCount(): number {
     return this.topics.size;
   }

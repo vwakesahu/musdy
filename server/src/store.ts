@@ -66,7 +66,6 @@ export interface PriceRow {
   price: string;
 }
 
-// running average cost holding of one user in one token, kept by the indexer as events land
 export interface PositionRow {
   user: string;
   token: string;
@@ -117,7 +116,6 @@ export class Store {
     this.db.query("INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(key, value);
   }
 
-  // tokens
   seedToken(t: { address: string; symbol: string; name: string; decimals: number; kind: TokenKind; createdAt: number }) {
     this.db
       .query(
@@ -183,8 +181,7 @@ export class Store {
     this.db.query("UPDATE tokens SET graduated = 1, pool = ? WHERE address = ?").run(lc(pool), lc(token));
   }
 
-  // events. every insert is idempotent on txHash:logIndex and reports whether it was new
-  // a new trade also moves the trader's position, in the caller's transaction
+  // inserts are idempotent on txHash:logIndex, a new trade also moves the position in the caller's transaction
   insertTrade(t: TradeRow): boolean {
     const isNew =
       this.db
@@ -279,7 +276,6 @@ export class Store {
     );
   }
 
-  // trades
   private cursor(before?: string): { block: number; log_index: number } | null {
     if (!before) return null;
     return this.db
@@ -287,7 +283,6 @@ export class Store {
       .get(before);
   }
 
-  // newest first. `where` and `params` select the subset, `before` pages by trade id
   private page(where: string, params: (string | number)[], before?: string, limit = PAGE): TradeRow[] {
     const c = this.cursor(before);
     const clauses = [where];
@@ -325,7 +320,6 @@ export class Store {
     return this.db.query<{ n: number }, [string]>("SELECT COUNT(*) AS n FROM trades WHERE user = ?").get(lc(user))?.n ?? 0;
   }
 
-  // oldest first, for candles
   tokenTicks(token: string, since: number): { ts: number; price_f: number; musd_f: number }[] {
     return this.db
       .query<{ ts: number; price_f: number; musd_f: number }, [string, number]>(
@@ -342,7 +336,6 @@ export class Store {
     return this.db.query<{ user: string }, []>("SELECT DISTINCT user FROM trades").all().map((r) => r.user);
   }
 
-  // all trades and token transfers of a user, oldest first
   userHistory(user: string): { trades: TradeRow[]; transfers: TransferRow[] } {
     const u = lc(user);
     return {
@@ -363,7 +356,6 @@ export class Store {
       .map((r) => r.token);
   }
 
-  // prices
   insertPrice(p: PriceRow) {
     this.db.query("INSERT INTO prices (token, ts, block, price) VALUES (?, ?, ?, ?)").run(lc(p.token), p.ts, p.block, p.price);
   }
@@ -372,7 +364,6 @@ export class Store {
     return this.db.query<PriceRow, []>("SELECT * FROM prices ORDER BY ts, block, rowid").all();
   }
 
-  // profiles and follows
   profile(address: string): ProfileRow | null {
     return this.db.query<ProfileRow, [string]>("SELECT address, handle, avatar FROM profiles WHERE address = ?").get(lc(address));
   }
@@ -421,7 +412,6 @@ export class Store {
     return !!this.db.query("SELECT 1 FROM follows WHERE follower = ? AND target = ?").get(lc(follower), lc(target));
   }
 
-  // positions
   position(user: string, token: string): PositionState | null {
     const r = this.db.query<PositionRow, [string, string]>("SELECT * FROM positions WHERE user = ? AND token = ?").get(lc(user), lc(token));
     return r ? toPosition(r) : null;
@@ -463,12 +453,10 @@ export class Store {
     return this.db.query<PositionRow, []>("SELECT * FROM positions").all().map(toPosition);
   }
 
-  // addresses holding a non zero amount of the token
   holderCount(token: string): number {
     return this.db.query<{ n: number }, [string]>("SELECT COUNT(*) AS n FROM positions WHERE token = ? AND amount != '0'").get(lc(token))?.n ?? 0;
   }
 
-  // users with any trade or transfer at or after ts
   activeSince(ts: number): Set<string> {
     return new Set(
       this.db
@@ -489,7 +477,6 @@ export class Store {
     return { followers, following };
   }
 
-  // faucet. one transaction checks the address, the ip and the global hourly cap, then records the claim
   claimFaucet(address: string, ip: string, now: number, limits: { period: number; perIp: number; hourly: number }): FaucetClaim {
     const a = lc(address);
     return this.tx((): FaucetClaim => {

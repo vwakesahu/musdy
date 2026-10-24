@@ -3,7 +3,6 @@ import { ServerMsg } from "shared";
 export class TestSocket {
   readonly messages: ServerMsg[] = [];
   private waiters: { pred: (m: ServerMsg) => boolean; resolve: (m: ServerMsg) => void }[] = [];
-  // resolves with the close code once the server or the client closes the socket
   readonly closed: Promise<number>;
   private constructor(private ws: WebSocket) {
     this.closed = new Promise((resolve) => ws.addEventListener("close", (e) => resolve(e.code)));
@@ -27,7 +26,6 @@ export class TestSocket {
     this.ws.send(typeof msg === "string" ? msg : JSON.stringify(msg));
   }
 
-  // first message, already received or future, matching pred
   next(pred: (m: ServerMsg) => boolean, timeoutMs = 10000): Promise<ServerMsg> {
     const hit = this.messages.find(pred);
     if (hit) return Promise.resolve(hit);

@@ -29,11 +29,9 @@ describe.skipIf(!CONTRACTS_READY)(`launch and graduation${SKIP_NOTE}`, () => {
     const grad = await creator.socket.next((m) => m.type === "token" && m.token.symbol === "GRAD" && m.token.venue === "pool");
     expect(grad.type).toBe("token");
 
-    // the last buyer was partially filled, the rest of the MUSD stayed in the vault
     const last = buyers.at(-1)!;
     expect((await last.vaultBalance(s.dep.musd)) > 50n * WAD).toBe(true);
 
-    // after graduation the coin trades through the pool, the price comes from reserves, and it can leave the vault
     const held = await creator.vaultBalance(coin.address);
     await creator.trade(coin.address, false, held / 10n);
     const sold = (await get<TokenInfo>(s.app.url, `/tokens/${coin.address}`)).body;
@@ -41,7 +39,6 @@ describe.skipIf(!CONTRACTS_READY)(`launch and graduation${SKIP_NOTE}`, () => {
     await creator.submit("/actions/withdraw", await creator.withdrawBody(coin.address, held / 10n, creator.address));
     expect(await creator.walletBalance(coin.address)).toBe(held / 10n);
 
-    // the positions the indexer kept event by event equal a replay of all history
     const store = s.app.store;
     const views = new Views(store, new PriceBook(store), s.dep.musd.toLowerCase(), 0n, () => s.app.block());
     const key = (p: { user: string; token: string }) => `${p.user}:${p.token}`;

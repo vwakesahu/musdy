@@ -1,6 +1,7 @@
 import { erc20Abi, type Address } from "viem";
 import { CandleTf, FeedScope, launchpadAbi, PnlWindow, TokenSort, vaultAbi, type Deployment, type Health } from "shared";
 import { applyFollow, applyProfile } from "./auth";
+import { BlockLoop } from "./blocks";
 import { buildCandles, TF_SECONDS } from "./candles";
 import { makeClients } from "./chain";
 import { openDb } from "./db";
@@ -24,7 +25,6 @@ export interface App {
   url: string;
   store: Store;
   block(): number;
-  // resolves once every block up to `n` is indexed, priced and pushed
   waitForBlock(n: number, timeoutMs?: number): Promise<void>;
   stop(): Promise<void>;
 }
@@ -58,7 +58,6 @@ export const startApp = async (env: Env, deployment?: Deployment, opts: AppOpts 
 
   let current = Number(await pub.getBlockNumber());
   const views = new Views(store, book, musd, curveSupply, () => current);
-  // positions are kept incrementally, a database from before the table existed gets them rebuilt once
   if (store.getMeta("positions_built") !== "1") {
     views.rebuildPositions();
     store.setMeta("positions_built", "1");
@@ -107,48 +106,29 @@ export const startApp = async (env: Env, deployment?: Deployment, opts: AppOpts 
   await indexer.syncTo(current);
   log("indexer.backfill_done", { block: current });
 
-  // block loop. runs strictly one at a time, always catching up to the newest head
-  let wanted = current;
-  let running = false;
-  // the head itself still needs its first price and balance round
-  let done = current - 1;
-  const waiters: { n: number; resolve: () => void }[] = [];
-  const runBlocks = async () => {
-    if (running) return;
-    running = true;
-    try {
-      while (done < wanted) {
-        const target = wanted;
+  const loop = new BlockLoop(
+    {
+      index: async (target) => {
         await indexer.syncTo(target);
         current = target;
+      },
+      price: async (target) => {
         const block = await pub.getBlock({ blockNumber: BigInt(target) });
         const moves = await pricer.tick(target, Number(block.timestamp));
         if (moves.length) hub.publish("prices", (topic) => ({ type: "prices", topic, block: target, prices: moves }));
-        await watcher.tick();
-        done = target;
-        for (const w of waiters.splice(0)) {
-          if (w.n <= done) w.resolve();
-          else waiters.push(w);
-        }
-      }
-    } catch (e) {
-      log("block.error", { wanted, done, error: errMessage(e) });
-    } finally {
-      running = false;
-    }
-  };
+      },
+      watch: () => watcher.tick(),
+    },
+    current,
+  );
   const unwatch = clients.watch.watchBlockNumber({
     emitOnBegin: true,
     pollingInterval: 1000,
-    onBlockNumber: (n) => {
-      wanted = Math.max(wanted, Number(n));
-      void runBlocks();
-    },
+    onBlockNumber: (n) => loop.want(Number(n)),
     onError: (e) => log("block.watch_error", { error: errMessage(e) }),
   });
-  // a failed round is retried on the next head, this also covers a quiet chain
   const retry = setInterval(() => {
-    if (done < wanted) void runBlocks();
+    if (loop.behind()) void loop.run();
   }, 2000);
 
   const handlers: Handlers = {
@@ -193,7 +173,7 @@ export const startApp = async (env: Env, deployment?: Deployment, opts: AppOpts 
     quote: async ({ query }) => {
       const token = param(qAddress, query.get("token"), "token");
       const isBuy = param(qBool, query.get("isBuy"), "isBuy");
-      const amountIn = BigInt(param(qUint, query.get("amountIn"), "amountIn"));
+      const amountIn = param(qUint, query.get("amountIn"), "amountIn");
       let res: readonly [bigint, bigint];
       let onCurve: boolean;
       try {
@@ -243,7 +223,7 @@ export const startApp = async (env: Env, deployment?: Deployment, opts: AppOpts 
       const ip = clientIp(req, srv.requestIP(req)?.address, env.TRUST_PROXY);
       if (new URL(req.url).pathname === "/ws") {
         const data = hub.admit(ip);
-        if (!data) return new Response("too many sockets from this address", { status: 429 });
+        if (!data) return new Response("too many sockets or reconnects from this address", { status: 429 });
         if (srv.upgrade(req, { data })) return undefined;
         hub.release(data);
         return new Response("websocket upgrade failed", { status: 400 });
@@ -266,23 +246,18 @@ export const startApp = async (env: Env, deployment?: Deployment, opts: AppOpts 
     port,
     url: `http://localhost:${port}`,
     store,
-    block: () => done,
-    waitForBlock: (n, timeoutMs = 15000) =>
-      new Promise<void>((resolve, reject) => {
-        if (done >= n) return resolve();
-        const timer = setTimeout(() => reject(new Error(`block ${n} not processed, at ${done}`)), timeoutMs);
-        waiters.push({ n, resolve: () => (clearTimeout(timer), resolve()) });
-        wanted = Math.max(wanted, n);
-        void runBlocks();
-      }),
+    block: () => loop.processed,
+    waitForBlock: (n, timeoutMs) => loop.waitFor(n, timeoutMs),
     stop: async () => {
       unwatch();
       clearInterval(retry);
       relayer.stop();
       relayerSender.stop();
       faucetSender?.stop();
-      await clients.close();
       await server.stop(true);
+      // a balance pass may still be reading, let it finish before the database closes
+      await Promise.race([loop.watcherIdle(), Bun.sleep(5000)]);
+      await clients.close();
       store.db.close();
       log("server.stop", { port });
     },

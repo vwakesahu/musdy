@@ -22,8 +22,6 @@ export interface Fees {
   maxFeePerGas: bigint;
   maxPriorityFeePerGas: bigint;
 }
-// signs one tx at `nonce` locally and returns the raw tx, the sender broadcasts it.
-// fees are only set when the watchdog replaces a stuck tx
 export type SendFn = (nonce: number, fees?: Fees) => Promise<Hex>;
 
 export interface CallRequest {
@@ -38,7 +36,6 @@ export interface CallRequest {
   maxPriorityFeePerGas?: bigint;
 }
 
-// a contract call signed by the wallet's local key, nothing is sent
 export const signCall = async (wallet: Wallet, r: CallRequest): Promise<Hex> => {
   const data = encodeFunctionData({ abi: r.abi as Abi, functionName: r.functionName, args: r.args } as Parameters<typeof encodeFunctionData>[0]);
   const fees = r.maxFeePerGas !== undefined ? { maxFeePerGas: r.maxFeePerGas, maxPriorityFeePerGas: r.maxPriorityFeePerGas } : {};
@@ -46,7 +43,6 @@ export const signCall = async (wallet: Wallet, r: CallRequest): Promise<Hex> => 
   return wallet.signTransaction(tx as Parameters<Wallet["signTransaction"]>[0]);
 };
 
-// a send error is ambiguous when the node may have taken the tx before the answer was lost
 export const ambiguous = (e: unknown): boolean => {
   const transport = (x: unknown) =>
     x instanceof HttpRequestError || x instanceof TimeoutError || x instanceof WebSocketRequestError || x instanceof SocketClosedError;
@@ -55,7 +51,6 @@ export const ambiguous = (e: unknown): boolean => {
 };
 
 export interface SenderOpts {
-  // a tx still unmined after this long gets replaced at a higher fee
   stuckMs?: number;
   watchMs?: number;
   maxBumps?: number;
@@ -63,7 +58,9 @@ export interface SenderOpts {
 
 interface Pending {
   nonce: number;
+  // cancels stay out of hashes so a mined cancel reads as the tx dropped, never as it confirming
   hashes: Hash[];
+  cancels: Hash[];
   send: SendFn;
   at: number;
   bumps: number;
@@ -73,8 +70,6 @@ interface Pending {
 const bump = (v: bigint) => (v * 125n) / 100n + 1n;
 const max = (...xs: bigint[]) => xs.reduce((a, b) => (a > b ? a : b));
 
-// one account, one queue. nonces are handed out in order and resynced from the chain after any send error.
-// a watchdog replaces a nonce that sits unmined at a higher fee, every hash sent for a nonce stays tracked.
 export class Sender {
   private queue: Promise<unknown> = Promise.resolve();
   private nonce: number | null = null;
@@ -104,7 +99,7 @@ export class Sender {
         const raw = await send(nonce);
         const hash = await this.broadcast(raw);
         this.nonce = nonce + 1;
-        this.pending.set(nonce, { nonce, hashes: [hash], send, at: Date.now(), bumps: 0 });
+        this.pending.set(nonce, { nonce, hashes: [hash], cancels: [], send, at: Date.now(), bumps: 0 });
         log("sender.sent", { sender: this.name, nonce, hash });
         return hash;
       } catch (e) {
@@ -127,8 +122,7 @@ export class Sender {
     return p;
   }
 
-  // the hash is known before sending. a definitive rejection throws, a lost answer keeps the hash:
-  // the tx may still mine, receipts and the account nonce settle it and the watchdog resends it if it never landed
+  // a lost answer keeps the hash, the tx may still mine and receipts plus the account nonce settle it
   private async broadcast(raw: Hex): Promise<Hash> {
     const hash = keccak256(raw);
     try {
@@ -140,27 +134,32 @@ export class Sender {
     return hash;
   }
 
+  private async cancelTx(nonce: number, fees: Fees): Promise<Hex> {
+    const tx = await this.wallet.prepareTransactionRequest({ to: this.address, value: 0n, gas: 21_000n, nonce, ...fees });
+    return this.wallet.signTransaction(tx as Parameters<Wallet["signTransaction"]>[0]);
+  }
+
+  cancelsFor(hash: Hash): Hash[] {
+    return this.entry(hash)?.cancels.slice() ?? [];
+  }
+
   private entry(hash: Hash): Pending | null {
     for (const e of this.pending.values()) if (e.hashes.includes(hash)) return e;
     return null;
   }
 
-  // every hash sent for the same nonce as `hash`, oldest first
   hashesFor(hash: Hash): Hash[] {
     return this.entry(hash)?.hashes.slice() ?? [hash];
   }
 
-  // the account nonce `hash` was sent with, null once it is no longer tracked
   nonceOf(hash: Hash): number | null {
     return this.entry(hash)?.nonce ?? null;
   }
 
-  // how many txs the chain has mined from this account
   minedCount(): Promise<number> {
     return this.pub.getTransactionCount({ address: this.address, blockTag: "latest" });
   }
 
-  // tracking ends once the tx is settled
   forget(hash: Hash) {
     const e = this.entry(hash);
     if (e) this.pending.delete(e.nonce);
@@ -184,14 +183,12 @@ export class Sender {
       prevMax = tx.maxFeePerGas ?? tx.gasPrice ?? 0n;
       prevTip = tx.maxPriorityFeePerGas ?? tx.gasPrice ?? 0n;
     } catch (e) {
-      // dropped from the mempool, resend at the market fee
       if (!(e instanceof TransactionNotFoundError)) throw e;
     }
     const tip = max(bump(prevTip), est.maxPriorityFeePerGas);
     return { maxFeePerGas: max(bump(prevMax), est.maxFeePerGas, tip), maxPriorityFeePerGas: tip };
   }
 
-  // replaces every tracked nonce that has sat unmined for stuckMs, returns the new hashes
   async watchdog(): Promise<Hash[]> {
     if (this.ticking || !this.pending.size) return [];
     this.ticking = true;
@@ -201,21 +198,31 @@ export class Sender {
       const now = Date.now();
       for (const e of [...this.pending.values()].sort((a, b) => a.nonce - b.nonce)) {
         if (e.nonce < mined) {
-          // nobody settled it, stop tracking well after it mined
           if (now - e.at > 600_000) this.pending.delete(e.nonce);
           continue;
         }
-        if (now - e.at < this.opts.stuckMs || e.bumps >= this.opts.maxBumps) continue;
+        if (now - e.at < this.opts.stuckMs) continue;
+        const cancel = e.bumps >= this.opts.maxBumps;
+        if (cancel && e.cancels.length >= this.opts.maxBumps) continue;
         try {
-          const fees = await this.fees(e.hashes[e.hashes.length - 1]!);
-          const hash = await this.broadcast(await e.send(e.nonce, fees));
-          e.hashes.push(hash);
-          e.bumps++;
+          const fees = await this.fees((cancel && e.cancels.at(-1)) || e.hashes.at(-1)!);
+          const hash = await this.broadcast(cancel ? await this.cancelTx(e.nonce, fees) : await e.send(e.nonce, fees));
+          if (cancel) e.cancels.push(hash);
+          else {
+            e.hashes.push(hash);
+            e.bumps++;
+          }
           e.at = Date.now();
           sent.push(hash);
-          log("sender.replaced", { sender: this.name, nonce: e.nonce, hash, maxFeePerGas: fees.maxFeePerGas.toString(), bumps: e.bumps });
+          log(cancel ? "sender.cancelled" : "sender.replaced", {
+            sender: this.name,
+            nonce: e.nonce,
+            hash,
+            maxFeePerGas: fees.maxFeePerGas.toString(),
+            bumps: e.bumps,
+            cancels: e.cancels.length,
+          });
         } catch (err) {
-          // usually the old tx mined meanwhile, the next round sees the nonce pass
           e.at = Date.now();
           log("sender.replace_failed", { sender: this.name, nonce: e.nonce, error: errMessage(err) });
         }

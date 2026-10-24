@@ -8,7 +8,6 @@ import { WAD } from "../src/pricing";
 import { CONTRACTS_READY, KEYS, SKIP_NOTE, startStack, type Stack } from "./helpers/anvil";
 import { Actor, deadline, post } from "./helpers/actors";
 
-// runtime code that answers every call with uint256(1), and reverts symbol() when the flag is set
 const BAD_SYMBOL = "0x60003560e01c6395d89b4114601957600160005260206000f35b600080fd";
 const ANYTHING = "0x600160005260206000f3";
 
@@ -25,7 +24,6 @@ describe.skipIf(!CONTRACTS_READY)(`auto deposit with permit${SKIP_NOTE}`, () => 
   }, 120000);
   afterAll(async () => s && (await s.stop()));
 
-  // MUSD exposes eip712Domain() and nonces(), the BTC precompile copy has neither and uses its fixed domain and nonce(owner)
   const permitDomain = async (a: Actor, token: Address) => {
     try {
       const [, name, version, chainId, verifyingContract] = await a.pub.readContract({ address: token, abi: permitAbi, functionName: "eip712Domain" });
@@ -98,7 +96,6 @@ describe.skipIf(!CONTRACTS_READY)(`auto deposit with permit${SKIP_NOTE}`, () => 
     const forged = { ...(await signPermit(b, s.dep.musd, 10n * WAD)), owner: a.address };
     const r = await post(s.app.url, "/actions/deposit", forged);
     expect([r.status, r.body.code]).toEqual([400, "bad_signature"]);
-    // a permit with the right signer but a different amount fails the same way
     const real = await signPermit(a, s.dep.musd, 5n * WAD);
     const bumped = await post(s.app.url, "/actions/deposit", { ...real, amount: (10n * WAD).toString() });
     expect([bumped.status, bumped.body.code]).toEqual([400, "bad_signature"]);
@@ -120,14 +117,12 @@ describe.skipIf(!CONTRACTS_READY)(`auto deposit with permit${SKIP_NOTE}`, () => 
       expect((await a.pub.waitForTransactionReceipt({ hash })).status).toBe("success");
     }
     const depositBlock = Number(await a.pub.getBlockNumber());
-    // a real deposit after them still gets indexed
     await a.faucet();
     expect(s.app.block()).toBeGreaterThan(depositBlock);
     expect(s.app.store.token(bad)).toBeNull();
     expect(s.app.store.token(junk)).toBeNull();
     expect(s.app.store.userHistory(deployer.address).transfers.filter((t) => t.token === bad || t.token === junk)).toHaveLength(0);
     expect(s.app.store.userHistory(a.address).transfers.map((t) => t.token)).toEqual([s.dep.musd.toLowerCase()]);
-    // metadata reads never throw, they fall back
     const meta = await readTokenMeta(a.pub as unknown as PublicClient<Transport, Chain>, bad);
     expect([meta.symbol, meta.name]).toEqual(["???", "unknown token"]);
   }, 60000);

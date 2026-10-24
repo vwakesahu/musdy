@@ -19,7 +19,6 @@ test("claims are limited per address, per ip and by a global hourly cap, a relea
   expect(store.claimFaucet(addr(4), "1.1.1.1", t, limits)).toBe("ip");
   expect(store.claimFaucet(addr(4), "3.3.3.3", t, limits)).toBe("ok");
   expect(store.claimFaucet(addr(5), "4.4.4.4", t, limits)).toBe("global");
-  // an hour later the global cap has room again, the ip limit still holds for a day
   expect(store.claimFaucet(addr(5), "1.1.1.1", t + 3601, limits)).toBe("ip");
   expect(store.claimFaucet(addr(5), "4.4.4.4", t + 3601, limits)).toBe("ok");
   store.releaseFaucet(addr(5), t + 3601);

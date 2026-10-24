@@ -5,7 +5,6 @@ interface Series {
   price: bigint[];
 }
 
-// in memory price history per token, mirrored in the prices table
 export class PriceBook {
   private series = new Map<string, Series>();
 
@@ -15,7 +14,6 @@ export class PriceBook {
 
   private push(token: string, ts: number, price: bigint) {
     const s = this.series.get(token) ?? { ts: [], price: [] };
-    // keep the series sorted even if a backfilled point arrives late
     let i = s.ts.length;
     while (i > 0 && s.ts[i - 1]! > ts) i--;
     s.ts.splice(i, 0, ts);
@@ -34,7 +32,6 @@ export class PriceBook {
     return s && s.price.length ? s.price[s.price.length - 1]! : null;
   }
 
-  // last price at or before ts, else the earliest known price
   at(token: string, ts: number): bigint | null {
     const s = this.series.get(token.toLowerCase());
     if (!s || !s.ts.length) return null;

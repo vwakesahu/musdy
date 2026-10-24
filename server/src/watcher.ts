@@ -8,10 +8,8 @@ import type { Store } from "./store";
 type Bal = { token: Address; amount: string };
 type Snap = { vault: Bal[]; wallet: Bal[] };
 
-// pushes vault and wallet balances to user:<addr> for every address that said hello
 export class Watcher {
   private last = new Map<string, string>();
-  // one chain read per address per block, however many hellos and subscribes ask for it
   private reads = new Map<string, { block: number; snap: Promise<Snap | null> }>();
 
   constructor(
@@ -65,7 +63,9 @@ export class Watcher {
   async tick() {
     const watched = new Set(this.hub.watchedAddresses());
     for (const a of this.last.keys()) if (!watched.has(a)) this.last.delete(a);
-    for (const a of this.reads.keys()) if (!watched.has(a)) this.reads.delete(a);
+    // older blocks' reads are never served again. this block's stay, so a reconnect that says hello again costs nothing
+    const block = this.block();
+    for (const [a, r] of this.reads) if (r.block < block) this.reads.delete(a);
     await Promise.all(
       [...watched].map((a) => this.push(a, false).catch((e) => log("watcher.error", { address: a, error: errMessage(e) }))),
     );

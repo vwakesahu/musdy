@@ -1,16 +1,16 @@
-import { erc20Abi, maxUint256, parseAbi, parseEther, serializeSignature, verifyTypedData, type Address, type Chain, type Hash, type PublicClient, type Transport } from "viem";
+import { erc20Abi, maxUint256, parseEther, serializeSignature, verifyTypedData, type Address, type Chain, type Hash, type PublicClient, type Transport } from "viem";
 import {
   FaucetBody,
   LaunchBody,
   PermitDepositBody,
   TradeBody,
   WithdrawBody,
-  btcPermitDomain,
   domainFor,
   faucetMessage,
   launchpadAbi,
   launchTypes,
   permitTypes,
+  readPermitDomain,
   tradeTypes,
   vaultAbi,
   withdrawTypes,
@@ -47,27 +47,23 @@ export interface RelayerDeps {
   hub: Hub;
   store: Store;
   faucetHourlyCap: number;
-  // first receipt poll, it backs off to pollMaxMs
   pollMs?: number;
   pollMaxMs?: number;
 }
 
-// what the chain decided about a sent tx
 type Outcome = { hash: Hash; ok: boolean; error: string | null };
 
-// a simulated request at a given nonce and gas, with the fees of a replacement when the watchdog bumps it
 const at = <R extends object>(request: R, gas: bigint, nonce: number, fees?: Fees): R & { gas: bigint; nonce: number } => ({ ...request, gas, nonce, ...fees });
 // the estimate runs against the current block, a new block can cost more (pool oracles write on their first trade)
 const GAS_BUFFER_PCT = 130n;
 
 const LOST_GRACE_MS = 1000;
 
-const permitReadAbi = parseAbi([
-  "function eip712Domain() view returns (bytes1, string, string, uint256, address, bytes32, uint256[])",
-  "function nonces(address owner) view returns (uint256)",
-  "function nonce(address owner) view returns (uint256)",
-]);
-type PermitDomain = { name: string; version: string; chainId: number; verifyingContract: Address };
+export const toUint = (v: string, name: string): bigint => {
+  const n = BigInt(v);
+  if (n > maxUint256) throw new HttpError(400, "bad_body", `${name}: does not fit a uint256`);
+  return n;
+};
 
 const nowSec = () => BigInt(Math.floor(Date.now() / 1000));
 
@@ -90,7 +86,6 @@ export class Relayer {
     return k;
   }
 
-  // runs the checks under the lock. the lock passes to dispatch, which releases it once the chain decides
   private async locked(key: string, run: (lock: string) => Promise<TxStatus>): Promise<TxStatus> {
     const lock = this.lock(key);
     try {
@@ -101,17 +96,17 @@ export class Relayer {
     }
   }
 
-  private checkDeadline(deadline: string) {
-    if (BigInt(deadline) <= nowSec()) throw new HttpError(400, "expired", "deadline has passed");
+  private checkDeadline(deadline: bigint) {
+    if (deadline <= nowSec()) throw new HttpError(400, "expired", "deadline has passed");
   }
 
   private vaultNonce(user: Address): Promise<bigint> {
     return this.d.pub.readContract({ address: this.d.dep.vault, abi: vaultAbi, functionName: "nonces", args: [user] });
   }
 
-  private async checkNonce(user: Address, nonce: string) {
+  private async checkNonce(user: Address, nonce: bigint) {
     const onChain = await this.vaultNonce(user);
-    if (onChain !== BigInt(nonce)) throw new HttpError(400, "bad_nonce", `nonce must be ${onChain}`);
+    if (onChain !== nonce) throw new HttpError(400, "bad_nonce", `nonce must be ${onChain}`);
   }
 
   private checkSig(ok: boolean) {
@@ -146,8 +141,6 @@ export class Relayer {
     return null;
   }
 
-  // polls until a receipt shows up for any hash sent at this nonce, or the chain proves none ever will:
-  // the sender's nonce or the user's vault nonce moved past it without one of our hashes. null if stopped.
   async mined(sender: Sender, hash: Hash, vaultNonce?: { user: Address; nonce: bigint }): Promise<Outcome | null> {
     const nonce = sender.nonceOf(hash);
     let delay = this.d.pollMs ?? 500;
@@ -182,7 +175,6 @@ export class Relayer {
     }
   }
 
-  // queues the send and reports pending, then confirmed or failed, on user:<addr>
   private dispatch(
     kind: TxStatus["kind"],
     user: Address,
@@ -211,14 +203,26 @@ export class Relayer {
     return status;
   }
 
-  trade(body: unknown): Promise<TxStatus> {
+  private async checkVaultSig(user: Address, primaryType: "Trade" | "Withdraw" | "Launch", types: object, message: object, sig: `0x${string}`) {
+    const domain = domainFor(this.d.chainId, this.d.dep.vault);
+    const args = { address: user, domain, types, primaryType, message, signature: sig } as Parameters<typeof verifyTypedData>[0];
+    this.checkSig(await verifyTypedData(args).catch(() => false));
+  }
+
+  // the signature is checked before the lock so a third party can't 409 a victim, then the lock is taken with no await in between
+  async trade(body: unknown): Promise<TxStatus> {
     const { trade: t, sig } = parseBody(TradeBody, body);
-    this.checkDeadline(t.deadline);
-    return this.locked(`${t.user}:${t.nonce}`, async (lock) => {
-      await this.checkNonce(t.user, t.nonce);
-      const message = { ...t, amountIn: BigInt(t.amountIn), minOut: BigInt(t.minOut), nonce: BigInt(t.nonce), deadline: BigInt(t.deadline) };
-      const domain = domainFor(this.d.chainId, this.d.dep.vault);
-      this.checkSig(await verifyTypedData({ address: t.user, domain, types: tradeTypes, primaryType: "Trade", message, signature: sig }).catch(() => false));
+    const message = {
+      ...t,
+      amountIn: toUint(t.amountIn, "trade.amountIn"),
+      minOut: toUint(t.minOut, "trade.minOut"),
+      nonce: toUint(t.nonce, "trade.nonce"),
+      deadline: toUint(t.deadline, "trade.deadline"),
+    };
+    this.checkDeadline(message.deadline);
+    await this.checkVaultSig(t.user, "Trade", tradeTypes, message, sig);
+    return this.locked(`${t.user}:${message.nonce}`, async (lock) => {
+      await this.checkNonce(t.user, message.nonce);
       const { request } = await this.simulate(() =>
         this.d.pub.simulateContract({ account: this.d.relayer.wallet.account, address: this.d.dep.vault, abi: vaultAbi, functionName: "executeTrade", args: [message, sig] }),
       );
@@ -230,16 +234,15 @@ export class Relayer {
     });
   }
 
-  withdraw(body: unknown): Promise<TxStatus> {
+  async withdraw(body: unknown): Promise<TxStatus> {
     const { withdraw: w, sig } = parseBody(WithdrawBody, body);
-    this.checkDeadline(w.deadline);
-    return this.locked(`${w.user}:${w.nonce}`, async (lock) => {
-      await this.checkNonce(w.user, w.nonce);
-      const message = { ...w, amount: BigInt(w.amount), nonce: BigInt(w.nonce), deadline: BigInt(w.deadline) };
+    const message = { ...w, amount: toUint(w.amount, "withdraw.amount"), nonce: toUint(w.nonce, "withdraw.nonce"), deadline: toUint(w.deadline, "withdraw.deadline") };
+    this.checkDeadline(message.deadline);
+    await this.checkVaultSig(w.user, "Withdraw", withdrawTypes, message, sig);
+    return this.locked(`${w.user}:${message.nonce}`, async (lock) => {
+      await this.checkNonce(w.user, message.nonce);
       const onCurve = await this.d.pub.readContract({ address: this.d.dep.launchpad, abi: launchpadAbi, functionName: "isCurve", args: [w.token] });
       if (onCurve) throw new HttpError(400, "curve_locked", "this coin is still on its curve and can't leave the vault until it graduates");
-      const domain = domainFor(this.d.chainId, this.d.dep.vault);
-      this.checkSig(await verifyTypedData({ address: w.user, domain, types: withdrawTypes, primaryType: "Withdraw", message, signature: sig }).catch(() => false));
       const { request } = await this.simulate(() =>
         this.d.pub.simulateContract({ account: this.d.relayer.wallet.account, address: this.d.dep.vault, abi: vaultAbi, functionName: "executeWithdraw", args: [message, sig] }),
       );
@@ -251,14 +254,13 @@ export class Relayer {
     });
   }
 
-  launch(body: unknown): Promise<TxStatus> {
+  async launch(body: unknown): Promise<TxStatus> {
     const { launch: l, sig } = parseBody(LaunchBody, body);
-    this.checkDeadline(l.deadline);
-    return this.locked(`${l.user}:${l.nonce}`, async (lock) => {
-      await this.checkNonce(l.user, l.nonce);
-      const message = { ...l, initialBuy: BigInt(l.initialBuy), nonce: BigInt(l.nonce), deadline: BigInt(l.deadline) };
-      const domain = domainFor(this.d.chainId, this.d.dep.vault);
-      this.checkSig(await verifyTypedData({ address: l.user, domain, types: launchTypes, primaryType: "Launch", message, signature: sig }).catch(() => false));
+    const message = { ...l, initialBuy: toUint(l.initialBuy, "launch.initialBuy"), nonce: toUint(l.nonce, "launch.nonce"), deadline: toUint(l.deadline, "launch.deadline") };
+    this.checkDeadline(message.deadline);
+    await this.checkVaultSig(l.user, "Launch", launchTypes, message, sig);
+    return this.locked(`${l.user}:${message.nonce}`, async (lock) => {
+      await this.checkNonce(l.user, message.nonce);
       const { request } = await this.simulate(() =>
         this.d.pub.simulateContract({ account: this.d.relayer.wallet.account, address: this.d.dep.vault, abi: vaultAbi, functionName: "executeLaunch", args: [message, sig] }),
       );
@@ -270,39 +272,31 @@ export class Relayer {
     });
   }
 
-  // the token's own permit domain and the owner's current permit nonce, read the same way the web signs.
-  // MUSD has eip712Domain() and nonces(), the BTC precompile has neither, a fixed domain and nonce(owner)
-  private async permitDomain(token: Address, owner: Address): Promise<{ domain: PermitDomain; nonce: bigint }> {
-    const pub = this.d.pub;
-    let domain: PermitDomain;
-    try {
-      const [, name, version, chainId, verifyingContract] = await pub.readContract({ address: token, abi: permitReadAbi, functionName: "eip712Domain" });
-      domain = { name, version, chainId: Number(chainId), verifyingContract };
-    } catch {
-      const nonce = await pub.readContract({ address: token, abi: permitReadAbi, functionName: "nonce", args: [owner] });
-      return { domain: btcPermitDomain(this.d.chainId, token), nonce };
-    }
-    return { domain, nonce: await pub.readContract({ address: token, abi: permitReadAbi, functionName: "nonces", args: [owner] }) };
-  }
-
-  // the vault only falls back to a standing allowance when permit() reverts, so the server checks the permit itself first
-  deposit(body: unknown): Promise<TxStatus> {
+  // the vault falls back to a standing allowance when permit() reverts, so the permit must be verified here first
+  async deposit(body: unknown): Promise<TxStatus> {
     const p = parseBody(PermitDepositBody, body);
     const token = p.token.toLowerCase();
     if (token !== this.d.dep.musd.toLowerCase() && token !== this.d.dep.btc.toLowerCase())
       throw new HttpError(400, "bad_token", "only MUSD and BTC deposit with permit");
-    if (BigInt(p.amount) === 0n) throw new HttpError(400, "bad_body", "amount must be positive");
+    const amount = toUint(p.amount, "amount");
+    const deadline = toUint(p.deadline, "deadline");
+    if (amount === 0n) throw new HttpError(400, "bad_body", "amount must be positive");
     if (![0, 1, 27, 28].includes(p.v)) throw new HttpError(400, "bad_body", "v must be 27 or 28");
     if (p.r.length !== 66 || p.s.length !== 66) throw new HttpError(400, "bad_body", "r and s must be 32 bytes");
-    this.checkDeadline(p.deadline);
+    this.checkDeadline(deadline);
+    const v = p.v < 27 ? p.v + 27 : p.v;
+    const read = () => readPermitDomain(this.d.pub, this.d.chainId, p.token, p.owner).catch((e: unknown) => {
+      throw simulationError(e);
+    });
+    const { domain, nonce } = await read();
+    const message = { owner: p.owner, spender: this.d.dep.vault, value: amount, nonce, deadline };
+    const signature = serializeSignature({ r: p.r, s: p.s, v: BigInt(v) });
+    const ok = await verifyTypedData({ address: p.owner, domain, types: permitTypes, primaryType: "Permit", message, signature }).catch(() => false);
+    if (!ok) throw new HttpError(400, "bad_signature", "permit signature does not recover to owner");
     return this.locked(`${p.owner}:${p.token}`, async (lock) => {
-      const v = p.v < 27 ? p.v + 27 : p.v;
-      const { domain, nonce } = await this.permitDomain(p.token, p.owner);
-      const message = { owner: p.owner, spender: this.d.dep.vault, value: BigInt(p.amount), nonce, deadline: BigInt(p.deadline) };
-      const signature = serializeSignature({ r: p.r, s: p.s, v: BigInt(v) });
-      const ok = await verifyTypedData({ address: p.owner, domain, types: permitTypes, primaryType: "Permit", message, signature }).catch(() => false);
-      if (!ok) throw new HttpError(400, "bad_signature", "permit signature does not recover to owner");
-      const args = [p.owner, p.token, BigInt(p.amount), BigInt(p.deadline), v, p.r, p.s] as const;
+      // a copy of this permit may have been spent while it was being verified
+      if ((await read()).nonce !== nonce) throw new HttpError(400, "bad_signature", "permit nonce was already used");
+      const args = [p.owner, p.token, amount, deadline, v, p.r, p.s] as const;
       const { request } = await this.simulate(() =>
         this.d.pub.simulateContract({ account: this.d.relayer.wallet.account, address: this.d.dep.vault, abi: vaultAbi, functionName: "depositWithPermit", args }),
       );

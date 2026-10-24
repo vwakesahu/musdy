@@ -1,4 +1,4 @@
-// append only. each entry runs once, tracked with PRAGMA user_version. addresses are stored lowercase.
+// append only, each entry runs once via PRAGMA user_version
 export const migrations: string[] = [
   `
   CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);

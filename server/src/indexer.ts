@@ -15,10 +15,8 @@ export interface IndexerDeps {
   dep: Deployment;
   launchTotalSupply: bigint;
   chunk?: number;
-  // only called for rows that were new, and only once the block range is committed
   onTrade?(row: TradeRow): void;
   onToken?(address: string): void;
-  // MUSD value of a token amount at a time, what a token deposit enters a position at
   valueAt?(token: string, amount: bigint, ts: number): bigint;
 }
 
@@ -27,7 +25,6 @@ type Meta = { symbol: string; name: string; decimals: number };
 
 const clip = (v: unknown, fallback: string, max: number) => (typeof v === "string" && v.length ? v.slice(0, max) : fallback);
 
-// erc20 metadata that never throws, a token whose reads revert or return junk gets placeholders
 export const readTokenMeta = async (pub: PublicClient<Transport, Chain>, token: Address): Promise<Meta> => {
   const base = { address: token, abi: erc20Abi } as const;
   const [symbol, name, decimals] = await Promise.allSettled([
@@ -51,7 +48,6 @@ export class Indexer {
   private launchpad: string;
   private musd: string;
   private tsCache = new Map<bigint, number>();
-  // MUSD, BTC and the deployment's tokens, launchpad tokens are recognised from the store
   private fixed: Set<string>;
   private ignored = new Set<string>();
 
@@ -63,7 +59,6 @@ export class Indexer {
     this.fixed = new Set([d.dep.musd, d.dep.btc, ...d.dep.tokens.map((t) => t.address)].map((a) => a.toLowerCase()));
   }
 
-  // deposits and withdrawals of anything else are ignored, any contract can be deposited
   private tracked(token: string, createdHere: Set<string>): boolean {
     const t = token.toLowerCase();
     if (this.fixed.has(t) || createdHere.has(t) || this.d.store.token(t)?.kind === "launch") return true;
@@ -123,7 +118,6 @@ export class Indexer {
     });
     logs.sort((a, b) => Number(a.blockNumber - b.blockNumber) || a.logIndex - b.logIndex);
 
-    // async lookups first, then one synchronous transaction
     const ts = new Map<bigint, number>();
     for (const n of new Set(logs.map((l) => l.blockNumber))) ts.set(n, await this.blockTs(n));
     const curves = new Map<string, Curve>();
@@ -197,7 +191,6 @@ export class Indexer {
               amount: a.amount.toString(),
               to_addr: l.eventName === "Withdrawn" ? l.args.to : null,
             });
-            // MUSD is cash, only other tokens make a position
             if (isNew && a.token.toLowerCase() !== this.musd) {
               const deposit = l.eventName === "Deposited";
               store.applyFlow(a.user, a.token, { kind: deposit ? "in" : "out", amount: a.amount, musd: deposit ? (this.d.valueAt?.(a.token, a.amount, at) ?? 0n) : 0n });

@@ -1,3 +1,4 @@
+import { maxUint256 } from "viem";
 import { z } from "zod";
 import { routes, zAddress, zUint } from "shared";
 import { HttpError } from "./errors";
@@ -10,7 +11,6 @@ export interface Ctx {
   params: Record<string, string>;
   query: URLSearchParams;
   body: unknown;
-  // the caller's ip, see clientIp
   ip: string;
 }
 export type Handlers = Record<RouteName, (ctx: Ctx) => Promise<unknown> | unknown>;
@@ -32,10 +32,9 @@ export const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body, replacer), { status, headers: { "content-type": "application/json", ...CORS } });
 const fail = (status: number, code: string, message: string) => json({ code, message }, status);
 
-// the socket address. x-forwarded-for is only believed behind a proxy that sets it (TRUST_PROXY=1),
-// otherwise any client could pick its own ip for the faucet and socket limits
+// only behind our proxy: it appends the ip it saw, so only the rightmost x-forwarded-for entry is trusted
 export const clientIp = (req: Request, socketIp: string | null | undefined, trustProxy = false): string =>
-  (trustProxy ? req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() : undefined) || socketIp || "unknown";
+  (trustProxy ? req.headers.get("x-forwarded-for")?.split(",").at(-1)?.trim() : undefined) || socketIp || "unknown";
 
 export const handleHttp = async (req: Request, handlers: Handlers, ip = "unknown"): Promise<Response> => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
@@ -65,7 +64,6 @@ export const handleHttp = async (req: Request, handlers: Handlers, ip = "unknown
   }
 };
 
-// query and path params, validated where they enter
 export const param = <S extends z.ZodTypeAny>(schema: S, value: string | null | undefined, name: string): z.infer<S> => {
   const r = schema.safeParse(value ?? undefined);
   if (!r.success) throw new HttpError(400, "bad_param", `${name}: ${r.error.issues[0]?.message ?? "invalid"}`);
@@ -73,6 +71,6 @@ export const param = <S extends z.ZodTypeAny>(schema: S, value: string | null | 
 };
 
 export const qAddress = zAddress;
-export const qUint = zUint;
+export const qUint = zUint.transform((v) => BigInt(v)).refine((n) => n <= maxUint256, "does not fit a uint256");
 export const qBool = z.enum(["true", "false"]).transform((v) => v === "true");
 export const qOptional = z.string().min(1).optional();

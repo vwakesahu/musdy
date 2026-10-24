@@ -43,7 +43,6 @@ describe.skipIf(!CONTRACTS_READY)(`trade, withdraw and launch through the relaye
     expect(trades.map((t) => t.isBuy)).toEqual([false, true]);
     expect(trades[1]!.musdAmount).toBe((100n * WAD).toString());
     expect(trades[0]!.venue).toBe("pool");
-    // NVDA's mock supply is the 20,000 seeded into the pool, priced near 151
     expect(BigInt(trades[1]!.marketCapMusd) / 10n ** 18n).toBeGreaterThan(2_900_000n);
     const info = (await get<TokenInfo>(s.app.url, `/tokens/${nvda}`)).body;
     expect(info.holders).toBe(1);
@@ -116,7 +115,6 @@ describe.skipIf(!CONTRACTS_READY)(`trade, withdraw and launch through the relaye
     const r = await post(s.app.url, "/actions/withdraw", await a.withdrawBody(coin.address, held, a.address));
     expect([r.status, r.body.code]).toEqual([400, "curve_locked"]);
 
-    // anyone can buy it on the curve
     const b = await Actor.create(s);
     await b.faucet();
     await b.trade(coin.address, true, 20n * WAD);

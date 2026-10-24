@@ -62,7 +62,6 @@ describe("personal_sign checks", () => {
     const t2 = iso();
     expect(await code(applyFollow(store, { ...follow, follow: false, issued: t2, sig: await a.signMessage({ message: followMessage(b.address, false, t2) }) }))).toBe("ok");
     expect(store.followCounts(b.address).followers).toBe(0);
-    // replaying the older follow must not undo the unfollow
     expect(await code(applyFollow(store, follow))).toBe("stale");
     expect(await code(applyFollow(store, { ...follow, target: a.address }))).toBe("self_follow");
     expect(await code(applyFollow(store, { ...follow, follow: false, issued: iso(500) }))).toBe("bad_signature");

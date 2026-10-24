@@ -35,7 +35,6 @@ const row = (i: number, user: string) => ({
   musd_f: 1,
 });
 
-// the real hub, views and sqlite store behind a real Bun.serve, with trades seeded straight into the db
 describe("socket hub", () => {
   let server: Server<WsData>;
   let store: Store;
@@ -102,7 +101,6 @@ describe("socket hub", () => {
     expect(s.messages.every((m) => m.type !== "trade" || m.replay)).toBe(true);
     s.close();
 
-    // a live trade lands while the client is gone
     store.insertTrade(row(61, ALICE));
     s = await TestSocket.open(url);
     s.send({ type: "subscribe", topic: "feed:global" });
@@ -162,7 +160,6 @@ describe("socket hub", () => {
     const s = await TestSocket.open(url);
     for (let i = 0; i <= MAX_TOPICS; i++) {
       s.send({ type: "subscribe", topic: `user:0x${i.toString(16).padStart(40, "0")}` });
-      // stay under the rate limit
       if (i % 15 === 14) await Bun.sleep(1000);
     }
     expect(await s.next((m) => m.type === "error")).toMatchObject({ code: "too_many_topics" });
@@ -170,7 +167,7 @@ describe("socket hub", () => {
   }, 15000);
 
   test("sockets per ip are capped before the upgrade, a closed socket frees its slot", () => {
-    const h = new Hub({ welcome: () => ({ type: "welcome", serverTime: 0, block: 0, chainId: 31337 }), replay: () => null });
+    const h = new Hub({ welcome: () => ({ type: "welcome", serverTime: 0, block: 0, chainId: 31337 }), replay: () => null, connBurst: 1e9 });
     const admitted = Array.from({ length: MAX_SOCKETS_PER_IP }, () => h.admit("9.9.9.9"));
     expect(admitted.every((d) => d !== null)).toBe(true);
     expect(h.admit("9.9.9.9")).toBeNull();
@@ -179,7 +176,6 @@ describe("socket hub", () => {
     expect(h.admit("9.9.9.9")).not.toBeNull();
   });
 
-  // a socket object the hub can drive without a server
   const fakeWs = (h: Hub, ip = "7.7.7.7") => {
     const sent: ServerMsg[] = [];
     const ws = { data: h.admit(ip)!, send: (f: string) => void sent.push(JSON.parse(f) as ServerMsg), close: () => {} };
@@ -218,7 +214,6 @@ describe("socket hub", () => {
     others.forEach((o, i) => h.message(o.ws, JSON.stringify({ type: "hello", address: addr(10 + i) })));
     expect(h.watchedAddresses()).toHaveLength(4);
     expect(others[3]!.sent.at(-1)).toMatchObject({ type: "error", code: "server_busy" });
-    // an address already watched never counts against the cap
     const again = fakeWs(h);
     h.message(again.ws, JSON.stringify({ type: "hello", address: addr(10) }));
     expect(again.sent).toHaveLength(0);
@@ -281,14 +276,12 @@ describe.skipIf(!CONTRACTS_READY)(`socket against anvil${SKIP_NOTE}`, () => {
       const sock = await TestSocket.open(`ws://localhost:${own.app.port}/ws`);
       sock.send({ type: "hello", address: me });
       await Bun.sleep(500);
-      // the hello itself reads the socket's own balances
       expect(proxy.count("eth_call")).toBeGreaterThan(0);
       proxy.reset();
       for (let i = 0; i < 10; i++) sock.send({ type: "subscribe", topic: `user:0x${crypto.randomUUID().replace(/-/g, "").padEnd(40, "0")}` });
       await Bun.sleep(1000);
       expect(proxy.count("eth_call", "eth_getBalance")).toBe(0);
       expect(sock.messages.some((m) => m.type === "balances")).toBe(false);
-      // its own topic gets a push, served from the same block's read
       sock.send({ type: "subscribe", topic: `user:${me}` });
       await sock.next((m) => m.type === "balances");
       sock.close();

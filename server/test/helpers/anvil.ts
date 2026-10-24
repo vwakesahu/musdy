@@ -23,7 +23,6 @@ const hasBin = (bin: string) => Bun.which(bin) !== null;
 export const ANVIL_READY = hasBin("anvil");
 
 const local = (): unknown => (JSON.parse(readFileSync(DEPLOYMENTS, "utf8")) as Record<string, unknown>)["31337"];
-// integration tests need the real contracts: a deploy script and a committed 31337 deployment
 export const CONTRACTS_READY = ANVIL_READY && hasBin("forge") && existsSync(DEPLOY_SCRIPT) && !!local();
 export const SKIP_NOTE = CONTRACTS_READY ? "" : " [skipped: shared/deployments.json has no 31337 yet, merge the contracts first]";
 
@@ -80,7 +79,6 @@ export const tempDb = () => join(mkdtempSync(join(tmpdir(), "musdy-")), "test.db
 
 type Overrides = Partial<Record<keyof Env, string>>;
 
-// overrides can depend on the node, e.g. to put an rpc proxy in front of it
 export const startStack = async (overrides: Overrides | ((anvil: Anvil) => Overrides) = {}, opts: AppOpts = {}): Promise<Stack> => {
   const anvil = await startAnvil();
   const dep = await deployLocal(anvil.rpc);
@@ -109,7 +107,6 @@ export const startStack = async (overrides: Overrides | ((anvil: Anvil) => Overr
   };
 };
 
-// a json-rpc proxy in front of the node that counts calls per method
 export const rpcCounter = (target: () => string) => {
   const counts = new Map<string, number>();
   const server = Bun.serve({
@@ -120,7 +117,6 @@ export const rpcCounter = (target: () => string) => {
         const parsed = JSON.parse(body) as { method: string } | { method: string }[];
         for (const c of Array.isArray(parsed) ? parsed : [parsed]) counts.set(c.method, (counts.get(c.method) ?? 0) + 1);
       } catch {
-        // forwarded as is
       }
       const r = await fetch(target(), { method: "POST", headers: { "content-type": "application/json" }, body });
       return new Response(await r.text(), { status: r.status, headers: { "content-type": "application/json" } });

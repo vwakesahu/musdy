@@ -19,7 +19,6 @@ export const poolPrice = (
 export const curvePrice = (virtualMusd: bigint, virtualToken: bigint): bigint | null =>
   virtualToken === 0n ? null : (virtualMusd * WAD) / virtualToken;
 
-// execution price without the fee: buy musdAmount includes the fee, sell musdAmount excludes it
 export const tradePrice = (isBuy: boolean, musdAmount: bigint, fee: bigint, tokenAmount: bigint, decimals: number): bigint => {
   if (tokenAmount === 0n) return 0n;
   const gross = isBuy ? musdAmount - fee : musdAmount + fee;

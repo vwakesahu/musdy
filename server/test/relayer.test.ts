@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeAll, describe, expect, test } from "bun:test";
 import { createTestClient, createWalletClient, http, type Hash } from "viem";
-import { privateKeyToAccount } from "viem/accounts";
+import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { anvil } from "viem/chains";
 import type { ServerMsg } from "shared";
 import { WAD } from "../src/pricing";
@@ -33,10 +33,38 @@ describe.skipIf(!CONTRACTS_READY)(`relayer locks and stuck txs${SKIP_NOTE}`, () 
     const ok = res.filter((r) => r.status === 200);
     expect(ok).toHaveLength(1);
     expect(res.filter((r) => r.status === 409).every((r) => r.body.code === "in_flight")).toBe(true);
-    // a duplicate that arrives after the first one mined fails the nonce check instead, never a 200
     expect(res.every((r) => r.status === 200 || r.status === 409 || r.body.code === "bad_nonce")).toBe(true);
     expect((await a.waitTx(String(ok[0]!.body.id))).status).toBe("confirmed");
     expect(await relayerNonce()).toBe(start + 1);
+  }, 30000);
+
+  test("forged signatures for a victim's nonce never take its lock, the victim's real trade goes through", async () => {
+    const start = await relayerNonce();
+    const real = await a.tradeBody(nvda, true, 3n * WAD);
+    const forged = await a.tradeBody(nvda, true, 3n * WAD, { signer: privateKeyToAccount(generatePrivateKey()) });
+    const res = await Promise.all([
+      ...Array.from({ length: 5 }, () => post(s.app.url, "/actions/trade", forged)),
+      post(s.app.url, "/actions/trade", real),
+      ...Array.from({ length: 5 }, () => post(s.app.url, "/actions/trade", forged)),
+    ]);
+    const victim = res[5]!;
+    expect(victim.status).toBe(200);
+    expect(res.filter((_, i) => i !== 5).every((r) => r.status === 400 && r.body.code === "bad_signature")).toBe(true);
+    expect((await a.waitTx(String(victim.body.id))).status).toBe("confirmed");
+    expect(await relayerNonce()).toBe(start + 1);
+  }, 30000);
+
+  test("numbers too big for a uint256 are a 400 everywhere", async () => {
+    const huge = "9".repeat(78);
+    const body = await a.tradeBody(nvda, true, 1n);
+    const r = await post(s.app.url, "/actions/trade", { ...body, trade: { ...body.trade, amountIn: huge } });
+    expect([r.status, r.body.code]).toEqual([400, "bad_body"]);
+    const longer = await post(s.app.url, "/actions/trade", { ...body, trade: { ...body.trade, amountIn: "1".repeat(79) } });
+    expect(longer.status).toBe(400);
+    const q = await fetch(`${s.app.url}/quote?token=${nvda}&isBuy=true&amountIn=${huge}`);
+    expect(q.status).toBe(400);
+    const dep = await post(s.app.url, "/actions/deposit", { owner: a.address, token: s.dep.musd, amount: huge, deadline: huge, v: 27, r: `0x${"1".repeat(64)}`, s: `0x${"1".repeat(64)}` });
+    expect([dep.status, dep.body.code]).toEqual([400, "bad_body"]);
   }, 30000);
 
   test("a tx that sits unmined stays pending and keeps its lock, then confirms once mined", async () => {
@@ -70,7 +98,6 @@ describe.skipIf(!CONTRACTS_READY)(`relayer locks and stuck txs${SKIP_NOTE}`, () 
     expect(done.status).toBe("failed");
     expect(done.error).toContain("dropped");
     await node().setAutomine(true);
-    // the signed trade never ran, so the same body goes through now
     const again = await post(s.app.url, "/actions/trade", body);
     expect(again.status).toBe(200);
     expect((await a.waitTx(String(again.body.id))).status).toBe("confirmed");

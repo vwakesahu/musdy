@@ -16,7 +16,6 @@ export const get = async <T>(base: string, path: string): Promise<{ status: numb
 
 const mintAbi = parseAbi(["function mint(address to, uint256 amount)"]);
 
-// a fresh client ip per actor so the faucet's per ip limit only bites where a test means it to
 export const randomIp = () => `10.${[0, 0, 0].map(() => Math.floor(Math.random() * 256)).join(".")}`;
 
 export const deadline = (s = 600) => String(Math.floor(Date.now() / 1000) + s);
@@ -59,7 +58,6 @@ export class Actor {
     return this.pub.readContract({ address: token, abi: erc20Abi, functionName: "balanceOf", args: [this.address] });
   }
 
-  // the mocks expose a public mint, the deployer pays gas
   async mintToWallet(token: Address, amount: bigint) {
     const w = createWalletClient({ chain: anvil, transport: http(this.s.anvil.rpc), account: privateKeyToAccount(KEYS.DEPLOYER_KEY as `0x${string}`) });
     const hash = await w.writeContract({ address: token, abi: mintAbi, functionName: "mint", args: [this.address, amount] });
@@ -72,7 +70,6 @@ export class Actor {
       .then((m) => (m.type === "tx" ? m.tx : Promise.reject(new Error("not a tx"))));
   }
 
-  // posts, expects Accepted, waits for the final status and for the server to index the block
   async submit(path: string, body: unknown): Promise<TxStatus> {
     const r = await post(this.s.app.url, path, body, { "x-forwarded-for": this.ip });
     if (r.status !== 200) throw new Error(`${path} ${r.status} ${JSON.stringify(r.body)}`);

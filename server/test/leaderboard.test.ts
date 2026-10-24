@@ -41,15 +41,12 @@ describe("leaderboard ranking", () => {
     const store = new Store(openDb(tempDb()));
     store.seedToken({ address: TOKEN, symbol: "TKN", name: "Token", decimals: 18, kind: "stock", createdAt: 0 });
     const book = new PriceBook(store);
-    // OLD bought 10 days ago at 1 and sold 9 days ago at 3: +20 all time, nothing in d1 or d7
     store.insertTrade(trade(OLD, true, 10n * WAD, 10n * WAD, now - 10 * 86400));
     store.insertTrade(trade(OLD, false, 30n * WAD, 10n * WAD, now - 9 * 86400));
     book.record(TOKEN, now - 10 * 86400, 1, WAD);
     book.record(TOKEN, now - 9 * 86400, 2, 3n * WAD);
-    // today both buy 10 at 2, the price ends at 2.5
     store.insertTrade(trade(WINNER, true, 20n * WAD, 10n * WAD, now - 3600));
     store.insertTrade(trade(LOSER, true, 20n * WAD, 10n * WAD, now - 3600));
-    // the loser dumps at 1.5
     store.insertTrade(trade(LOSER, false, 15n * WAD, 10n * WAD, now - 1800));
     book.record(TOKEN, now - 3600, 3, 2n * WAD);
     book.record(TOKEN, now - 60, 4, (5n * WAD) / 2n);
@@ -88,14 +85,12 @@ describe("positions table", () => {
       });
     };
     store.insertTrade(trade(A, true, 20n * WAD, 10n * WAD, now - 7000));
-    // a partial curve fill: less MUSD used than asked, fewer tokens out
     store.insertTrade(trade(A, true, 7n * WAD, 3n * WAD, now - 6000));
     store.insertTrade(trade(B, true, 9n * WAD, 4n * WAD, now - 5500));
     store.insertTrade(trade(A, false, 9n * WAD, 4n * WAD, now - 5000));
     transfer(A, "deposit", 5n * WAD, now - 4000);
     transfer(A, "withdraw", 2n * WAD, now - 3000);
     store.insertTrade(trade(B, false, 11n * WAD, 4n * WAD, now - 2000));
-    // selling more than tracked clamps to zero
     store.insertTrade(trade(A, false, 30n * WAD, 100n * WAD, now - 1000));
     store.insertTrade(trade(B, true, 3n * WAD, WAD, now - 500));
 

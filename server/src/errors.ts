@@ -13,10 +13,8 @@ export class HttpError extends Error {
 
 const isError = <T extends { type: string }>(x: T): x is Extract<T, { type: "error" }> => x.type === "error";
 
-// errors that can bubble out of the launchpad, tokens and openzeppelin during a vault call
 const extraErrors = [
   ...launchpadAbi.filter(isError),
-  // Locked, OnlyLaunchpad and the erc20 errors
   ...musdyTokenAbi.filter(isError),
   ...parseAbi([
     "error ERC2612ExpiredSignature(uint256 deadline)",
@@ -26,7 +24,6 @@ const extraErrors = [
   ]),
 ];
 
-// turns a failed simulation into the revert's error name, or null if it was not a revert
 export const revertOf = (e: unknown): { code: string; message: string } | null => {
   if (!(e instanceof BaseError)) return null;
   const r = e.walk((x) => x instanceof ContractFunctionRevertedError);

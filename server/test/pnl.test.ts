@@ -22,11 +22,9 @@ describe("average cost pnl", () => {
       { ts: 3, token: T, kind: "sell", amount: 5n * WAD, musd: 150n * WAD },
     ];
     const h = replay(flows).get(T)!;
-    // avg cost 20, selling 5 removes 100 of cost and realizes 50
     expect(h.amount).toBe(15n * WAD);
     expect(h.cost).toBe(300n * WAD);
     expect(h.realized).toBe(50n * WAD);
-    // marked at 25: 15*25 - 300 = 75 unrealized, plus 50 realized
     expect(pnlAt(flows, 10, flat({ 0: 25n * WAD }))).toBe(125n * WAD);
   });
 
@@ -49,7 +47,6 @@ describe("average cost pnl", () => {
   test("windows subtract the pnl at the window start", () => {
     const now = 10 * DAY;
     const flows: Flow[] = [{ ts: 1, token: T, kind: "buy", amount: 10n * WAD, musd: 100n * WAD }];
-    // price 10 at the start, 12 eight days in, 15 today
     const value = flat({ 0: 10n * WAD, [2 * DAY]: 12n * WAD, [now - 3600]: 15n * WAD });
     expect(pnlWindow(flows, now, "all", value)).toBe(50n * WAD);
     expect(pnlWindow(flows, now, "d7", value)).toBe(30n * WAD);
@@ -75,21 +72,18 @@ describe.skipIf(!CONTRACTS_READY)(`pnl against anvil${SKIP_NOTE}`, () => {
     const pos = p.positions.find((x: Position) => x.token.address === nvda)!;
     expect(pos.costMusd).toBe((100n * WAD).toString());
     expect(BigInt(pos.amount)).toBe(await a.vaultBalance(nvda));
-    // the fee and price impact make it slightly negative right after the buy
     expect(BigInt(pos.pnlMusd) < 0n).toBe(true);
     expect(BigInt(p.balanceMusd)).toBe(900n * WAD);
 
     await b.trade(nvda, true, 900n * WAD);
     p = (await get<Profile>(s.app.url, `/users/${a.address}`)).body;
     const after = p.positions.find((x: Position) => x.token.address === nvda)!;
-    // the seeded pool is deep, so the move is small but it must lift a's mark
     expect(BigInt(after.pnlMusd) > BigInt(pos.pnlMusd)).toBe(true);
     expect(BigInt(after.valueMusd) > BigInt(pos.valueMusd)).toBe(true);
     expect(after.withdrawable).toBe(true);
     expect(BigInt(p.pnl.all)).toBe(BigInt(after.pnlMusd));
     expect(BigInt(p.pnl.d1)).toBe(BigInt(after.pnlMusd));
 
-    // selling it all realizes the pnl and closes the position
     await a.trade(nvda, false, await a.vaultBalance(nvda));
     p = (await get<Profile>(s.app.url, `/users/${a.address}`)).body;
     expect(p.positions.find((x: Position) => x.token.address === nvda)).toBeUndefined();

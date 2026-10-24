@@ -25,7 +25,6 @@ export type Wallet = WalletClient<Transport, Chain, Account>;
 export interface Clients {
   chain: Chain;
   pub: PublicClient<Transport, Chain>;
-  // used only to be told about new blocks
   watch: PublicClient<Transport, Chain>;
   relayer: Wallet;
   faucet: Wallet | null;

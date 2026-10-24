@@ -1,5 +1,5 @@
 import { verifyMessage, type Address, type Hex } from "viem";
-import { FollowBody, ProfileBody, followMessage, profileMessage } from "shared";
+import { FollowBody, ProfileBody, followMessage, profileMessage, zIssued } from "shared";
 import { HttpError } from "./errors";
 import { parseBody } from "./relayer";
 import type { Store } from "./store";
@@ -7,11 +7,8 @@ import type { Store } from "./store";
 export const MESSAGE_TTL_MS = 5 * 60 * 1000;
 const MAX_SKEW_MS = 60 * 1000;
 
-const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/;
-
-// `issued` is an iso 8601 timestamp with a zone
 export const parseIssued = (issued: string): number | null => {
-  if (!ISO.test(issued)) return null;
+  if (!zIssued.safeParse(issued).success) return null;
   const ms = Date.parse(issued);
   return Number.isNaN(ms) ? null : ms;
 };

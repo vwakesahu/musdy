@@ -8,7 +8,6 @@ import type { PositionState, Store, TokenRow, TradeRow } from "./store";
 const addr = (a: string): Address => getAddress(a);
 const now = () => Math.floor(Date.now() / 1000);
 const LIST_LIMIT = 100;
-// the leaderboard is recomputed at most this often
 export const LEADER_TTL_MS = 3000;
 
 export class Views {
@@ -61,7 +60,6 @@ export class Views {
     return rows.map((r) => this.feedItem(r));
   }
 
-  // newest 50 of a trade topic, oldest first
   replay(topic: string): FeedItem[] | null {
     const [kind, sub, rest] = topic.split(":");
     let rows: TradeRow[] | null = null;
@@ -132,7 +130,6 @@ export class Views {
       .slice(0, LIST_LIMIT);
   }
 
-  // portfolio
   value: ValueFn = (token, amount, ts) => {
     const row = this.store.token(token);
     if (!row) return 0n;
@@ -169,7 +166,6 @@ export class Views {
     return flows.sort((a, b) => a.block - b.block || a.log - b.log);
   }
 
-  // every position from full history, the indexer keeps the same thing incrementally in the positions table
   recomputePositions(): PositionState[] {
     const out: PositionState[] = [];
     const users = new Set([...this.store.traders(), ...this.store.allPositions().map((p) => p.user)]);
@@ -240,8 +236,7 @@ export class Views {
     };
   }
 
-  // all time pnl comes straight from the positions table. a window only replays history for users who
-  // moved inside it, everyone else held still, so their window pnl is the mark to market move of their holdings
+  // window pnl replays only users who moved inside it, everyone else is marked to market
   leaderboard(window: PnlWindow): LeaderRow[] {
     const cached = this.leaderCache.get(window);
     if (cached && Date.now() - cached.at < LEADER_TTL_MS) return cached.rows;
@@ -269,7 +264,6 @@ export class Views {
 
     const rows: Omit<LeaderRow, "rank">[] = [];
     for (const [user, ps] of byUser) {
-      // only traders rank
       if (!ps.some((p) => p.trades > 0)) continue;
       let pnl = 0n;
       if (window === "all") {
@@ -281,7 +275,6 @@ export class Views {
       }
       const s = stats.get(user) ?? { volume: 0n, bought: 0n, trades: 0 };
       if (pnl === 0n && s.trades === 0) continue;
-      // pct is pnl over MUSD spent buying in the window
       rows.push({ user: this.userRef(user), pnlMusd: pnl.toString(), pnlPct: ratio(pnl, s.bought), volumeMusd: s.volume.toString(), trades: s.trades });
     }
     rows.sort((a, b) => {
