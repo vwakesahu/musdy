@@ -59,5 +59,66 @@
       }
     ],
     "vault": "0xc5a5C42992dECbae36851359345FE25997F5C42d"
+  },
+  "31611": {
+    "btc": "0x7b7C000000000000000000000000000000000000",
+    "chainId": 31611,
+    "factory": "0x4947243CC818b627A5D06d14C4eCe7398A23Ce1A",
+    "launchpad": "0x8779B801C6b0851008cA5955c0b413c4C8bADFF6",
+    "musd": "0x118917a40FAF1CD7a13dB0Ef56C86De7973Ac503",
+    "router": "0x9a1ff7FE3a0F69959A3fBa1F1e5ee18e1A9CD7E9",
+    "startBlock": 16343685,
+    "tokens": [
+      {
+        "address": "0x118917a40FAF1CD7a13dB0Ef56C86De7973Ac503",
+        "decimals": 18,
+        "kind": "musd",
+        "name": "Mezo USD",
+        "symbol": "MUSD"
+      },
+      {
+        "address": "0x7b7C000000000000000000000000000000000000",
+        "decimals": 18,
+        "kind": "btc",
+        "name": "Bitcoin",
+        "symbol": "BTC"
+      },
+      {
+        "address": "0x0dd342913752311E88BBfb0184E3f55FAeFc866a",
+        "decimals": 18,
+        "kind": "stock",
+        "name": "NVIDIA",
+        "symbol": "NVDA"
+      },
+      {
+        "address": "0x012296B64995A9E3dB50249AFdB409a9954b1457",
+        "decimals": 18,
+        "kind": "stock",
+        "name": "Alphabet",
+        "symbol": "GOOGL"
+      },
+      {
+        "address": "0x7AdC67AB18eFa1Ce921e4054C01C5A8E8699375D",
+        "decimals": 18,
+        "kind": "stock",
+        "name": "Tesla",
+        "symbol": "TSLA"
+      },
+      {
+        "address": "0x9E15Eb378a6428aa9880bF7aa1C333929fDB199F",
+        "decimals": 18,
+        "kind": "stock",
+        "name": "Coinbase",
+        "symbol": "COIN"
+      },
+      {
+        "address": "0xE8856cD7F6dd14962bF00Df2738C93957BdD4904",
+        "decimals": 18,
+        "kind": "stock",
+        "name": "Circle",
+        "symbol": "CRCL"
+      }
+    ],
+    "vault": "0xE6bdDc38313ff3E1484109c82f0cA69200Fa1119"
   }
 }
