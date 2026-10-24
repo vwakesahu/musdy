@@ -20,7 +20,7 @@ export const buttonVariants = cva(
         "icon-sm": "size-9 rounded-md [&_svg:not([class*='size-'])]:size-4.5",
       },
       variant: {
-        primary: "bg-accent text-on-accent shadow-glow hover:brightness-110 *:data-[slot=button-loading-indicator]:text-on-accent",
+        primary: "bg-accent text-on-accent hover:brightness-110 *:data-[slot=button-loading-indicator]:text-on-accent",
         buy: "bg-buy text-black hover:brightness-110 *:data-[slot=button-loading-indicator]:text-black",
         sell: "bg-down text-white hover:brightness-110 *:data-[slot=button-loading-indicator]:text-white",
         secondary: "bg-surface-2 text-text hover:bg-surface-3 *:data-[slot=button-loading-indicator]:text-text",
