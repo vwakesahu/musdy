@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
 import type { FeedItem } from "shared";
-import { useActions } from "@/hooks/use-actions";
+import { useActions, type Meta } from "@/hooks/use-actions";
+import { displayName, usd } from "@/lib/format";
 import { useCash } from "@/hooks/use-live";
 import { useSession } from "@/hooks/use-session";
 import { useTxRun } from "@/hooks/use-tx-run";
@@ -15,7 +16,21 @@ export function CopyButton({ item }: { item: FeedItem }) {
   const { signer } = useSession();
   const loginOpen = useStore(sheet, (s) => s === "login", false);
   const [afterLogin, setAfterLogin] = useState(false);
-  const { run, sending: busy, confirmed: done } = useTxRun();
+  const { run, signing: busy, accepted: done } = useTxRun();
+  const who = displayName(item.user);
+  const describe = (amountIn: bigint, out: bigint): Meta => {
+    const label = `${usd(amountIn, true)} of ${item.token.symbol}`;
+    return {
+      kind: "copy",
+      title: `Copy ${who}: buy ${label}`,
+      done: `Bought ${label}, copying ${who}`,
+      pending: `Copying ${who}: buying ${label}`,
+      cashDelta: -amountIn,
+      pos: { token: item.token, delta: out, musd: amountIn },
+      feed: { token: item.token, isBuy: true, musdAmount: amountIn.toString(), tokenAmount: out.toString(), priceMusd: item.priceMusd, ref: item.user },
+    };
+  };
+  const go = (c: bigint) => run(() => actions.copy(item, c, describe));
 
   const copy = () => {
     if (!signer) {
@@ -23,7 +38,7 @@ export function CopyButton({ item }: { item: FeedItem }) {
       openSheet("login");
       return;
     }
-    void run(() => actions.copy(item, cash ?? 0n));
+    void go(cash ?? 0n);
   };
 
   if (afterLogin && !signer && !loginOpen) setAfterLogin(false);
@@ -33,12 +48,13 @@ export function CopyButton({ item }: { item: FeedItem }) {
     void Promise.resolve().then(() => {
       if (!live) return;
       setAfterLogin(false);
-      void run(() => actions.copy(item, cash));
+      void go(cash);
     });
     return () => {
       live = false;
     };
-  }, [afterLogin, signer, cash, actions, item, run]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [afterLogin, signer, cash]);
 
   const waiting = busy || (afterLogin && !!signer);
   return (

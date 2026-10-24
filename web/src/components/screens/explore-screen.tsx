@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
@@ -8,7 +9,7 @@ import { UnderlineTabs } from "../underline-tabs";
 import { ScreenHeader } from "../screen-header";
 import { TokenRow } from "../token-row";
 import { EmptyState } from "../ui/empty-state";
-import { MagnifyingGlassIcon, XIcon } from "@phosphor-icons/react";
+import { CaretRightIcon, MagnifyingGlassIcon, RocketIcon, XIcon } from "@phosphor-icons/react";
 import { RightRail } from "../right-rail";
 import { api } from "@/lib/http";
 import { liveTokens } from "@/lib/live";
@@ -17,7 +18,7 @@ import { keyOf } from "@/lib/xchain";
 
 const empties: Record<TokenSort, { title: string; body: string }> = {
   trending: { title: "Nothing is trending yet", body: "Coins with the most buying in the last day show up here." },
-  new: { title: "No launches yet", body: "Launch the first coin from the Launch tab. It shows up here with its curve progress." },
+  new: { title: "No launches yet", body: "Launch the first coin with the button above. It shows up here with its curve progress." },
   stocks: { title: "No stocks or BTC listed yet", body: "Tokens with a MUSD pool on Mezo show up here." },
 };
 
@@ -88,6 +89,24 @@ export function ExploreScreen() {
           )}
         </label>
       </div>
+      {!needle && (
+        <div className="px-4 pt-3 lg:px-6">
+          <Link
+            href="/launch"
+            className="press flex min-h-[68px] items-center gap-3 rounded-[14px] border border-border bg-surface px-3 py-3 transition-colors hover:bg-surface-3"
+            data-testid="explore-launch"
+          >
+            <span className="grid size-11 shrink-0 place-items-center rounded-full bg-accent text-white shadow-glow">
+              <RocketIcon size={22} weight="fill" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[16px] leading-5 font-medium">Launch a coin</span>
+              <span className="mt-0.5 block truncate text-[13px] leading-[17px] text-muted">Name it, pick a ticker, make the first buy</span>
+            </span>
+            <CaretRightIcon size={16} weight="bold" className="text-muted" />
+          </Link>
+        </div>
+      )}
       {!needle && (
         <UnderlineTabs
           label="Sort"

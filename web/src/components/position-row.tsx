@@ -4,9 +4,10 @@ import { signedBig, tokenAmount, usd } from "@/lib/format";
 import { LockSimpleIcon } from "@phosphor-icons/react/ssr";
 import { Change, Pnl } from "./ui/pnl";
 import { TokenIcon } from "./ui/token-icon";
+import { FillingTag } from "./ui/filling-tag";
 import { tokenHref } from "@/lib/xchain";
 
-export function PositionRow({ position }: { position: Position }) {
+export function PositionRow({ position }: { position: Position & { filling?: boolean } }) {
   const t = position.token;
   return (
     <Link
@@ -19,6 +20,7 @@ export function PositionRow({ position }: { position: Position }) {
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-1.5 text-[16px] leading-5 font-medium">
           <span className="truncate">{t.name || t.symbol}</span>
+          {position.filling && <FillingTag />}
           {!position.withdrawable && <LockSimpleIcon size={14} weight="fill" className="shrink-0 text-muted" aria-label="On its launch curve" />}
         </span>
         <span className="mt-1 block truncate text-[13px] leading-[17px] text-muted">

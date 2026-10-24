@@ -7,9 +7,13 @@ import { LoginGate } from "../login-gate";
 import { ScreenHeader } from "../screen-header";
 import { Button } from "../ui/button";
 import { CurveBar } from "../ui/curve-bar";
+import { MorphButton } from "../ui/morph-button";
+import { ArrowSquareOutIcon, CaretLeftIcon } from "@phosphor-icons/react";
+import Link from "next/link";
+import { mezoTx, txUrl } from "@/lib/explorer";
 import { TokenIcon } from "../ui/token-icon";
 import { useActions } from "@/hooks/use-actions";
-import { useCash, useTx } from "@/hooks/use-live";
+import { useCash } from "@/hooks/use-live";
 import { useSession } from "@/hooks/use-session";
 import { useTxRun } from "@/hooks/use-tx-run";
 import { parseDollars, usd } from "@/lib/format";
@@ -54,7 +58,14 @@ const labelCls = "text-[13px] leading-[17px] font-medium text-muted";
 export function LaunchScreen() {
   return (
     <>
-      <ScreenHeader title="Launch a coin" login={false} />
+      <ScreenHeader
+        title="Launch a coin"
+        left={
+          <Link href="/explore" aria-label="Back to explore" className="press -ml-2 grid size-11 place-items-center lg:hidden">
+            <CaretLeftIcon size={22} weight="bold" />
+          </Link>
+        }
+      />
       <LoginGate title="Launch a coin in one step" body="Log in to name it, pick a ticker and make the first buy. No gas, no wallet popups.">
         <LaunchForm />
       </LoginGate>
@@ -72,9 +83,9 @@ function LaunchForm() {
   const [art, setArt] = useState(0);
   const [buy, setBuy] = useState("");
   const { address } = useSession();
-  const { run, sending, confirmed, txId } = useTxRun();
-  const tx = useTx(txId);
+  const { run, morph, accepted, confirmed, txId, tx } = useTxRun();
   const launching = useRef<{ symbol: string; at: number } | null>(null);
+  const [launched, setLaunched] = useState("");
   const went = useRef(false);
 
   const initialBuy = parseDollars(buy);
@@ -85,7 +96,7 @@ function LaunchForm() {
   const imageError = custom ? issue(rules.image, image) : null;
   const imageOk = imageError === null;
   const short = cash !== null && initialBuy > cash;
-  const ok = nameOk && symbolOk && imageOk && !short && !sending;
+  const ok = nameOk && symbolOk && imageOk && !short;
 
   const go = (token: Address | null) => {
     if (went.current) return;
@@ -146,9 +157,16 @@ function LaunchForm() {
 
   const submit = () => {
     launching.current = { symbol, at: nowSec() };
+    setLaunched(symbol);
     went.current = false;
     const picked = custom ? image : `${appUrl}/art/${seeds[art]}.svg`;
-    return run(() => actions.launch({ name: name.trim(), symbol, image: picked, initialBuy }));
+    const first = initialBuy > 0n ? ` with a ${usd(initialBuy, true)} first buy` : "";
+    return run(() =>
+      actions.launch(
+        { name: name.trim(), symbol, image: picked, initialBuy },
+        { kind: "launch", title: `Launch ${symbol}${first}`, done: `${symbol} launched`, pending: `Launching ${symbol}`, cashDelta: -initialBuy },
+      ),
+    );
   };
 
   return (
@@ -247,10 +265,26 @@ function LaunchForm() {
           </p>
         )}
       </div>
-      <Button variant="primary" size="lg" className="w-full" disabled={!ok} onClick={submit} data-testid="launch-submit">
-        {sending ? "Launching" : symbol ? `Launch ${symbol}` : "Launch"}
-      </Button>
+      <MorphButton state={morph} className="w-full" disabled={morph === "idle" && !ok} onClick={submit} doneLabel="Launched" data-testid="launch-submit">
+        {symbol ? `Launch ${symbol}` : "Launch"}
+      </MorphButton>
+      {accepted && launched && <LaunchOutcome symbol={launched} hash={tx?.hash ?? null} />}
       {desktop && <RightRail>{preview}</RightRail>}
     </div>
+  );
+}
+
+function LaunchOutcome({ symbol, hash }: { symbol: string; hash: string | null }) {
+  const ref = mezoTx(hash);
+  const url = ref ? txUrl(ref) : null;
+  return (
+    <p className="-mt-2 flex items-center justify-center gap-2 text-[14px] leading-5 font-medium animate-in fade-in duration-200" role="status" data-testid="launch-success">
+      <span className="text-up">{symbol} is launching, opening its page</span>
+      {url && (
+        <a href={url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-accent hover:underline">
+          View tx <ArrowSquareOutIcon size={14} weight="bold" />
+        </a>
+      )}
+    </p>
   );
 }

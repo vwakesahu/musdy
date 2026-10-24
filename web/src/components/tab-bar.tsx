@@ -21,7 +21,7 @@ function TabBarView({ path }: { path: string }) {
   return (
     <nav aria-label="Main" className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-bg pb-[env(safe-area-inset-bottom)] lg:hidden">
       <ul className="mx-auto flex h-14 max-w-[720px] items-stretch">
-        {NAV.filter((t) => t.phone).map((t) => {
+        {NAV.map((t) => {
           const active = t.match(path);
           const Icon = t.icon;
           return (

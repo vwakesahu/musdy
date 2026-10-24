@@ -16,6 +16,8 @@ import type { Address } from "viem";
 import { env } from "@/lib/env";
 import { chainMeta } from "@/lib/xchain";
 import { Skeleton } from "./ui/skeleton";
+import { Spinner } from "./ui/spinner";
+import { mezoTx } from "@/lib/explorer";
 import { Drawer } from "./ui/drawer";
 
 const DAY = 86_400_000;
@@ -44,6 +46,7 @@ export function DepositSheet({ open, onOpenChange }: { open: boolean; onOpenChan
   const dep = useDeployment().data;
   const actions = useActions();
   const [busy, setBusy] = useState(false);
+  const [justClaimed, setJustClaimed] = useState(false);
   const [step, setStep] = useState<number | null>(null);
   const health = useQuery({ queryKey: ["health"], queryFn: api.health, enabled: open, staleTime: 60_000 }).data;
   const faucetOn = health?.faucet === true;
@@ -58,7 +61,10 @@ export function DepositSheet({ open, onOpenChange }: { open: boolean; onOpenChan
   const [wasOpen, setWasOpen] = useState(open);
   if (open !== wasOpen) {
     setWasOpen(open);
-    if (open) setStep(null);
+    if (open) {
+      setStep(null);
+      setJustClaimed(false);
+    }
   }
 
   useStore(claimTick, (n) => n, 0);
@@ -69,13 +75,18 @@ export function DepositSheet({ open, onOpenChange }: { open: boolean; onOpenChan
   const faucet = async () => {
     if (!address) return;
     setBusy(true);
-    const res = await actions.faucet((e) => {
-      if (e instanceof ApiError && LIMITED.has(e.code)) writeClaim(address);
-    });
+    const amount = health ? BigInt(health.faucetAmount) : 0n;
+    const res = await actions.faucet(
+      { kind: "faucet", title: `Faucet ${faucetText} test MUSD`, done: `${faucetText} test MUSD added to your cash`, cashDelta: amount },
+      (e) => {
+        if (e instanceof ApiError && LIMITED.has(e.code)) writeClaim(address);
+      },
+    );
     setBusy(false);
     if (res) {
       writeClaim(address);
-      toast("success", `Faucet request sent, ${faucetText} MUSD is on its way`);
+      setJustClaimed(true);
+      toast("success", `Faucet request sent, ${faucetText} MUSD is on its way`, { key: res.id, tx: mezoTx(res.hash) });
     }
   };
 
@@ -124,8 +135,16 @@ export function DepositSheet({ open, onOpenChange }: { open: boolean; onOpenChan
           ))}
           {faucetOn && (
             <button className={`${row} mt-2`} disabled={busy || claimedAt !== null} onClick={faucet} data-testid="faucet">
-              <span className="grid size-10 shrink-0 place-items-center rounded-full bg-surface-2 text-text">
-                <DropIcon size={20} weight="fill" />
+              <span className={`grid size-10 shrink-0 place-items-center rounded-full transition-colors duration-200 ${justClaimed ? "bg-up text-black" : "bg-surface-2 text-text"}`}>
+                {busy ? (
+                  <Spinner className="size-5" />
+                ) : justClaimed ? (
+                  <svg width="20" height="20" viewBox="0 0 24 24" className="draw-check" aria-hidden>
+                    <path d="m5 12.5 4.5 4.5L19 7.5" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                ) : (
+                  <DropIcon size={20} weight="fill" />
+                )}
               </span>
               <span className="min-w-0 flex-1">
                 <span className="block text-[16px] leading-5 font-medium">

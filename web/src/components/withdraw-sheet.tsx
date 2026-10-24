@@ -1,16 +1,19 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { formatUnits, isAddress, parseUnits, type Address } from "viem";
-import { useActions } from "@/hooks/use-actions";
+import { useActions, type Meta } from "@/hooks/use-actions";
 import { useDeployment } from "@/hooks/use-deployment";
-import { useCash, useProfile, useTx } from "@/hooks/use-live";
+import { useProfile, useServerCash } from "@/hooks/use-live";
 import { useTxRun } from "@/hooks/use-tx-run";
 import { useSession } from "@/hooks/use-session";
 import { tokenAmount, usd } from "@/lib/format";
 import { ApiError } from "@/lib/http";
-import { Button } from "./ui/button";
-import { ArrowSquareOutIcon, ArrowUpIcon, CheckIcon, LockSimpleIcon, WalletIcon } from "@phosphor-icons/react";
-import { chain } from "@/lib/chain";
+import { MorphButton } from "./ui/morph-button";
+import { ArrowSquareOutIcon, CheckIcon, LockSimpleIcon } from "@phosphor-icons/react";
+import { env } from "@/lib/env";
+import { mezoTx, txUrl } from "@/lib/explorer";
+
+const CLOSE_AFTER_TICK_MS = 900;
 import { cn } from "@/lib/utils";
 import { Drawer } from "./ui/drawer";
 import { isMezo } from "@/lib/xchain";
@@ -21,20 +24,19 @@ type Asset = { address: Address; symbol: string; image: string | null; decimals:
 export function WithdrawSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
   const { address } = useSession();
   const dep = useDeployment().data;
-  const cash = useCash();
-  const profile = useProfile(address).data;
+  const cash = useServerCash();
+  const positions = useProfile(address).data?.positions;
   const actions = useActions();
   const [selected, setSelected] = useState<Address | null>(null);
   const [amount, setAmount] = useState("");
   const [to, setTo] = useState("");
   const [locked, setLocked] = useState<string | null>(null);
-  const { run, sending, confirmed, txId } = useTxRun();
-  const tx = useTx(txId);
+  const { run, morph, accepted, tx, reset } = useTxRun();
   const [pending, setPending] = useState<{ label: string; to: string } | null>(null);
 
   const assets: Asset[] = [
     ...(dep && cash !== null && cash > 0n ? [{ address: dep.musd, symbol: "MUSD", image: "/tokens/musd.svg", decimals: 18, amount: cash, withdrawable: true }] : []),
-    ...(profile?.positions ?? [])
+    ...(positions ?? [])
       .filter((p) => BigInt(p.amount) > 0n && isMezo(p.token))
       .map((p) => ({ ...p.token, address: p.token.address as Address, amount: BigInt(p.amount), withdrawable: p.withdrawable })),
   ];
@@ -54,23 +56,42 @@ export function WithdrawSheet({ open, onOpenChange }: { open: boolean; onOpenCha
   const toBad = to !== "" && !validTo;
   const tooMuch = asset !== null && amountWei > asset.amount;
 
-  const done = confirmed && pending ? { ...pending, hash: tx?.hash ?? null } : null;
-
   const change = (o: boolean) => {
     if (!o) {
       setPending(null);
       setSelected(null);
       setAmount("");
+      reset();
     }
     onOpenChange(o);
   };
 
+  const closeRef = useRef(change);
+  useEffect(() => {
+    closeRef.current = change;
+  });
+  useEffect(() => {
+    if (!accepted) return;
+    const t = setTimeout(() => closeRef.current(false), CLOSE_AFTER_TICK_MS);
+    return () => clearTimeout(t);
+  }, [accepted]);
+
   const submit = async () => {
     if (!asset || !validTo) return;
     setLocked(null);
-    setPending({ label: asset.symbol === "MUSD" ? usd(amountWei, true) : `${tokenAmount(amountWei, asset.decimals)} ${asset.symbol}`, to });
+    const label = asset.symbol === "MUSD" ? `${usd(amountWei, true)} MUSD` : `${tokenAmount(amountWei, asset.decimals)} ${asset.symbol}`;
+    setPending({ label, to });
+    const musd = asset.symbol === "MUSD";
+    const meta: Meta = {
+      kind: "withdraw",
+      title: `Withdraw ${label} to ${short(to)}`,
+      done: `Withdrawal sent, ${label} to ${short(to)}`,
+      pending: `Sending ${label} to ${short(to)}`,
+      cashDelta: musd ? -amountWei : 0n,
+      pos: musd ? undefined : { token: { address: asset.address, chainId: env.chainId, symbol: asset.symbol, name: asset.symbol, image: asset.image, decimals: asset.decimals }, delta: -amountWei, musd: 0n },
+    };
     const res = await run(() =>
-      actions.withdraw({ token: asset.address, amount: amountWei, to: to as Address }, (e) => {
+      actions.withdraw({ token: asset.address, amount: amountWei, to: to as Address }, meta, (e) => {
         if (e instanceof ApiError && e.code === "curve_locked") setLocked(`${asset.symbol} is still on its launch curve. It can leave once the coin graduates. ${e.message}`);
       }),
     );
@@ -84,10 +105,8 @@ export function WithdrawSheet({ open, onOpenChange }: { open: boolean; onOpenCha
   };
 
   return (
-    <Drawer open={open} onOpenChange={change} title={done ? "Withdrew" : "Withdraw"} hideTitle={done !== null}>
-      {done ? (
-        <WithdrawDone done={done} onClose={() => change(false)} />
-      ) : assets.length === 0 ? (
+    <Drawer open={open} onOpenChange={change} title="Withdraw">
+      {assets.length === 0 && !pending ? (
         <p className="py-6 text-center text-[15px] text-muted">Nothing to withdraw yet. Your balance is empty.</p>
       ) : (
         <div className="flex flex-col gap-2">
@@ -164,9 +183,10 @@ export function WithdrawSheet({ open, onOpenChange }: { open: boolean; onOpenCha
                         {locked}
                       </p>
                     )}
-                    <Button variant="primary" size="lg" className="w-full" disabled={!validTo || amountBad || amountWei === 0n || tooMuch || sending} onClick={submit}>
-                      {sending ? "Sending" : `Withdraw ${asset.symbol}`}
-                    </Button>
+                    <MorphButton state={morph} className="w-full" disabled={morph === "idle" && (!validTo || amountBad || amountWei === 0n || tooMuch)} onClick={submit} doneLabel="Sent">
+                      {`Withdraw ${asset.symbol}`}
+                    </MorphButton>
+                    {accepted && pending && <WithdrawOutcome label={pending.label} to={pending.to} hash={tx?.hash ?? null} />}
                   </div>
                 )}
               </li>
@@ -189,30 +209,19 @@ function short(a: string) {
   return `${a.slice(0, 6)}…${a.slice(-4)}`;
 }
 
-function WithdrawDone({ done, onClose }: { done: { label: string; to: string; hash: string | null }; onClose: () => void }) {
-  const explorer = chain.blockExplorers?.default.url;
+function WithdrawOutcome({ label, to, hash }: { label: string; to: string; hash: string | null }) {
+  const ref = mezoTx(hash);
+  const url = ref ? txUrl(ref) : null;
   return (
-    <div className="flex min-h-[440px] flex-col" data-testid="withdraw-success">
-      <div className="flex flex-1 flex-col items-center justify-center gap-2 py-8 text-center">
-        <span className="mb-4 grid size-20 animate-in place-items-center rounded-full bg-up text-black zoom-in-60 duration-300">
-          <ArrowUpIcon size={36} weight="bold" />
-        </span>
-        <p className="text-[24px] leading-[30px] font-medium">Withdrew</p>
-        <p className="text-[34px] leading-10 font-medium tracking-[-0.02em] tabular-nums">{done.label}</p>
-        <p className="mt-3 flex items-center gap-2 text-[15px] text-text-2">
-          <WalletIcon size={18} weight="fill" className="text-muted" />
-          {short(done.to)}
-        </p>
-        {explorer && done.hash && (
-          <a href={`${explorer}/tx/${done.hash}`} target="_blank" rel="noreferrer" className="mt-5 inline-flex items-center gap-1.5 text-[15px] font-medium text-accent hover:underline">
-            View on explorer <ArrowSquareOutIcon size={16} weight="bold" />
-          </a>
-        )}
-      </div>
-      <button onClick={onClose} className="press relative flex h-14 w-full items-center justify-center rounded-[14px] bg-up text-[17px] font-semibold text-black transition-[filter] hover:brightness-110">
-        Withdraw complete
-        <CheckIcon size={22} weight="bold" className="absolute right-5" />
-      </button>
-    </div>
+    <p className="-mt-1 flex items-center justify-center gap-2 text-[14px] leading-5 font-medium animate-in fade-in duration-200" role="status" data-testid="withdraw-success">
+      <span className="text-up">
+        {label} on its way to {short(to)}
+      </span>
+      {url && (
+        <a href={url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-accent hover:underline">
+          View tx <ArrowSquareOutIcon size={14} weight="bold" />
+        </a>
+      )}
+    </p>
   );
 }

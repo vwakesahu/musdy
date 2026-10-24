@@ -9,7 +9,8 @@ import { EmptyState } from "../ui/empty-state";
 import { ArrowUpIcon, CurrencyDollarSimpleIcon, LockSimpleIcon, PlusIcon } from "@phosphor-icons/react";
 import { Pnl } from "../ui/pnl";
 import { Skeleton } from "../ui/skeleton";
-import { useCash, useProfile } from "@/hooks/use-live";
+import { useCash, usePositions, useProfile } from "@/hooks/use-live";
+import { ActivityList } from "../activity-list";
 import { useSession } from "@/hooks/use-session";
 import { signedBig, usd } from "@/lib/format";
 import { openSheet } from "@/lib/ui";
@@ -18,7 +19,7 @@ import { keyOf } from "@/lib/xchain";
 export function PortfolioScreen() {
   return (
     <>
-      <ScreenHeader title="Portfolio" login={false} />
+      <ScreenHeader title="Portfolio" />
       <LoginGate title="Your money, in one number" body="Log in to get a USD balance you can trade stocks, BTC and new coins from.">
         <Portfolio />
       </LoginGate>
@@ -42,7 +43,8 @@ function Portfolio() {
   const profile = useProfile(address);
   const cash = useCash();
   const p = profile.data;
-  const positions = (p?.positions ?? []).filter((x) => BigInt(x.amount) > 0n);
+  const shownPositions = usePositions(address);
+  const positions = (shownPositions ?? []).filter((x) => BigInt(x.amount) > 0n);
   const posValue = positions.reduce((s, x) => s + BigInt(x.valueMusd), 0n);
   const total = cash !== null && p ? cash + posValue : p ? BigInt(p.totalValueMusd) : null;
   const pnlAll = p ? signedBig(p.pnl.all) : 0n;
@@ -127,6 +129,8 @@ function Portfolio() {
           {locked.map((x) => x.token.symbol).join(", ")} {locked.length === 1 ? "is" : "are"} still on the launch curve. You can sell any time, and withdraw once the coin graduates.
         </p>
       )}
+
+      {address && <ActivityList address={address} />}
 
       <RightRail>
         <section>

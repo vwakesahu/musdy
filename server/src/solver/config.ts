@@ -44,6 +44,7 @@ export const coinAddress = (chainId: number, a: string): string | null => {
 export interface SolverEnv {
   SOLVER_KEY?: `0x${string}`;
   SOLVER_SOLANA_KEY?: string;
+  SOLVER_AUTO_GAS?: boolean;
   RELAY_API_KEY?: string;
   RELAY_URL: string;
   BASE_RPC_URL?: string;

@@ -1,18 +1,32 @@
+import type { TxRef } from "./explorer";
 import { createStore } from "./store";
 
-export type Toast = { id: number; kind: "info" | "success" | "error"; text: string };
+export type ToastKind = "info" | "pending" | "success" | "error";
+export type Toast = { id: number; kind: ToastKind; text: string; tx?: TxRef; key?: string };
+type Opts = { tx?: TxRef; key?: string; ms?: number };
 
 let next = 1;
 export const toasts = createStore<Toast[]>([]);
+const timers = new Map<number, ReturnType<typeof setTimeout>>();
 
-export function toast(kind: Toast["kind"], text: string, ms = 4000) {
-  const id = next++;
-  toasts.set((t) => [...t.slice(-2), { id, kind, text }]);
-  setTimeout(() => dismissToast(id), ms);
+// a toast with the same key is replaced in place, so a pending tx toast turns into its outcome
+export function toast(kind: ToastKind, text: string, opts: Opts | number = {}) {
+  const o = typeof opts === "number" ? { ms: opts } : opts;
+  const prev = o.key ? toasts.get().find((t) => t.key === o.key) : undefined;
+  const id = prev?.id ?? next++;
+  const item: Toast = { id, kind, text, tx: o.tx, key: o.key };
+  toasts.set((list) => (prev ? list.map((t) => (t.id === id ? item : t)) : [...list.slice(-2), item]));
+  clearTimeout(timers.get(id));
+  timers.delete(id);
+  if (kind !== "error" && kind !== "pending") timers.set(id, setTimeout(() => dismissToast(id), o.ms ?? (o.tx ? 6000 : 4000)));
   return id;
 }
 
-export const dismissToast = (id: number) => toasts.set((t) => t.filter((x) => x.id !== id));
+export const dismissToast = (id: number) => {
+  clearTimeout(timers.get(id));
+  timers.delete(id);
+  toasts.set((t) => t.filter((x) => x.id !== id));
+};
 
 const friendly: Record<string, string> = {
   faucet_limited: "You already claimed test MUSD today. The faucet allows one claim every 24 hours.",

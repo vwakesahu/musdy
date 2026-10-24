@@ -56,6 +56,9 @@ export class FakeRunner implements StepRunner {
   received(): Promise<bigint | null> {
     return Promise.resolve(null);
   }
+  nativeBalance(): Promise<bigint | null> {
+    return Promise.resolve(10n ** 30n);
+  }
 
   runs: Quote[] = [];
   fail: Error | null = null;

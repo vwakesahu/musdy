@@ -1,8 +1,10 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { motion } from "motion/react";
-import { useQuery } from "@tanstack/react-query";
-import { ArrowsDownUpIcon, CheckIcon } from "@phosphor-icons/react";
+import { motion, useReducedMotion } from "motion/react";
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ArrowSquareOutIcon, ArrowsDownUpIcon } from "@phosphor-icons/react";
+import { mezoTx, shortHash, txUrl } from "@/lib/explorer";
+import { MorphButton } from "./ui/morph-button";
 import type { FeedItem, TokenRef } from "shared";
 import { isSolverOff, useActions, withSlippage } from "@/hooks/use-actions";
 import { useDebounced } from "@/hooks/use-debounced";
@@ -79,6 +81,14 @@ type PanelProps = {
   onDone: () => void;
 };
 
+const QUOTE_FRESH_MS = 4000;
+const ESTIMATE_EXTRA_BPS = 300n;
+const CLOSE_AFTER_TICK_MS = 700;
+
+type Quoted = Awaited<ReturnType<typeof api.quote>> & { for: string; at: number };
+const quoteKey = (token: TradeToken, isBuy: boolean, amount: bigint) => ["quote", keyOf(token), isBuy, amount.toString()];
+const fetchQuote = async (token: TradeToken, isBuy: boolean, amount: bigint): Promise<Quoted> => ({ ...(await api.quote(token, isBuy, amount)), for: amount.toString(), at: Date.now() });
+
 export function TradePanel({ token, priceMusd, change, held, side, faces = [], holders, active, compactPad = false, onDone }: PanelProps) {
   const [input, setInput] = useState("");
   const [inToken, setInToken] = useState(false);
@@ -86,12 +96,13 @@ export function TradePanel({ token, priceMusd, change, held, side, faces = [], h
   const { address } = useSession();
   const cash = useCash();
   const actions = useActions();
-  const { run, sending, confirmed: success, failed } = useTxRun();
+  const qc = useQueryClient();
+  const { run, morph, accepted, tx } = useTxRun();
   const isBuy = side === "buy";
   const unit = 10n ** BigInt(token.decimals);
 
-  const [submitted, setSent] = useState<{ amountIn: bigint; dollars: bigint; tokens: bigint; heldBefore: bigint } | null>(null);
-  const sent = failed ? null : submitted;
+  const [submitted, setSent] = useState<{ amountIn: bigint; dollars: bigint; tokens: bigint } | null>(null);
+  const sent = morph === "idle" ? null : submitted;
   const entered = parseDollars(input);
   const typedTokens = inToken ? (entered * unit) / E18 : priceMusd > 0n ? (entered * unit) / priceMusd : 0n;
   const typedDollars = inToken ? (typedTokens * priceMusd) / unit : entered;
@@ -100,16 +111,31 @@ export function TradePanel({ token, priceMusd, change, held, side, faces = [], h
   const liveDollars = isBuy || (sellPct === null && !inToken) ? typedDollars : (liveAmountIn * priceMusd) / unit;
   const amountIn = sent?.amountIn ?? liveAmountIn;
   const shownDollars = sent?.dollars ?? liveDollars;
-  const positionIn = success && isBuy && sent !== null && held > sent.heldBefore;
 
-  const debounced = useDebounced(amountIn.toString());
+  const debounced = useDebounced(amountIn.toString(), 150);
   const quote = useQuery({
-    queryKey: ["quote", keyOf(token), isBuy, debounced],
-    queryFn: () => api.quote(token, isBuy, BigInt(debounced)),
+    queryKey: quoteKey(token, isBuy, BigInt(debounced)),
+    queryFn: () => fetchQuote(token, isBuy, BigInt(debounced)),
     enabled: active && BigInt(debounced) > 0n,
     staleTime: 3000,
+    placeholderData: keepPreviousData,
   });
-  const q = quote.data && debounced === amountIn.toString() ? quote.data : null;
+
+  useEffect(() => {
+    if (!active) return;
+    const first = isBuy ? BigInt(BUY_CHIPS[0]) * E18 : held;
+    if (first > 0n) void qc.prefetchQuery({ queryKey: quoteKey(token, isBuy, first), queryFn: () => fetchQuote(token, isBuy, first), staleTime: 3000 });
+  }, [active, isBuy, held, token, qc]);
+
+  const last = quote.data && BigInt(quote.data.for) > 0n && amountIn > 0n ? quote.data : null;
+  const exact = last && last.for === amountIn.toString() ? last : null;
+  const [now, setNow] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  const usable = exact ?? (last && now - last.at < QUOTE_FRESH_MS ? last : null);
+  const outFor = (q: Quoted) => (q.for === amountIn.toString() ? BigInt(q.amountOut) : (BigInt(q.amountOut) * amountIn) / BigInt(q.for));
   const [solverOff, setSolverOff] = useState(false);
   const closed = solverOff || isSolverOff(quote.error);
 
@@ -118,10 +144,10 @@ export function TradePanel({ token, priceMusd, change, held, side, faces = [], h
     done.current = onDone;
   });
   useEffect(() => {
-    if (!success) return;
-    const t = setTimeout(() => done.current(), isBuy && !positionIn ? 5000 : 2500);
+    if (!accepted) return;
+    const t = setTimeout(() => done.current(), CLOSE_AFTER_TICK_MS);
     return () => clearTimeout(t);
-  }, [success, isBuy, positionIn]);
+  }, [accepted]);
 
   const short = isBuy && cash !== null && amountIn > cash;
   const sellTooMuch = !isBuy && sellTokens > held;
@@ -146,13 +172,24 @@ export function TradePanel({ token, priceMusd, change, held, side, faces = [], h
   });
 
   const submit = async () => {
-    if (!q) return;
-    const tokensOut = isBuy ? BigInt(q.amountOut) : liveAmountIn;
-    const frozen = { amountIn: liveAmountIn, dollars: liveDollars, tokens: tokensOut, heldBefore: held };
-    setSent(frozen);
-    const order = { token, isBuy, amountIn: frozen.amountIn, minOut: withSlippage(BigInt(q.amountOut)) };
+    if (!usable) return;
+    const out = outFor(usable);
+    const tokensOut = isBuy ? out : liveAmountIn;
+    const dollars = isBuy ? liveAmountIn : out;
+    setSent({ amountIn: liveAmountIn, dollars: liveDollars, tokens: tokensOut });
+    const order = { token, isBuy, amountIn: liveAmountIn, minOut: withSlippage(out, usable === exact ? 0n : ESTIMATE_EXTRA_BPS) };
+    const label = `${usd(dollars, true)} of ${token.symbol}`;
+    const meta = {
+      kind: "trade" as const,
+      title: `${isBuy ? "Buy" : "Sell"} ${label}`,
+      done: `${isBuy ? "Bought" : "Sold"} ${label}`,
+      pending: `${isBuy ? "Buying" : "Selling"} ${label}`,
+      cashDelta: isBuy ? -liveAmountIn : out,
+      pos: { token, delta: isBuy ? tokensOut : -liveAmountIn, musd: isBuy ? liveAmountIn : -liveDollars },
+      feed: { token, isBuy, musdAmount: dollars.toString(), tokenAmount: tokensOut.toString(), priceMusd: priceMusd.toString(), ref: null },
+    };
     const res = await run(() =>
-      actions.trade(order, (e) => {
+      actions.trade(order, meta, (e) => {
         if (isSolverOff(e)) setSolverOff(true);
         return isSolverOff(e);
       }),
@@ -168,47 +205,11 @@ export function TradePanel({ token, priceMusd, change, held, side, faces = [], h
     setInToken((v) => !v);
   };
 
-  if (success && sent) {
-    return (
-      <div className="flex min-h-[420px] flex-col" role="status" data-testid="trade-success">
-        <div className="flex flex-1 flex-col items-center justify-center pt-6 text-center">
-          <motion.span
-            initial={{ scale: 0.6, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ type: "spring", bounce: 0.4, duration: 0.45 }}
-            className="grid size-20 place-items-center rounded-full bg-up text-black"
-          >
-            <CheckIcon size={36} weight="bold" />
-          </motion.span>
-          <p className="mt-6 text-[24px] leading-[30px] font-medium">{isBuy ? `Bought ${token.symbol}` : `Sold ${token.symbol}`}</p>
-          <p className="mt-1 text-[34px] leading-10 font-medium tracking-[-0.02em] tabular-nums" data-testid="trade-amount">
-            ${fixed2(shownDollars)}
-          </p>
-          <p className="mt-2 text-[15px] text-muted tabular-nums">
-            {tokenAmount(sent.tokens, token.decimals)} {token.symbol}
-          </p>
-          {isBuy &&
-            (positionIn ? (
-              <p className="mt-1 text-[15px] text-muted tabular-nums" data-testid="trade-position">
-                You hold {tokenAmount(held, token.decimals)} {token.symbol}, {usd((held * priceMusd) / unit, true)}
-              </p>
-            ) : (
-              <span className="skeleton mt-2 h-4 w-48" aria-hidden />
-            ))}
-        </div>
-        <button onClick={onDone} className="press mt-8 flex h-14 w-full cursor-pointer items-center justify-center gap-2 rounded-lg bg-up text-[17px] font-semibold text-black">
-          Done
-          <CheckIcon size={20} weight="bold" />
-        </button>
-      </div>
-    );
-  }
-
   const big = sent !== null || sellPct !== null ? `$${fixed2(shownDollars)}` : inToken ? input || "0" : `$${input || "0"}`;
   const sub = inToken
     ? `$${fixed2(typedDollars)}`
     : isBuy
-      ? `${q ? tokenAmount(BigInt(q.amountOut), token.decimals) : tokenAmount(typedTokens, token.decimals)} ${token.symbol}`
+      ? `${usable ? tokenAmount(outFor(usable), token.decimals) : tokenAmount(typedTokens, token.decimals)} ${token.symbol}`
       : `${tokenAmount(amountIn > 0n ? amountIn : held, token.decimals)} ${token.symbol}${amountIn > 0n ? "" : " held"}`;
   const empty = !input && sellPct === null;
 
@@ -234,17 +235,17 @@ export function TradePanel({ token, priceMusd, change, held, side, faces = [], h
     );
   } else {
     cta = (
-      <Button
+      <MorphButton
+        state={morph}
         variant={isBuy ? "buy" : "sell"}
-        size="lg"
-        className="w-full text-white"
-        disabled={amountIn === 0n || !q || sellTooMuch}
-        loading={sending}
+        className={cn("w-full", morph !== "success" && "text-white")}
+        disabled={morph === "idle" && (amountIn === 0n || !usable || sellTooMuch)}
         onClick={submit}
+        doneLabel={isBuy ? "Bought" : "Sold"}
         data-testid="trade-submit"
       >
         {`${isBuy ? "Buy" : "Sell"} ${token.symbol}`}
-      </Button>
+      </MorphButton>
     );
   }
 
@@ -337,25 +338,56 @@ export function TradePanel({ token, priceMusd, change, held, side, faces = [], h
           {isBuy ? (cash !== null ? `${usd(cash)} available` : "") : `${tokenAmount(held, token.decimals)} ${token.symbol} held`}
         </span>
         <span className="truncate text-right text-text">
-          {closed
-            ? ""
-            : quote.isError
-            ? <span className="text-down">Quote unavailable</span>
-            : q
-              ? `Fee ${usd(BigInt(q.fee), true)}${isBuy ? "" : ` · you get ${usd(BigInt(q.amountOut), true)}`}${q.priceImpact > 0.01 ? ` · ${(q.priceImpact * 100).toFixed(1)}% impact` : ""}`
-              : amountIn > 0n
-                ? <span className="text-muted">Getting a quote</span>
-                : ""}
+          {closed ? (
+            ""
+          ) : quote.isError && !last ? (
+            <span className="text-down">Quote unavailable</span>
+          ) : last ? (
+            <span className={cn("transition-opacity duration-150", !exact && "opacity-60")}>
+              {`Fee ${usd(BigInt(last.fee), true)}${isBuy ? "" : ` · you get ${usd(outFor(last), true)}`}${last.priceImpact > 0.01 ? ` · ${(last.priceImpact * 100).toFixed(1)}% impact` : ""}`}
+            </span>
+          ) : amountIn > 0n ? (
+            <span className="text-muted">Getting a quote</span>
+          ) : (
+            ""
+          )}
         </span>
       </p>
 
       <div className="mt-3">{cta}</div>
-      {demoFill && (
+      {accepted && sent ? (
+        <Outcome text={`${isBuy ? "Bought" : "Sold"} ${usd(sent.dollars, true)} of ${token.symbol}`} hash={tx?.hash ?? null} />
+      ) : demoFill && (
         <p className="mt-2 text-center text-[12px] leading-4 text-muted" data-testid="demo-note">
           Demo: your balance is Mezo testnet MUSD, the fill is real on {chainLabel(token.chainId)}
         </p>
       )}
     </div>
+  );
+}
+
+function Outcome({ text, hash }: { text: string; hash: string | null }) {
+  const reduced = useReducedMotion();
+  const tx = mezoTx(hash);
+  const url = tx ? txUrl(tx) : null;
+  return (
+    <motion.p
+      initial={{ opacity: 0, y: reduced ? 0 : 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: reduced ? 0 : 0.22, ease: [0.19, 1, 0.22, 1] }}
+      className="mt-3 flex min-h-5 items-center justify-center gap-2 text-[14px] leading-5 font-medium"
+      role="status"
+      data-testid="trade-success"
+    >
+      <span className="text-up">{text}</span>
+      {url ? (
+        <a href={url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-accent hover:underline">
+          View tx <ArrowSquareOutIcon size={14} weight="bold" />
+        </a>
+      ) : (
+        <span className="text-muted">{tx ? shortHash(tx.hash) : "filling"}</span>
+      )}
+    </motion.p>
   );
 }
 

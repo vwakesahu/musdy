@@ -49,10 +49,13 @@ export interface SolverDeps {
   book: PriceBook;
   hub: Hub;
   pollMs?: number;
+  autoGas?: boolean;
   waitingMs?: number;
   fillMs?: number;
 }
 
+const GAS_MIN: Record<number, bigint> = { 56: 300_000_000_000_000n, [SOLANA]: 5_000_000n };
+const GAS_TOPUP_USDC = "500000";
 export const MIN_BUY_MUSD = 10n ** 18n;
 const RETRY_MS = 30_000;
 
@@ -169,6 +172,34 @@ export class Solver {
     return sol;
   }
 
+  // sells send a tx on the coin's own chain, so the solver keeps a little native gas there, bought from base usdc through relay
+  private async ensureGas(chainId: number) {
+    const min = GAS_MIN[chainId];
+    const bal = await this.d.runner.nativeBalance(chainId);
+    if (min === undefined || bal === null || bal >= min) return;
+    if (!this.d.autoGas) throw new Fail(`the solver has no gas on chain ${chainId} yet, selling this coin opens once it's topped up`);
+    const recipient = chainId === SOLANA ? this.d.runner.solanaAddress : this.d.runner.evmAddress;
+    if (!recipient) throw new Fail("solana trading is off, the server has no SOLVER_SOLANA_KEY");
+    log("solver.gas_topup", { chainId, balance: bal.toString() });
+    const q = await this.d.relay.quote({
+      user: this.d.runner.evmAddress,
+      recipient,
+      originChainId: BASE,
+      originCurrency: BASE_USDC,
+      destinationChainId: chainId,
+      destinationCurrency: chainId === SOLANA ? "11111111111111111111111111111111" : "0x0000000000000000000000000000000000000000",
+      amount: GAS_TOPUP_USDC,
+      tradeType: "EXACT_INPUT",
+    });
+    await this.d.runner.run(q);
+    for (let i = 0; i < 60; i++) {
+      const now = await this.d.runner.nativeBalance(chainId);
+      if (now !== null && now >= min) return;
+      await Bun.sleep(1000);
+    }
+    throw new Fail(`gas top up on chain ${chainId} didn't arrive in time`);
+  }
+
   async quote(chainId: number, token: string, isBuy: boolean, amountIn: bigint): Promise<{ amountOut: bigint; fee: bigint; impact: number }> {
     const row = { is_buy: isBuy ? 1 : 0, chain_id: chainId, token, amount_in: amountIn.toString() } as unknown as IntentRow;
     const q = await this.d.relay.quote(this.quoteParams(row));
@@ -239,6 +270,7 @@ export class Solver {
     if (!row.is_buy) {
       const free = this.d.store.held(row.user, row.chain_id, row.token) - this.d.store.reservedSells(row.user, row.chain_id, row.token, row.id);
       if (free < BigInt(row.amount_in)) throw new Fail("you hold less of this coin than you are selling");
+      if (row.chain_id !== BASE) await this.ensureGas(row.chain_id);
     }
     let q: Quote;
     try {

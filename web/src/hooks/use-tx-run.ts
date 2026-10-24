@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useState } from "react";
 import type { TxStatus } from "shared";
+import type { MorphState } from "@/components/ui/morph-button";
 import { useTx } from "./use-live";
 
 export function useTxRun() {
@@ -15,6 +16,9 @@ export function useTxRun() {
     setTxId(res?.id ?? null);
     return res;
   }, []);
+  const reset = useCallback(() => setTxId(null), []);
   const status = tx?.status ?? null;
-  return { run, txId, sending: signing || status === "pending", confirmed: status === "confirmed", failed: status === "failed" };
+  const accepted = txId !== null && status !== "failed";
+  const morph: MorphState = signing ? "pending" : accepted ? "success" : "idle";
+  return { run, reset, txId, tx, signing, accepted, morph, confirmed: status === "confirmed", failed: status === "failed" };
 }

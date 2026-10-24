@@ -10,6 +10,8 @@ import { UserAvatar } from "./ui/avatar";
 import { PctChip } from "./ui/pnl";
 import { TokenIcon } from "./ui/token-icon";
 import { tokenHref } from "@/lib/xchain";
+import { isPendingItem } from "@/lib/optimistic";
+import { FillingTag } from "./ui/filling-tag";
 
 export function SideTag({ buy }: { buy: boolean }) {
   return (
@@ -24,7 +26,8 @@ export function FeedRow({ item, self }: { item: FeedItem; self: boolean }) {
   const current = useCurrentPrice(item.token);
   const at = BigInt(item.priceMusd);
   const mc = BigInt(item.marketCapMusd);
-  const since = item.isBuy && current !== null && at > 0n ? Number(((current - at) * 10_000n) / at) / 10_000 : null;
+  const pending = isPendingItem(item);
+  const since = !pending && item.isBuy && current !== null && at > 0n ? Number(((current - at) * 10_000n) / at) / 10_000 : null;
 
   return (
     <div
@@ -33,6 +36,7 @@ export function FeedRow({ item, self }: { item: FeedItem; self: boolean }) {
       data-id={item.id}
       data-user={item.user.address.toLowerCase()}
       data-side={item.isBuy ? "buy" : "sell"}
+      data-pending={pending || undefined}
     >
       <Link href={tokenHref(item.token)} className="absolute inset-0" aria-label={`${item.token.symbol} details`} />
       <Link href={`/u/${item.user.address}`} className="relative z-10 shrink-0 self-start" aria-label={displayName(item.user)}>
@@ -42,7 +46,7 @@ export function FeedRow({ item, self }: { item: FeedItem; self: boolean }) {
         <div className="flex items-center gap-1.5">
           <span className="truncate text-[16px] leading-5 font-medium">{displayName(item.user)}</span>
           <SideTag buy={item.isBuy} />
-          {now > 0 && <span className="shrink-0 text-[14px] leading-5 text-muted">{timeAgo(item.ts, now)}</span>}
+          {pending ? <FillingTag /> : now > 0 && <span className="shrink-0 text-[14px] leading-5 text-muted">{timeAgo(item.ts, now)}</span>}
         </div>
         <div className="mt-2.5 flex items-center gap-2.5 text-[16px] leading-5">
           <TokenIcon token={item.token} size={32} />

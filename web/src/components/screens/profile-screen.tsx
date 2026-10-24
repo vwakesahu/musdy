@@ -30,7 +30,7 @@ export function OwnProfileScreen() {
   const { address } = useSession();
   return (
     <>
-      <ScreenHeader title="Profile" login={false} />
+      <ScreenHeader title="Profile" />
       <LoginGate title="Make a name for yourself" body="Log in to pick a handle, follow traders and show your PnL.">
         {address && <ProfileView address={address} />}
       </LoginGate>
@@ -87,7 +87,7 @@ function ProfileView({ address }: { address: Address }) {
   const toggleFollow = async () => {
     const next = !isFollowing;
     setBusy(true);
-    const ok = await actions.follow(address, next);
+    const ok = await actions.follow(address, next, displayName(user));
     setBusy(false);
     if (ok) setFollowing(next);
   };
@@ -148,7 +148,7 @@ function ProfileView({ address }: { address: Address }) {
               variant={isFollowing ? "secondary" : "primary"}
               size="md"
               className="mt-5 w-full"
-              disabled={busy}
+              loading={busy}
               onClick={toggleFollow}
               data-testid="follow"
             >

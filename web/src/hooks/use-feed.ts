@@ -1,8 +1,14 @@
 "use client";
-import { useEffect, useReducer } from "react";
+import { useEffect, useMemo, useReducer } from "react";
 import { useQuery } from "@tanstack/react-query";
-import type { FeedItem } from "shared";
+import type { FeedItem, TxStatus } from "shared";
+import { liveTxs } from "@/lib/live";
+import { feedWith, type Op, ops } from "@/lib/optimistic";
+import { useStore } from "@/lib/store";
 import { useTopic } from "./use-topic";
+
+const noOps: Op[] = [];
+const noTxs: Record<string, TxStatus> = {};
 
 const MAX = 200;
 
@@ -40,7 +46,9 @@ export function useTradeList(topic: string | null, queryKey: unknown[], fetcher:
     if (m.type === "trade") dispatch({ key, add: [m.item], live: !m.replay });
   });
 
-  const items = state.key === key ? state.items : [];
+  const pending = useStore(ops, (o) => o, noOps);
+  const txs = useStore(liveTxs, (t) => t, noTxs);
+  const items = useMemo(() => feedWith(pending, topic, state.key === key ? state.items : [], (id) => txs[id]?.hash ?? null), [pending, topic, state, key, txs]);
   const live = state.key === key ? state.live : null;
   return { items, live, loading: q.isPending && !!fetcher && items.length === 0, error: q.error };
 }

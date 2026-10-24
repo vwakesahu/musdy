@@ -42,8 +42,8 @@ export function HandleSheet({ open, onOpenChange, current }: { open: boolean; on
           />
         </label>
         <p className="text-[12px] leading-4 text-muted">3 to 15 characters: lowercase letters, numbers and underscores.</p>
-        <Button variant="primary" size="lg" className="w-full" disabled={!ok || saving} onClick={save} data-testid="save-handle">
-          {saving ? "Saving" : "Save handle"}
+        <Button variant="primary" size="lg" className="w-full" disabled={!ok} loading={saving} onClick={save} data-testid="save-handle">
+          Save handle
         </Button>
       </div>
     </Drawer>

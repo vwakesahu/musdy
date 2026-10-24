@@ -3,7 +3,16 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { dismissToast, toasts, type Toast } from "@/lib/toast";
 import { useStore } from "@/lib/store";
 import { openDialogs } from "@/lib/ui";
-import { XIcon } from "@phosphor-icons/react";
+import { ArrowSquareOutIcon, CheckCircleIcon, InfoIcon, WarningCircleIcon, XIcon } from "@phosphor-icons/react";
+import { txUrl } from "@/lib/explorer";
+import { Spinner } from "./ui/spinner";
+
+function StatusIcon({ kind }: { kind: Toast["kind"] }) {
+  if (kind === "pending") return <Spinner className="size-5 text-accent-hi" aria-label="In progress" />;
+  if (kind === "success") return <CheckCircleIcon size={20} weight="fill" className="text-up" aria-hidden />;
+  if (kind === "error") return <WarningCircleIcon size={20} weight="fill" className="text-down" aria-hidden />;
+  return <InfoIcon size={20} weight="fill" className="text-accent-hi" aria-hidden />;
+}
 
 const none: Toast[] = [];
 
@@ -28,20 +37,34 @@ export function Toaster({ inSheet = false }: { inSheet?: boolean }) {
             layout
             role={t.kind === "error" ? "alert" : "status"}
             data-toast={t.kind}
+            aria-live={t.kind === "error" ? "assertive" : "polite"}
             initial={{ opacity: 0, y: reduced ? 0 : -16 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: reduced ? 0 : -8 }}
             transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
-            className={`pointer-events-auto flex min-h-11 items-start gap-3 rounded-[22px] border px-4 py-2.5 shadow-panel ${t.kind === "error" ? "border-down/40 bg-down-soft" : "border-border-strong bg-surface"}`}
+            className={`pointer-events-auto flex min-h-11 items-start gap-2.5 rounded-[22px] border py-2.5 pr-1 pl-3 shadow-panel ${t.kind === "error" ? "border-down/40 bg-down-soft" : "border-border-strong bg-surface"}`}
           >
-            <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${t.kind === "error" ? "bg-down" : t.kind === "success" ? "bg-up" : "bg-accent"}`} />
-            <p className="flex-1 pt-px text-[14px] leading-5 font-medium">{t.text}</p>
-            <button aria-label="Dismiss" onClick={() => dismissToast(t.id)} className="-my-3 -mr-3 grid h-11 w-11 shrink-0 place-items-center text-muted">
+            <span className="grid h-5 shrink-0 place-items-center">
+              <StatusIcon kind={t.kind} />
+            </span>
+            <p className="min-w-0 flex-1 text-[14px] leading-5 font-medium">{t.text}</p>
+            <TxLink toast={t} />
+            <button aria-label="Dismiss" onClick={() => dismissToast(t.id)} className="-my-2.5 grid h-10 w-10 shrink-0 cursor-pointer place-items-center text-muted hover:text-text">
               <XIcon size={16} weight="bold" />
             </button>
           </motion.div>
         ))}
       </AnimatePresence>
     </div>
+  );
+}
+
+function TxLink({ toast: t }: { toast: Toast }) {
+  const url = t.tx ? txUrl(t.tx) : null;
+  if (!url) return null;
+  return (
+    <a href={url} target="_blank" rel="noreferrer" className="inline-flex h-5 shrink-0 items-center gap-1 text-[14px] leading-5 font-semibold whitespace-nowrap text-accent hover:underline" data-testid="toast-tx">
+      View tx <ArrowSquareOutIcon size={14} weight="bold" />
+    </a>
   );
 }

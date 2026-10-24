@@ -1,5 +1,6 @@
 "use client";
 import { useRouter } from "next/navigation";
+import { HeaderAccount } from "./header-account";
 import { SocketBanner } from "./socket-banner";
 import { CaretLeftIcon } from "@phosphor-icons/react";
 
@@ -16,6 +17,9 @@ export function BackBar({ title }: { title: string }) {
           <CaretLeftIcon size={22} weight="bold" />
         </button>
         <h1 className="flex-1 truncate text-[17px] font-semibold">{title}</h1>
+        <span className="pr-2 lg:pr-2">
+          <HeaderAccount />
+        </span>
       </header>
       <SocketBanner />
     </>

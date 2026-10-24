@@ -60,7 +60,7 @@ export const makeSolver = (
     const runner =
       opts.runner ??
       new LiveRunner({ key: env.SOLVER_KEY, solanaKey: env.SOLVER_SOLANA_KEY, rpc: { base: env.BASE_RPC_URL, bsc: env.BSC_RPC_URL, solana: env.SOLANA_RPC_URL } });
-    solver = new Solver({ relay, runner, ops, store: sstore, views: d.views, book: d.book, hub: d.hub, pollMs: opts.pollMs });
+    solver = new Solver({ relay, runner, ops, store: sstore, views: d.views, book: d.book, hub: d.hub, pollMs: opts.pollMs, autoGas: env.SOLVER_AUTO_GAS === true });
   }
   const deposits = new Deposits({
     relay,

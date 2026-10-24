@@ -6,7 +6,9 @@ test("launch a coin and find it under new", async ({ page }, info) => {
   const symbol = `T${Date.now().toString(36).slice(-5).toUpperCase()}`;
   await devLogin(page);
   await ensureCash(page);
-  await page.goto("/launch");
+  await page.goto("/explore");
+  await page.getByTestId("explore-launch").click();
+  await page.waitForURL(/\/launch$/);
   await page.getByLabel("Name").fill(`Test ${symbol}`);
   await page.getByLabel(/Ticker/).fill(symbol);
   await page.getByRole("button", { name: "$10", exact: true }).click();

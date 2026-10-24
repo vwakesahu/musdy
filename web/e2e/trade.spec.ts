@@ -23,8 +23,7 @@ test("buy and sell a stock from the sheet", async ({ page }, info) => {
   await expect(page.getByTestId("trade-quote")).toContainText("Fee");
   await shot(page, info, "trade-sheet");
   await page.getByTestId("trade-submit").click();
-  await expect(page.getByTestId("trade-success")).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByTestId("trade-amount")).toHaveText("$12.50");
+  await expect(page.getByTestId("trade-success")).toContainText(`Bought $12.50 of ${stock.symbol}`, { timeout: 30_000 });
 
   await expect.poll(() => vaultBalance(me.address, dep.musd), { timeout: 30_000 }).toBe(cash0 - parseUnits("12.5", 18));
   const stock1 = await vaultBalance(me.address, stock.address);
@@ -39,8 +38,7 @@ test("buy and sell a stock from the sheet", async ({ page }, info) => {
   await expect(page.getByTestId("trade-quote")).toContainText("you get");
   const shown = await page.getByTestId("trade-amount").innerText();
   await page.getByTestId("trade-submit").click();
-  await expect(page.getByTestId("trade-success")).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByTestId("trade-amount")).toHaveText(shown);
+  await expect(page.getByTestId("trade-success")).toContainText(`Sold ${shown}`, { timeout: 30_000 });
   await shot(page, info, "trade-sold");
 
   await expect.poll(() => vaultBalance(me.address, stock.address), { timeout: 30_000 }).toBe(0n);

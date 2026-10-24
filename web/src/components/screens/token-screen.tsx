@@ -10,6 +10,7 @@ import { PriceChart } from "../price-chart";
 import { RightRail } from "../right-rail";
 import { SocketBanner } from "../socket-banner";
 import { Delta, TradePanel, TradeSheet, type Side } from "../trade-sheet";
+import { FillingTag } from "../ui/filling-tag";
 import { UserAvatar } from "../ui/avatar";
 import { Button } from "../ui/button";
 import { CurveBar } from "../ui/curve-bar";
@@ -19,7 +20,7 @@ import { Skeleton } from "../ui/skeleton";
 import { TokenIcon } from "../ui/token-icon";
 import { UnderlineTabs } from "../underline-tabs";
 import { useTradeList } from "@/hooks/use-feed";
-import { useLivePrice, useLiveToken, useProfile } from "@/hooks/use-live";
+import { useLivePrice, useLiveToken, usePositions } from "@/hooks/use-live";
 import { useIsDesktop } from "@/hooks/use-media-query";
 import { useNow } from "@/hooks/use-now";
 import { useSession } from "@/hooks/use-session";
@@ -73,7 +74,7 @@ function TokenView({ ref_ }: { ref_: ChainToken }) {
   const candles = useQuery({ queryKey: ["candles", key, r.tf], queryFn: () => api.candles(ref_, r.tf) });
   const topic = mezo ? topicKey(`token:${ref_.address}`) : null;
   const trades = useTradeList(topic, ["tokenTrades", key], () => api.tokenTrades(ref_));
-  const profile = useProfile(me);
+  const positions = usePositions(me);
 
   useTopic(topic, (m) => {
     if (m.type === "trade" && !m.replay) {
@@ -82,7 +83,7 @@ function TokenView({ ref_ }: { ref_: ChainToken }) {
     }
   });
 
-  const position = profile.data?.positions.find((p) => keyOf(p.token) === key);
+  const position = positions?.find((p) => keyOf(p.token) === key);
   const held = position ? BigInt(position.amount) : 0n;
   const p = livePrice?.priceMusd ?? (token ? BigInt(token.priceMusd) : 0n);
   const change = livePrice?.change24h ?? token?.change24h ?? 0;
@@ -210,7 +211,10 @@ function TokenView({ ref_ }: { ref_: ChainToken }) {
 
       {position && held > 0n && (
         <section className="mx-4 mt-6 border-y border-border py-4 lg:mx-6" data-testid="position-block">
-          <h2 className="text-[13px] leading-[17px] text-muted">Your position</h2>
+          <h2 className="flex items-center gap-2 text-[13px] leading-[17px] text-muted">
+            Your position
+            {position.filling && <FillingTag />}
+          </h2>
           <div className="mt-1 flex items-end justify-between gap-4">
             <div className="min-w-0">
               <p className="text-[24px] leading-[30px] font-medium tracking-[-0.02em] tabular-nums">{usd(BigInt(position.valueMusd), true)}</p>

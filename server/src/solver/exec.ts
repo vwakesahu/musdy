@@ -20,6 +20,7 @@ export interface StepRunner {
   solanaAddress: string | null;
   run(q: Quote): Promise<string[]>;
   received(chainId: number, hashes: string[], token: string, recipient: string): Promise<bigint | null>;
+  nativeBalance(chainId: number): Promise<bigint | null>;
 }
 
 export const parseSolanaKey = (raw: string): Keypair => {
@@ -71,6 +72,13 @@ export class LiveRunner implements StepRunner {
   }
 
   // relay reports a same chain swap as "no need to execute" with no amounts, so the receipt's transfer logs are the truth
+  async nativeBalance(chainId: number): Promise<bigint | null> {
+    if (chainId === SOLANA) return this.sol ? BigInt(await this.sol.conn.getBalance(this.sol.kp.publicKey)) : null;
+    const chain = this.chains[chainId];
+    if (!chain) return null;
+    return createPublicClient({ chain, transport: http() }).getBalance({ address: this.account.address });
+  }
+
   async received(chainId: number, hashes: string[], token: string, recipient: string): Promise<bigint | null> {
     const chain = this.chains[chainId];
     if (!chain || !hashes.length) return null;

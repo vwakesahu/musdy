@@ -3,7 +3,9 @@ import { buyAs, devLogin, other, shot, stock, third } from "./helpers";
 
 test("set a handle and follow a trader", async ({ page }, info) => {
   const handle = `e2e_${Date.now().toString(36).slice(-6)}`;
-  await devLogin(page, "/profile");
+  await devLogin(page, "/portfolio");
+  await page.getByRole("link", { name: "Profile" }).click();
+  await page.waitForURL(/\/profile$/);
   await page.getByTestId("edit-handle").click();
   await page.getByLabel("Handle").fill(handle);
   await page.getByTestId("save-handle").click();

@@ -16,6 +16,7 @@ export const Env = z.object({
   MARKET: z.enum(["0", "1", ""]).default("1").transform((v) => v !== "0"),
   SOLVER_KEY: z.preprocess((v) => (v === "" ? undefined : v), zKey.optional()),
   SOLVER_SOLANA_KEY: z.preprocess((v) => (v === "" ? undefined : v), z.string().optional()),
+  SOLVER_AUTO_GAS: z.enum(["0", "1", ""]).default("0").transform((v) => v === "1"),
   RELAY_API_KEY: z.preprocess((v) => (v === "" ? undefined : v), z.string().optional()),
   RELAY_URL: z.string().url().default("https://api.relay.link"),
   BASE_RPC_URL: z.preprocess((v) => (v === "" ? undefined : v), z.string().url().optional()),

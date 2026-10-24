@@ -5,6 +5,7 @@ import { api, type ChainToken } from "@/lib/http";
 import { liveBalances, livePrices, liveTokens, liveTxs, lk, type LivePrice } from "@/lib/live";
 import { useStore } from "@/lib/store";
 import { keyOf } from "@/lib/xchain";
+import { cashWith, ops, positionsWith, type Op, type ShownPosition } from "@/lib/optimistic";
 import { useDeployment } from "./use-deployment";
 import { useSession } from "./use-session";
 
@@ -37,7 +38,24 @@ export function useProfile(address: Address | null | undefined) {
   });
 }
 
+const noOps: Op[] = [];
+export const useOps = () => useStore(ops, (o) => o, noOps);
+
 export function useCash(): bigint | null {
+  const server = useServerCash();
+  const { address } = useSession();
+  const list = useOps();
+  return server === null ? null : cashWith(list, address, server);
+}
+
+export function usePositions(address: Address | null | undefined): ShownPosition[] | null {
+  const profile = useProfile(address);
+  const list = useOps();
+  if (!profile.data) return null;
+  return positionsWith(list, address, profile.data.positions);
+}
+
+export function useServerCash(): bigint | null {
   const { address } = useSession();
   const dep = useDeployment();
   const profile = useProfile(address);
