@@ -2,6 +2,8 @@ import {
   Accepted,
   Candle,
   Deployment,
+  DepositAddress,
+  DepositChain,
   ErrorBody,
   FeedItem,
   Health,
@@ -18,6 +20,7 @@ import {
   type TokenSort,
   type FaucetBody,
   type FollowBody,
+  type IntentBody,
   type LaunchBody,
   type PermitDepositBody,
   type ProfileBody,
@@ -69,23 +72,29 @@ async function request<T>(schema: Schema<T>, path: string, init?: { query?: Quer
 
 const ignore: Schema<null> = { parse: () => null };
 
+export type ChainToken = { chainId: number; address: string };
+const onChain = (t: ChainToken) => (t.chainId === env.chainId ? undefined : String(t.chainId));
+
 export const api = {
   health: () => request(Health, routes.health),
   config: () => request(Deployment, routes.config),
   tokens: (sort: TokenSort) => request(TokenInfo.array(), routes.tokens, { query: { sort } }),
-  token: (address: Address) => request(TokenInfo, fill(routes.token, { address })),
-  candles: (address: Address, tf: CandleTf) => request(Candle.array(), fill(routes.candles, { address }), { query: { tf } }),
-  tokenTrades: (address: Address, before?: string) =>
-    request(FeedItem.array(), fill(routes.tokenTrades, { address }), { query: { before } }),
+  token: (t: ChainToken) => request(TokenInfo, fill(routes.token, { address: t.address }), { query: { chainId: onChain(t) } }),
+  candles: (t: ChainToken, tf: CandleTf) => request(Candle.array(), fill(routes.candles, { address: t.address }), { query: { tf, chainId: onChain(t) } }),
+  tokenTrades: (t: ChainToken, before?: string) =>
+    request(FeedItem.array(), fill(routes.tokenTrades, { address: t.address }), { query: { before, chainId: onChain(t) } }),
   feed: (scope: FeedScope, address?: Address, before?: string) =>
     request(FeedItem.array(), routes.feed, { query: { scope, address, before } }),
   user: (address: Address, viewer?: Address) => request(Profile, fill(routes.user, { address }), { query: { viewer } }),
   userTrades: (address: Address) => request(FeedItem.array(), fill(routes.userTrades, { address })),
   leaderboard: (window: PnlWindow) => request(LeaderRow.array(), routes.leaderboard, { query: { window } }),
-  quote: (token: Address, isBuy: boolean, amountIn: bigint) =>
-    request(Quote, routes.quote, { query: { token, isBuy: String(isBuy), amountIn: amountIn.toString() } }),
+  quote: (t: ChainToken, isBuy: boolean, amountIn: bigint) =>
+    request(Quote, routes.quote, { query: { token: t.address, chainId: onChain(t), isBuy: String(isBuy), amountIn: amountIn.toString() } }),
   nonce: (address: Address) => request(Nonce, fill(routes.nonce, { address })),
   trade: (body: TradeBody) => request(Accepted, routes.trade, { body }),
+  intent: (body: IntentBody) => request(Accepted, routes.intent, { body }),
+  depositChains: () => request(DepositChain.array(), routes.depositChains),
+  depositAddress: (address: Address, chainId: number) => request(DepositAddress, fill(routes.depositAddress, { address, chainId: String(chainId) })),
   withdraw: (body: WithdrawBody) => request(Accepted, routes.withdraw, { body }),
   launch: (body: LaunchBody) => request(Accepted, routes.launch, { body }),
   deposit: (body: PermitDepositBody) => request(Accepted, routes.deposit, { body }),

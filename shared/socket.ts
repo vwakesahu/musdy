@@ -8,7 +8,7 @@ export const Topic = z
     z.literal("tokens"),
     z.literal("prices"),
     z.string().regex(/^feed:following:0x[0-9a-fA-F]{40}$/),
-    z.string().regex(/^token:0x[0-9a-fA-F]{40}$/),
+    z.string().regex(/^token:(0x[0-9a-fA-F]{40}|[1-9A-HJ-NP-Za-km-z]{32,44})$/),
     z.string().regex(/^user:0x[0-9a-fA-F]{40}$/),
   ])
   .transform((t) => t.toLowerCase());
@@ -28,7 +28,7 @@ export const ServerMsg = z.discriminatedUnion("type", [
     type: z.literal("prices"),
     topic: z.string(),
     block: z.number(),
-    prices: z.array(z.object({ address: zAddress, priceMusd: zUint, change24h: z.number() })),
+    prices: z.array(z.object({ address: z.string(), chainId: z.number(), priceMusd: zUint, change24h: z.number() })),
   }),
   z.object({
     type: z.literal("balances"),

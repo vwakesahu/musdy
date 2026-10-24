@@ -1,0 +1,41 @@
+{
+ "data": [
+  {
+   "id": "solana_CA8q2mkYWZnUNqYmf6pxyxAPZsmSe2EG9P7hHMW5pump",
+   "type": "token",
+   "attributes": {
+    "address": "CA8q2mkYWZnUNqYmf6pxyxAPZsmSe2EG9P7hHMW5pump",
+    "name": "Remus",
+    "symbol": "REMUS",
+    "decimals": 6,
+    "image_url": "https://assets.geckoterminal.com/k67fug40f40xs90r5841tv4hqo98",
+    "coingecko_coin_id": null,
+    "total_supply": "987679417303155.0",
+    "normalized_total_supply": "987679417.303155",
+    "price_usd": "0.0006739854186",
+    "fdv_usd": "665681.52555813",
+    "total_reserve_in_usd": "36207.894158012868048386342591",
+    "volume_usd": {
+     "h24": "1673831.0416846"
+    },
+    "market_cap_usd": null,
+    "launchpad_details": {
+     "graduation_percentage": 100.0,
+     "completed": true,
+     "completed_at": "2026-10-23T23:10:28.000Z",
+     "migrated_destination_pool_address": "6JDiSPsWBwcSN8xBa4LNBzMZRikxksbxcto8J3ELR4cG"
+    }
+   },
+   "relationships": {
+    "top_pools": {
+     "data": [
+      {
+       "id": "solana_6JDiSPsWBwcSN8xBa4LNBzMZRikxksbxcto8J3ELR4cG",
+       "type": "pool"
+      }
+     ]
+    }
+   }
+  }
+ ]
+}

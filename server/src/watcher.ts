@@ -34,7 +34,7 @@ export class Watcher {
 
   private async read(addr: string): Promise<Snap | null> {
     const user = getAddress(addr);
-    const vaultTokens = [...new Set([this.dep.musd.toLowerCase(), ...this.store.heldTokens(addr)])].map((t) => getAddress(t));
+    const vaultTokens = [...new Set([this.dep.musd.toLowerCase(), ...this.store.heldTokens(addr).filter((t) => t.startsWith("0x"))])].map((t) => getAddress(t));
     const walletTokens = [this.dep.musd, this.dep.btc];
     const res = await readMany<bigint>(this.pub, [
       ...vaultTokens.map((t) => ({ address: this.dep.vault, abi: vaultAbi, functionName: "balanceOf", args: [user, t] }) as const),

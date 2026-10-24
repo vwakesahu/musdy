@@ -3,6 +3,7 @@ import { launchpadAbi, vaultAbi, VENUES, type Deployment } from "shared";
 import { log } from "./log";
 import type { PriceBook } from "./price-book";
 import { curvePrice, toFloat, tradePrice } from "./pricing";
+import type { IntentEvent } from "./solver/solver";
 import type { Store, TradeRow } from "./store";
 
 const isEvent = <T extends { type: string }>(x: T): x is Extract<T, { type: "event" }> => x.type === "event";
@@ -17,6 +18,7 @@ export interface IndexerDeps {
   chunk?: number;
   onTrade?(row: TradeRow): void;
   onToken?(address: string): void;
+  onIntent?(ev: IntentEvent): void;
   valueAt?(token: string, amount: bigint, ts: number): bigint;
 }
 
@@ -138,6 +140,7 @@ export class Indexer {
     }
 
     const newTrades: TradeRow[] = [];
+    const intents: IntentEvent[] = [];
     const touched = new Set<string>();
     const { store, book } = this.d;
     store.tx(() => {
@@ -197,6 +200,12 @@ export class Indexer {
             }
           } else if (l.eventName === "Launched") {
             store.insertLaunch(id, block, at, l.args.user, l.args.token);
+          } else if (l.eventName === "IntentOpened" || l.eventName === "IntentSettled") {
+            const base = { id: l.args.id, user: l.args.user, txHash: l.transactionHash, block, logIndex: l.logIndex, ts: at };
+            if (l.eventName === "IntentOpened") {
+              const a = l.args;
+              intents.push({ ...base, kind: "opened", isBuy: a.isBuy, chainId: Number(a.chainId), token: a.token, amountIn: a.amountIn, minOut: a.minOut, ref: a.ref });
+            } else intents.push({ ...base, kind: "settled", musdToUser: l.args.musdToUser, tokenAmount: l.args.tokenAmount, ok: l.args.ok });
           }
         } else if (src === this.launchpad) {
           if (l.eventName === "TokenCreated") {
@@ -259,6 +268,7 @@ export class Indexer {
     if (logs.length) log("indexer.range", { from, to, logs: logs.length, trades: newTrades.length });
     for (const row of newTrades) this.d.onTrade?.(row);
     for (const t of touched) this.d.onToken?.(t);
+    for (const ev of intents) this.d.onIntent?.(ev);
     return logs.length;
   }
 }

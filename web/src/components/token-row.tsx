@@ -7,15 +7,16 @@ import { cn } from "@/lib/utils";
 import { CurveBar } from "./ui/curve-bar";
 import { Change } from "./ui/pnl";
 import { TokenIcon } from "./ui/token-icon";
+import { tokenHref } from "@/lib/xchain";
 
 export function TokenRow({ token, compact = false }: { token: TokenInfo; compact?: boolean }) {
-  const live = useLivePrice(token.address);
+  const live = useLivePrice(token);
   const p = live?.priceMusd ?? BigInt(token.priceMusd);
   const change = live?.change24h ?? token.change24h;
   const onCurve = token.curveProgress !== null && token.venue === "curve";
   return (
     <Link
-      href={`/token/${token.address}`}
+      href={tokenHref(token)}
       className={cn("press flex items-center gap-3 transition-colors hover:bg-surface-3 lg:rounded-[14px]", compact ? "min-h-[56px] px-2 py-2" : "min-h-[68px] px-4 py-3 lg:mx-2 lg:px-3")}
       data-testid={compact ? undefined : "token-row"}
     >

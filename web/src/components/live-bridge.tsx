@@ -10,14 +10,15 @@ import { BTC_GAS_RESERVE, liveBalances, livePrices, liveTokens, liveTxs, lk } fr
 import { signPermit } from "@/lib/sign";
 import { socket } from "@/lib/socket";
 import { errorText, toast } from "@/lib/toast";
+import { keyOf, mezoKey } from "@/lib/xchain";
 
 const seedPrices = (list: TokenInfo[] | undefined) => {
   if (!list?.length) return;
   livePrices.set((p) => {
-    const missing = list.filter((t) => !p[lk(t.address)]);
+    const missing = list.filter((t) => !p[keyOf(t)]);
     if (missing.length === 0) return p;
     const next = { ...p };
-    for (const t of missing) next[lk(t.address)] = { priceMusd: BigInt(t.priceMusd), change24h: t.change24h };
+    for (const t of missing) next[keyOf(t)] = { priceMusd: BigInt(t.priceMusd), change24h: t.change24h };
     return next;
   });
 };
@@ -28,6 +29,8 @@ const txDone: Record<string, string> = {
   withdraw: "Withdrawal sent",
   launch: "Coin launched",
   faucet: "Faucet MUSD added",
+  intent: "Trade filled",
+  bridge: "Sale landed in your cash",
 };
 
 export function LiveBridge() {
@@ -52,14 +55,14 @@ export function LiveBridge() {
     if (m.type !== "prices") return;
     livePrices.set((p) => {
       const next = { ...p };
-      for (const x of m.prices) next[lk(x.address)] = { priceMusd: BigInt(x.priceMusd), change24h: x.change24h };
+      for (const x of m.prices) next[mezoKey(x.address)] = { priceMusd: BigInt(x.priceMusd), change24h: x.change24h };
       return next;
     });
   });
 
   useTopic(topicKey("tokens"), (m) => {
     if (m.type !== "token") return;
-    liveTokens.set((t) => ({ ...t, [lk(m.token.address)]: m.token }));
+    liveTokens.set((t) => ({ ...t, [keyOf(m.token)]: m.token }));
     seedPrices([m.token]);
   });
 

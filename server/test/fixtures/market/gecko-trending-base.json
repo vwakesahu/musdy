@@ -1,0 +1,270 @@
+{
+ "data": [
+  {
+   "id": "base_0x2df380544b88adb3ad0a94100dcc45fd705aae2d",
+   "type": "pool",
+   "attributes": {
+    "base_token_price_usd": "0.0178614195748337",
+    "base_token_price_native_currency": "0.0000077478364650168488423424405328",
+    "quote_token_price_usd": "1.00475394237642",
+    "quote_token_price_native_currency": "0.000435796050580519",
+    "base_token_price_quote_token": "0.01777858348",
+    "quote_token_price_base_token": "56.2474508269",
+    "address": "0x2df380544b88adb3ad0a94100dcc45fd705aae2d",
+    "name": "xdp / USDC 0.01%",
+    "pool_created_at": "2026-09-28T12:52:05Z",
+    "fdv_usd": "178614195.596914",
+    "market_cap_usd": "17861419.57",
+    "price_change_percentage": {
+     "m5": "0.11",
+     "m15": "0.571",
+     "m30": "0.222",
+     "h1": "0.194",
+     "h6": "0.227",
+     "h24": "-0.42"
+    },
+    "volume_usd": {
+     "m5": "84496.0448473457",
+     "m15": "295591.192093857",
+     "m30": "583820.115586234",
+     "h1": "1506212.88816299",
+     "h6": "7568733.97099319",
+     "h24": "35149639.5207162"
+    },
+    "reserve_in_usd": "1783860.2947"
+   },
+   "relationships": {
+    "base_token": {
+     "data": {
+      "id": "base_0x07b3d902783c3c12b077508c3b5c00113d1291d0",
+      "type": "token"
+     }
+    },
+    "quote_token": {
+     "data": {
+      "id": "base_0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+      "type": "token"
+     }
+    },
+    "dex": {
+     "data": {
+      "id": "uniswap-v3-base",
+      "type": "dex"
+     }
+    }
+   }
+  },
+  {
+   "id": "base_0x5116773e18a9c7bb03ebb961b38678e45e238923",
+   "type": "pool",
+   "attributes": {
+    "base_token_price_usd": "0.000121316898873543",
+    "base_token_price_native_currency": "0.0000000525585750455274",
+    "quote_token_price_usd": "2304.88",
+    "quote_token_price_native_currency": "1.0",
+    "base_token_price_quote_token": "0.00000005255857505",
+    "quote_token_price_base_token": "19026391.0148587",
+    "address": "0x5116773e18a9c7bb03ebb961b38678e45e238923",
+    "name": "DRB / WETH 1%",
+    "pool_created_at": "2025-03-07T09:58:57Z",
+    "fdv_usd": "11972122.7336374",
+    "market_cap_usd": "12131689.89",
+    "price_change_percentage": {
+     "m5": "0",
+     "m15": "2.68",
+     "m30": "0.991",
+     "h1": "-3.969",
+     "h6": "-3.59",
+     "h24": "-15.227"
+    },
+    "volume_usd": {
+     "m5": "461.0665502941",
+     "m15": "2752.1307301304",
+     "m30": "3548.6051909508",
+     "h1": "39495.9383559248",
+     "h6": "55921.8957308072",
+     "h24": "207408.725497502"
+    },
+    "reserve_in_usd": "1141431.6626"
+   },
+   "relationships": {
+    "base_token": {
+     "data": {
+      "id": "base_0x3ec2156d4c0a9cbdab4a016633b7bcf6a8d68ea2",
+      "type": "token"
+     }
+    },
+    "quote_token": {
+     "data": {
+      "id": "base_0x4200000000000000000000000000000000000006",
+      "type": "token"
+     }
+    },
+    "dex": {
+     "data": {
+      "id": "uniswap-v3-base",
+      "type": "dex"
+     }
+    }
+   }
+  },
+  {
+   "id": "base_0xc19d91d99afc0332e5013a569c9721cd9ecb51a14c851f7a189a140950a627fa",
+   "type": "pool",
+   "attributes": {
+    "base_token_price_usd": "0.265817483922236",
+    "base_token_price_native_currency": "0.000115324542539926",
+    "quote_token_price_usd": "1.00475315773024",
+    "quote_token_price_native_currency": "0.000435795710252711",
+    "base_token_price_quote_token": "0.264629825",
+    "quote_token_price_base_token": "3.7788635502",
+    "address": "0xc19d91d99afc0332e5013a569c9721cd9ecb51a14c851f7a189a140950a627fa",
+    "name": "AXIS / USDC 0.01%",
+    "pool_created_at": "2026-10-19T06:19:05Z",
+    "fdv_usd": "265815964.490385",
+    "market_cap_usd": "43859634.1425",
+    "price_change_percentage": {
+     "m5": "1.221",
+     "m15": "0.285",
+     "m30": "3.558",
+     "h1": "0.375",
+     "h6": "-1.161",
+     "h24": "2.33"
+    },
+    "volume_usd": {
+     "m5": "27461.3482612441",
+     "m15": "37179.8100146654",
+     "m30": "60484.2161425861",
+     "h1": "101519.580151748",
+     "h6": "1851354.13283577",
+     "h24": "8041735.27033213"
+    },
+    "reserve_in_usd": "2481608.6297"
+   },
+   "relationships": {
+    "base_token": {
+     "data": {
+      "id": "base_0x5be75e3b0aff5d1a042a5363ae36acb1d6d755ea",
+      "type": "token"
+     }
+    },
+    "quote_token": {
+     "data": {
+      "id": "base_0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+      "type": "token"
+     }
+    },
+    "dex": {
+     "data": {
+      "id": "uniswap-v4-base",
+      "type": "dex"
+     }
+    }
+   }
+  },
+  {
+   "id": "base_0x6b0f53cbd9272d8117e9535fe25371dedf39a1be",
+   "type": "pool",
+   "attributes": {
+    "base_token_price_usd": "0.0573099975931191",
+    "base_token_price_native_currency": "0.000024866305610750939281470564045405089646409",
+    "quote_token_price_usd": "1.00475394237642",
+    "quote_token_price_native_currency": "0.000435796050580519",
+    "base_token_price_quote_token": "0.05705950198",
+    "quote_token_price_base_token": "17.5255648106",
+    "address": "0x6b0f53cbd9272d8117e9535fe25371dedf39a1be",
+    "name": "VELVET / USDC 0.01%",
+    "pool_created_at": "2025-08-23T23:44:37Z",
+    "fdv_usd": "782068.739890747",
+    "market_cap_usd": "26581430.3468562",
+    "price_change_percentage": {
+     "m5": "0.929",
+     "m15": "-0.519",
+     "m30": "-0.613",
+     "h1": "-1.501",
+     "h6": "-1.89",
+     "h24": "-6.378"
+    },
+    "volume_usd": {
+     "m5": "1784.7993162062",
+     "m15": "9601.1084666773",
+     "m30": "13634.6921540119",
+     "h1": "26964.952505599",
+     "h6": "96507.6457932563",
+     "h24": "342162.979265047"
+    },
+    "reserve_in_usd": "1033891.1623"
+   },
+   "relationships": {
+    "base_token": {
+     "data": {
+      "id": "base_0xbf927b841994731c573bdf09ceb0c6b0aa887cdd",
+      "type": "token"
+     }
+    },
+    "quote_token": {
+     "data": {
+      "id": "base_0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+      "type": "token"
+     }
+    },
+    "dex": {
+     "data": {
+      "id": "aerodrome-slipstream",
+      "type": "dex"
+     }
+    }
+   }
+  }
+ ],
+ "included": [
+  {
+   "id": "base_0x07b3d902783c3c12b077508c3b5c00113d1291d0",
+   "type": "token",
+   "attributes": {
+    "address": "0x07b3d902783c3c12b077508c3b5c00113d1291d0",
+    "name": "Doppler Finance",
+    "symbol": "xdp",
+    "decimals": 18,
+    "image_url": "https://coin-images.coingecko.com/coins/images/102175227/large/03_Doppler_Symbol_Gradient_onDark_withBG.png?1785842913",
+    "coingecko_coin_id": "doppler-finance"
+   }
+  },
+  {
+   "id": "base_0x3ec2156d4c0a9cbdab4a016633b7bcf6a8d68ea2",
+   "type": "token",
+   "attributes": {
+    "address": "0x3ec2156d4c0a9cbdab4a016633b7bcf6a8d68ea2",
+    "name": "DebtReliefBot",
+    "symbol": "DRB",
+    "decimals": 18,
+    "image_url": "https://coin-images.coingecko.com/coins/images/54784/large/1000143570.jpg?1759054009",
+    "coingecko_coin_id": "debtreliefbot"
+   }
+  },
+  {
+   "id": "base_0x5be75e3b0aff5d1a042a5363ae36acb1d6d755ea",
+   "type": "token",
+   "attributes": {
+    "address": "0x5be75e3b0aff5d1a042a5363ae36acb1d6d755ea",
+    "name": "Axis Token",
+    "symbol": "AXIS",
+    "decimals": 18,
+    "image_url": "https://coin-images.coingecko.com/coins/images/102178869/large/axisrobotics.png?1790578974",
+    "coingecko_coin_id": "axis-robotics"
+   }
+  },
+  {
+   "id": "base_0xbf927b841994731c573bdf09ceb0c6b0aa887cdd",
+   "type": "token",
+   "attributes": {
+    "address": "0xbf927b841994731c573bdf09ceb0c6b0aa887cdd",
+    "name": "Velvet",
+    "symbol": "VELVET",
+    "decimals": 18,
+    "image_url": "https://coin-images.coingecko.com/coins/images/67194/large/velvet.jpg?1752054592",
+    "coingecko_coin_id": "velvet"
+   }
+  }
+ ]
+}

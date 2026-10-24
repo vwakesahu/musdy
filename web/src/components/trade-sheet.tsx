@@ -4,7 +4,7 @@ import { motion } from "motion/react";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowsDownUpIcon, CheckIcon } from "@phosphor-icons/react";
 import type { FeedItem, TokenRef } from "shared";
-import { useActions, withSlippage } from "@/hooks/use-actions";
+import { isSolverOff, useActions, withSlippage } from "@/hooks/use-actions";
 import { useDebounced } from "@/hooks/use-debounced";
 import { useCash } from "@/hooks/use-live";
 import { useTxRun } from "@/hooks/use-tx-run";
@@ -18,6 +18,7 @@ import { Button } from "./ui/button";
 import { Drawer } from "./ui/drawer";
 import { applyKey, NumberPad } from "./ui/number-pad";
 import { TokenIcon } from "./ui/token-icon";
+import { keyOf } from "@/lib/xchain";
 
 export type Side = "buy" | "sell";
 export type TradeToken = TokenRef & { marketCapMusd?: string };
@@ -99,12 +100,14 @@ export function TradePanel({ token, priceMusd, change, held, side, faces = [], h
 
   const debounced = useDebounced(amountIn.toString());
   const quote = useQuery({
-    queryKey: ["quote", token.address, isBuy, debounced],
-    queryFn: () => api.quote(token.address, isBuy, BigInt(debounced)),
+    queryKey: ["quote", keyOf(token), isBuy, debounced],
+    queryFn: () => api.quote(token, isBuy, BigInt(debounced)),
     enabled: active && BigInt(debounced) > 0n,
     staleTime: 3000,
   });
   const q = quote.data && debounced === amountIn.toString() ? quote.data : null;
+  const [solverOff, setSolverOff] = useState(false);
+  const closed = solverOff || isSolverOff(quote.error);
 
   const done = useRef(onDone);
   useEffect(() => {
@@ -143,7 +146,13 @@ export function TradePanel({ token, priceMusd, change, held, side, faces = [], h
     const tokensOut = isBuy ? BigInt(q.amountOut) : liveAmountIn;
     const frozen = { amountIn: liveAmountIn, dollars: liveDollars, tokens: tokensOut, heldBefore: held };
     setSent(frozen);
-    const res = await run(() => actions.trade({ token: token.address, isBuy, amountIn: frozen.amountIn, minOut: withSlippage(BigInt(q.amountOut)) }));
+    const order = { token, isBuy, amountIn: frozen.amountIn, minOut: withSlippage(BigInt(q.amountOut)) };
+    const res = await run(() =>
+      actions.trade(order, (e) => {
+        if (isSolverOff(e)) setSolverOff(true);
+        return isSolverOff(e);
+      }),
+    );
     if (!res) setSent(null);
   };
 
@@ -205,6 +214,12 @@ export function TradePanel({ token, priceMusd, change, held, side, faces = [], h
       <Button variant="white" size="lg" className="w-full" onClick={() => openSheet("login")}>
         Log in to trade
       </Button>
+    );
+  } else if (closed) {
+    cta = (
+      <p className="flex h-14 items-center justify-center rounded-lg bg-surface-2 text-[16px] font-medium text-text-2" role="status" data-testid="trade-closed">
+        Trading this coin opens soon
+      </p>
     );
   } else if (short) {
     cta = (
@@ -312,7 +327,9 @@ export function TradePanel({ token, priceMusd, change, held, side, faces = [], h
           {isBuy ? (cash !== null ? `${usd(cash)} available` : "") : `${tokenAmount(held, token.decimals)} ${token.symbol} held`}
         </span>
         <span className="truncate text-right text-text">
-          {quote.isError
+          {closed
+            ? ""
+            : quote.isError
             ? <span className="text-down">Quote unavailable</span>
             : q
               ? `Fee ${usd(BigInt(q.fee), true)}${isBuy ? "" : ` · you get ${usd(BigInt(q.amountOut), true)}`}${q.priceImpact > 0.01 ? ` · ${(q.priceImpact * 100).toFixed(1)}% impact` : ""}`

@@ -101,4 +101,51 @@ export const migrations: string[] = [
   CREATE INDEX faucet_claims_ip ON faucet_claims (ip, at);
   CREATE INDEX faucet_claims_at ON faucet_claims (at);
   `,
+  `
+  CREATE TABLE intents (
+    id TEXT PRIMARY KEY,
+    user TEXT NOT NULL,
+    is_buy INTEGER NOT NULL,
+    chain_id INTEGER NOT NULL,
+    token TEXT NOT NULL,
+    amount_in TEXT NOT NULL,
+    min_out TEXT NOT NULL,
+    ref TEXT,
+    status TEXT NOT NULL,
+    request_id TEXT,
+    token_amount TEXT,
+    musd_out TEXT,
+    fee TEXT NOT NULL DEFAULT '0',
+    error TEXT,
+    opened_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+  CREATE INDEX intents_status ON intents (status);
+  CREATE INDEX intents_user ON intents (user, token);
+  CREATE TABLE deposit_addresses (
+    user TEXT NOT NULL,
+    chain_id INTEGER NOT NULL,
+    address TEXT NOT NULL,
+    min_usd REAL NOT NULL,
+    created_at INTEGER NOT NULL,
+    hot_until INTEGER NOT NULL,
+    checked_at INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (user, chain_id)
+  );
+  CREATE INDEX deposit_addresses_checked ON deposit_addresses (checked_at);
+  CREATE TABLE deposit_fills (
+    request_id TEXT PRIMARY KEY,
+    user TEXT NOT NULL,
+    chain_id INTEGER NOT NULL,
+    address TEXT NOT NULL,
+    usdc TEXT NOT NULL,
+    status TEXT NOT NULL,
+    hash TEXT,
+    error TEXT,
+    created_at INTEGER NOT NULL
+  );
+  CREATE INDEX deposit_fills_status ON deposit_fills (status);
+  ALTER TABLE tokens ADD COLUMN chain_id INTEGER;
+  ALTER TABLE tokens ADD COLUMN raw_address TEXT;
+  `,
 ];

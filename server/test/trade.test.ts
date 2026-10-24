@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { erc20Abi } from "viem";
 import { privateKeyToAccount, generatePrivateKey } from "viem/accounts";
-import type { FeedItem, Quote, TokenInfo } from "shared";
+import type { Address, FeedItem, Quote, TokenInfo } from "shared";
 import { WAD } from "../src/pricing";
 import { CONTRACTS_READY, SKIP_NOTE, startStack, type Stack } from "./helpers/anvil";
 import { Actor, get, post } from "./helpers/actors";
@@ -98,7 +98,7 @@ describe.skipIf(!CONTRACTS_READY)(`trade, withdraw and launch through the relaye
     const tokens = await Actor.create(s);
     tokens.socket.send({ type: "subscribe", topic: "tokens" });
     await a.submit("/actions/launch", await a.launchBody("Moon Cat", "MCAT", 50n * WAD));
-    const launched = (await get<TokenInfo[]>(s.app.url, "/tokens?sort=new")).body;
+    const launched = (await get<(TokenInfo & { address: Address })[]>(s.app.url, "/tokens?sort=new")).body;
     const coin = launched.find((t) => t.symbol === "MCAT")!;
     expect(coin.kind).toBe("launch");
     expect(coin.venue).toBe("curve");

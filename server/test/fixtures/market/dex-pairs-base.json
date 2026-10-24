@@ -1,0 +1,61 @@
+[
+ {
+  "chainId": "base",
+  "dexId": "uniswap",
+  "url": "https://dexscreener.com/base/0x2df380544b88adb3ad0a94100dcc45fd705aae2d",
+  "pairAddress": "0x2dF380544B88AdB3ad0A94100dcC45fd705aAE2d",
+  "labels": [
+   "v3"
+  ],
+  "baseToken": {
+   "address": "0x07b3D902783c3C12b077508c3B5c00113d1291D0",
+   "name": "Doppler",
+   "symbol": "XDP"
+  },
+  "quoteToken": {
+   "address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+   "name": "USD Coin",
+   "symbol": "USDC"
+  },
+  "priceNative": "0.01791",
+  "priceUsd": "0.01791",
+  "txns": {
+   "m5": {
+    "buys": 219,
+    "sells": 285
+   },
+   "h1": {
+    "buys": 2310,
+    "sells": 2590
+   },
+   "h6": {
+    "buys": 11442,
+    "sells": 12090
+   },
+   "h24": {
+    "buys": 51670,
+    "sells": 52924
+   }
+  },
+  "volume": {
+   "h24": 35409802.47,
+   "h6": 7585919.81,
+   "h1": 1571206,
+   "m5": 176205.18
+  },
+  "priceChange": {
+   "m5": 0.87,
+   "h1": 0.6,
+   "h6": -0.72,
+   "h24": -0.41
+  },
+  "liquidity": {
+   "usd": 1781929.55,
+   "base": 59181235,
+   "quote": 721839
+  },
+  "fdv": 179126000,
+  "marketCap": 17912600,
+  "pairCreatedAt": 1790599925000
+ }
+]

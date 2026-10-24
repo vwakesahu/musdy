@@ -13,6 +13,14 @@ export const Env = z.object({
   DB_PATH: z.string().default("./musdy.db"),
   FAUCET_HOURLY_CAP: z.coerce.number().int().positive().default(50),
   TRUST_PROXY: z.enum(["0", "1", ""]).default("0").transform((v) => v === "1"),
+  MARKET: z.enum(["0", "1", ""]).default("1").transform((v) => v !== "0"),
+  SOLVER_KEY: z.preprocess((v) => (v === "" ? undefined : v), zKey.optional()),
+  SOLVER_SOLANA_KEY: z.preprocess((v) => (v === "" ? undefined : v), z.string().optional()),
+  RELAY_API_KEY: z.preprocess((v) => (v === "" ? undefined : v), z.string().optional()),
+  RELAY_URL: z.string().url().default("https://api.relay.link"),
+  BASE_RPC_URL: z.preprocess((v) => (v === "" ? undefined : v), z.string().url().optional()),
+  BSC_RPC_URL: z.preprocess((v) => (v === "" ? undefined : v), z.string().url().optional()),
+  SOLANA_RPC_URL: z.preprocess((v) => (v === "" ? undefined : v), z.string().url().optional()),
 });
 export type Env = z.infer<typeof Env>;
 

@@ -1,12 +1,14 @@
 import { parseSignature, zeroAddress, type Address } from "viem";
 import {
   domainFor,
+  intentTypes,
   readPermitDomain,
   launchTypes,
   permitTypes,
   tradeTypes,
   withdrawTypes,
   type Deployment,
+  type IntentBody,
   type LaunchBody,
   type PermitDepositBody,
   type TradeBody,
@@ -36,6 +38,34 @@ export async function signTrade(signer: Signer, dep: Deployment, t: TradeInput):
   return {
     trade: {
       ...message,
+      amountIn: message.amountIn.toString(),
+      minOut: message.minOut.toString(),
+      nonce: message.nonce.toString(),
+      deadline: message.deadline.toString(),
+    },
+    sig,
+  };
+}
+
+export type IntentInput = { chainId: number; token: string; isBuy: boolean; amountIn: bigint; minOut: bigint; ref?: Address };
+
+export async function signIntent(signer: Signer, dep: Deployment, t: IntentInput): Promise<IntentBody> {
+  const message = {
+    user: signer.address,
+    isBuy: t.isBuy,
+    chainId: BigInt(t.chainId),
+    token: t.token,
+    amountIn: t.amountIn,
+    minOut: t.minOut,
+    ref: t.ref ?? zeroAddress,
+    nonce: await nonceOf(signer.address),
+    deadline: deadline(),
+  };
+  const sig = await signer.signTypedData({ domain: domainFor(dep.chainId, dep.vault), types: intentTypes, primaryType: "Intent", message });
+  return {
+    intent: {
+      ...message,
+      chainId: message.chainId.toString(),
       amountIn: message.amountIn.toString(),
       minOut: message.minOut.toString(),
       nonce: message.nonce.toString(),

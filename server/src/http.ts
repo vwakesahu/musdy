@@ -5,7 +5,7 @@ import { HttpError } from "./errors";
 import { errMessage, log } from "./log";
 
 export type RouteName = keyof typeof routes;
-export const POSTS = new Set<RouteName>(["trade", "withdraw", "launch", "deposit", "faucet", "profile", "follow"]);
+export const POSTS = new Set<RouteName>(["intent", "trade", "withdraw", "launch", "deposit", "faucet", "profile", "follow"]);
 
 export interface Ctx {
   params: Record<string, string>;

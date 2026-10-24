@@ -24,6 +24,7 @@ import { useSession } from "@/hooks/use-session";
 import { displayName, shortAddr, signedBig } from "@/lib/format";
 import type { PnlWindow } from "shared";
 import { api } from "@/lib/http";
+import { keyOf } from "@/lib/xchain";
 
 export function OwnProfileScreen() {
   const { address } = useSession();
@@ -189,7 +190,7 @@ function ProfileView({ address }: { address: Address }) {
         ) : (
           <ul>
             {positions.map((x) => (
-              <li key={x.token.address}>
+              <li key={keyOf(x.token)}>
                 <PositionRow position={x} />
               </li>
             ))}

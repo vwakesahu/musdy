@@ -9,6 +9,7 @@ import { CopyButton } from "./copy-button";
 import { UserAvatar } from "./ui/avatar";
 import { PctChip } from "./ui/pnl";
 import { TokenIcon } from "./ui/token-icon";
+import { tokenHref } from "@/lib/xchain";
 
 export function SideTag({ buy }: { buy: boolean }) {
   return (
@@ -20,7 +21,7 @@ export function SideTag({ buy }: { buy: boolean }) {
 
 export function FeedRow({ item, self }: { item: FeedItem; self: boolean }) {
   const now = useNow();
-  const current = useCurrentPrice(item.token.address);
+  const current = useCurrentPrice(item.token);
   const at = BigInt(item.priceMusd);
   const since = item.isBuy && current !== null && at > 0n ? Number(((current - at) * 10_000n) / at) / 10_000 : null;
 
@@ -32,7 +33,7 @@ export function FeedRow({ item, self }: { item: FeedItem; self: boolean }) {
       data-user={item.user.address.toLowerCase()}
       data-side={item.isBuy ? "buy" : "sell"}
     >
-      <Link href={`/token/${item.token.address}`} className="absolute inset-0" aria-label={`${item.token.symbol} details`} />
+      <Link href={tokenHref(item.token)} className="absolute inset-0" aria-label={`${item.token.symbol} details`} />
       <Link href={`/u/${item.user.address}`} className="relative z-10 shrink-0 self-start" aria-label={displayName(item.user)}>
         <UserAvatar user={item.user} size={40} />
       </Link>

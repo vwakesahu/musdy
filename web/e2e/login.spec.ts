@@ -7,6 +7,7 @@ test("login lands on the feed with an address and a balance", async ({ page }, i
   await devLogin(page);
   await expect(page.getByTestId("balance-pill")).toHaveText(/\$\d/);
   await page.getByTestId("balance-pill").click();
+  await page.getByRole("dialog").getByTestId("deposit-chain-mezo").click();
   await expect(page.getByTestId("deposit-address")).toContainText(me.address);
   await shot(page, info, "login");
 });

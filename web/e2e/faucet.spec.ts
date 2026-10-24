@@ -25,7 +25,9 @@ test("faucet credits a fresh address, then explains the daily limit", async ({ p
   await loginAs(page, key, "/portfolio");
 
   let button = await openFaucet(page);
+  await page.getByRole("dialog").getByTestId("deposit-chain-mezo").click();
   await expect(page.getByRole("dialog").getByTestId("deposit-address")).toContainText(fresh.address);
+  await page.getByRole("dialog").getByRole("button", { name: "Choose another chain" }).click();
   await expect(button).toHaveText(/Get 1,000 test MUSD/);
   const answer = page.waitForResponse((r) => r.url().endsWith(routes.faucet) && r.request().method() === "POST");
   await button.click();

@@ -13,10 +13,10 @@ test("launch a coin and find it under new", async ({ page }, info) => {
   await expect(page.getByTestId("launch-preview")).toContainText(symbol);
   await shot(page, info, "launch-form");
   await page.getByTestId("launch-submit").click();
-  await page.waitForURL(/\/token\/0x[0-9a-fA-F]{40}$/, { timeout: 30_000 });
+  await page.waitForURL(/\/token\/\d+\/0x[0-9a-fA-F]{40}$/, { timeout: 30_000 });
   await expect(page.getByRole("heading", { name: symbol })).toBeVisible();
   await expect(page.getByTestId("curve-progress")).toBeVisible();
-  const coin = page.url().split("/token/")[1] as Address;
+  const coin = page.url().split("/").pop() as Address;
 
   await expect.poll(() => vaultBalance(me.address, coin), { timeout: 30_000 }).toBeGreaterThan(0n);
   const buy = page.locator(`[data-testid="feed-row"][data-user="${me.address.toLowerCase()}"][data-side="buy"]`).filter({ hasText: symbol });

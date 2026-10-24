@@ -11,8 +11,9 @@ import { EmptyState } from "../ui/empty-state";
 import { MagnifyingGlassIcon, XIcon } from "@phosphor-icons/react";
 import { RightRail } from "../right-rail";
 import { api } from "@/lib/http";
-import { liveTokens, lk } from "@/lib/live";
+import { liveTokens } from "@/lib/live";
 import { useStore } from "@/lib/store";
+import { keyOf } from "@/lib/xchain";
 
 const empties: Record<TokenSort, { title: string; body: string }> = {
   trending: { title: "Nothing is trending yet", body: "Coins with the most buying in the last day show up here." },
@@ -23,10 +24,10 @@ const empties: Record<TokenSort, { title: string; body: string }> = {
 const none: Record<string, TokenInfo> = {};
 
 function withLive(list: TokenInfo[], live: Record<string, TokenInfo>, sort: TokenSort) {
-  const merged = list.map((t) => live[lk(t.address)] ?? t);
+  const merged = list.map((t) => live[keyOf(t)] ?? t);
   if (sort === "new") {
-    const known = new Set(merged.map((t) => lk(t.address)));
-    const fresh = Object.values(live).filter((t) => t.kind === "launch" && !known.has(lk(t.address)));
+    const known = new Set(merged.map((t) => keyOf(t)));
+    const fresh = Object.values(live).filter((t) => t.kind === "launch" && !known.has(keyOf(t)));
     return [...fresh, ...merged].sort((a, b) => b.createdAt - a.createdAt);
   }
   return merged;
@@ -51,7 +52,7 @@ export function ExploreScreen() {
   let list: TokenInfo[];
   if (needle) {
     const all = new Map<string, TokenInfo>();
-    for (const t of [...(trending.data ?? []), ...(fresh.data ?? []), ...(stocks.data ?? []), ...Object.values(live)]) all.set(lk(t.address), live[lk(t.address)] ?? t);
+    for (const t of [...(trending.data ?? []), ...(fresh.data ?? []), ...(stocks.data ?? []), ...Object.values(live)]) all.set(keyOf(t), live[keyOf(t)] ?? t);
     list = [...all.values()].filter(
       (t) => t.symbol.toLowerCase().includes(needle) || t.name.toLowerCase().includes(needle) || t.address.toLowerCase() === needle,
     );
@@ -63,7 +64,7 @@ export function ExploreScreen() {
   const failed = !needle && current.isError && list.length === 0;
 
   const everything = new Map<string, TokenInfo>();
-  for (const t of [...(trending.data ?? []), ...(stocks.data ?? []), ...(fresh.data ?? [])]) everything.set(lk(t.address), live[lk(t.address)] ?? t);
+  for (const t of [...(trending.data ?? []), ...(stocks.data ?? []), ...(fresh.data ?? [])]) everything.set(keyOf(t), live[keyOf(t)] ?? t);
   const movers = [...everything.values()].sort((a, b) => b.change24h - a.change24h).slice(0, 5);
   const launches = withLive(fresh.data ?? [], live, "new").slice(0, 5);
 
@@ -110,7 +111,7 @@ export function ExploreScreen() {
         ) : (
           <ul>
             {list.map((t) => (
-              <li key={t.address}>
+              <li key={keyOf(t)}>
                 <TokenRow token={t} />
               </li>
             ))}
@@ -132,7 +133,7 @@ function RailList({ title, tokens }: { title: string; tokens: TokenInfo[] }) {
       <h2 className="mb-2 px-2 text-[17px] leading-[22px] font-medium tracking-[-0.01em]">{title}</h2>
       <ul>
         {tokens.map((t) => (
-          <li key={t.address}>
+          <li key={keyOf(t)}>
             <TokenRow token={t} compact />
           </li>
         ))}

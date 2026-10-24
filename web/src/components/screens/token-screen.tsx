@@ -4,8 +4,6 @@ import { useParams, useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CaretLeftIcon, CheckIcon, CopySimpleIcon } from "@phosphor-icons/react";
-import type { Address } from "viem";
-import { isAddress } from "viem";
 import { BackBar } from "../back-bar";
 import { FeedList } from "../feed-list";
 import { PriceChart } from "../price-chart";
@@ -29,7 +27,8 @@ import { useTopic } from "@/hooks/use-topic";
 import { cn } from "@/lib/utils";
 import { displayName, price, signedBig, tokenAmount, usd } from "@/lib/format";
 import { topicKey, type CandleTf, type TokenInfo } from "shared";
-import { api } from "@/lib/http";
+import { api, type ChainToken } from "@/lib/http";
+import { chainMeta, isMezo, keyOf, validTokenAddress } from "@/lib/xchain";
 
 const RANGES: { label: string; tf: CandleTf; secs: number }[] = [
   { label: "1H", tf: "1m", secs: 3600 },
@@ -40,19 +39,22 @@ const RANGES: { label: string; tf: CandleTf; secs: number }[] = [
 ];
 
 export function TokenScreen() {
-  const params = useParams<{ address: string }>();
-  const raw = params.address ?? "";
-  if (!isAddress(raw))
+  const params = useParams<{ chainId: string; address: string }>();
+  const chainId = Number(params.chainId);
+  const raw = decodeURIComponent(params.address ?? "");
+  if (!Number.isSafeInteger(chainId) || !validTokenAddress(chainId, raw))
     return (
       <>
         <BackBar title="" />
         <EmptyState title="That isn't a token address" action={<Link href="/explore" className="text-accent">Back to explore</Link>} />
       </>
     );
-  return <TokenView address={raw} />;
+  return <TokenView key={`${chainId}:${raw}`} ref_={{ chainId, address: raw }} />;
 }
 
-function TokenView({ address }: { address: Address }) {
+function TokenView({ ref_ }: { ref_: ChainToken }) {
+  const key = keyOf(ref_);
+  const mezo = isMezo(ref_);
   const qc = useQueryClient();
   const desktop = useIsDesktop();
   const { address: me } = useSession();
@@ -63,24 +65,24 @@ function TokenView({ address }: { address: Address }) {
   const [opens, setOpens] = useState(0);
   const [engaged, setEngaged] = useState(false);
 
-  const info = useQuery({ queryKey: ["token", address.toLowerCase()], queryFn: () => api.token(address) });
-  const live = useLiveToken(address);
-  const livePrice = useLivePrice(address);
+  const info = useQuery({ queryKey: ["token", key], queryFn: () => api.token(ref_), refetchInterval: mezo ? false : 15_000 });
+  const live = useLiveToken(ref_);
+  const livePrice = useLivePrice(ref_);
   const token: TokenInfo | undefined = live ?? info.data;
   const r = RANGES[range];
-  const candles = useQuery({ queryKey: ["candles", address.toLowerCase(), r.tf], queryFn: () => api.candles(address, r.tf) });
-  const topic = topicKey(`token:${address}`);
-  const trades = useTradeList(topic, ["tokenTrades", address.toLowerCase()], () => api.tokenTrades(address));
+  const candles = useQuery({ queryKey: ["candles", key, r.tf], queryFn: () => api.candles(ref_, r.tf) });
+  const topic = mezo ? topicKey(`token:${ref_.address}`) : null;
+  const trades = useTradeList(topic, ["tokenTrades", key], () => api.tokenTrades(ref_));
   const profile = useProfile(me);
 
   useTopic(topic, (m) => {
     if (m.type === "trade" && !m.replay) {
-      void qc.invalidateQueries({ queryKey: ["candles", address.toLowerCase()] });
-      void qc.invalidateQueries({ queryKey: ["token", address.toLowerCase()] });
+      void qc.invalidateQueries({ queryKey: ["candles", key] });
+      void qc.invalidateQueries({ queryKey: ["token", key] });
     }
   });
 
-  const position = profile.data?.positions.find((p) => p.token.address.toLowerCase() === address.toLowerCase());
+  const position = profile.data?.positions.find((p) => keyOf(p.token) === key);
   const held = position ? BigInt(position.amount) : 0n;
   const p = livePrice?.priceMusd ?? (token ? BigInt(token.priceMusd) : 0n);
   const change = livePrice?.change24h ?? token?.change24h ?? 0;
@@ -136,8 +138,11 @@ function TokenView({ address }: { address: Address }) {
         <Stat label="Market cap" value={usd(BigInt(token.marketCapMusd))} />
         <Stat label="24h volume" value={usd(BigInt(token.volume24hMusd))} />
         <Stat label="Holders" value={token.holders.toLocaleString("en-US")} />
-        <Stat label="Venue" value={token.venue === "curve" ? "Launch curve" : "Mezo pool"} />
+        <Stat label="Venue" value={token.venue === "curve" ? "Launch curve" : token.venue === "relay" ? (chainMeta(token.chainId)?.name ?? "Other chain") : "Mezo pool"} />
       </dl>
+      {token.venue === "relay" && (
+        <p className="mt-4 text-[13px] leading-[18px] text-muted">musdy holds this coin for you and settles every sale back to dollars in your cash.</p>
+      )}
       {token.venue === "curve" && token.curveProgress !== null && (
         <div className="mt-4" data-testid="curve-progress">
           <p className="mb-1.5 text-[13px] text-muted">Curve progress, graduates to a Mezo pool at 100%</p>

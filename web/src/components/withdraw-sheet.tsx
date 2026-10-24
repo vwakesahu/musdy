@@ -13,6 +13,7 @@ import { ArrowSquareOutIcon, ArrowUpIcon, CheckIcon, LockSimpleIcon, WalletIcon 
 import { chain } from "@/lib/chain";
 import { cn } from "@/lib/utils";
 import { Drawer } from "./ui/drawer";
+import { isMezo } from "@/lib/xchain";
 import { TokenIcon } from "./ui/token-icon";
 
 type Asset = { address: Address; symbol: string; image: string | null; decimals: number; amount: bigint; withdrawable: boolean };
@@ -32,10 +33,10 @@ export function WithdrawSheet({ open, onOpenChange }: { open: boolean; onOpenCha
   const [pending, setPending] = useState<{ label: string; to: string } | null>(null);
 
   const assets: Asset[] = [
-    ...(dep && cash !== null && cash > 0n ? [{ address: dep.musd, symbol: "MUSD", image: null, decimals: 18, amount: cash, withdrawable: true }] : []),
+    ...(dep && cash !== null && cash > 0n ? [{ address: dep.musd, symbol: "MUSD", image: "/tokens/musd.svg", decimals: 18, amount: cash, withdrawable: true }] : []),
     ...(profile?.positions ?? [])
-      .filter((p) => BigInt(p.amount) > 0n)
-      .map((p) => ({ ...p.token, amount: BigInt(p.amount), withdrawable: p.withdrawable })),
+      .filter((p) => BigInt(p.amount) > 0n && isMezo(p.token))
+      .map((p) => ({ ...p.token, address: p.token.address as Address, amount: BigInt(p.amount), withdrawable: p.withdrawable })),
   ];
   const choices = assets.filter((a) => a.withdrawable);
   const lockedCount = assets.length - choices.length;

@@ -4,12 +4,13 @@ import { signedBig, tokenAmount, usd } from "@/lib/format";
 import { LockSimpleIcon } from "@phosphor-icons/react/ssr";
 import { Change, Pnl } from "./ui/pnl";
 import { TokenIcon } from "./ui/token-icon";
+import { tokenHref } from "@/lib/xchain";
 
 export function PositionRow({ position }: { position: Position }) {
   const t = position.token;
   return (
     <Link
-      href={`/token/${t.address}`}
+      href={tokenHref(t)}
       className="press flex min-h-[68px] items-center gap-3 px-4 py-3 transition-colors hover:bg-surface-3 lg:mx-2 lg:rounded-[14px] lg:px-3"
       data-testid="position-row"
       data-token={t.address.toLowerCase()}

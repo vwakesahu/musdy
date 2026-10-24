@@ -18,7 +18,7 @@ test("a launched coin's price and curve move live", async ({ page }, info) => {
     .poll(
       async () => {
         const list = TokenInfo.array().parse(await getJson(`${routes.tokens}?sort=new`));
-        token = list.find((t) => t.symbol === symbol)?.address;
+        token = list.find((t) => t.symbol === symbol)?.address as Address | undefined;
         return !!token;
       },
       { timeout: 30_000 },

@@ -89,7 +89,7 @@ export class Pricer {
   }
 
   async tick(block: number, ts: number): Promise<PriceMove[]> {
-    const rows = this.store.tokens().filter((r) => r.kind !== "musd");
+    const rows = this.store.tokens().filter((r) => r.kind !== "musd" && r.kind !== "meme");
     const poolRows = rows.filter((r) => !(r.kind === "launch" && !r.graduated));
     await this.resolvePools(poolRows, block);
     const priced = poolRows.filter((r) => r.pool);
@@ -111,7 +111,7 @@ export class Pricer {
       const price = this.views.priceOf(r);
       if (price === 0n || this.published.get(r.address) === price) continue;
       this.published.set(r.address, price);
-      moves.push({ address: this.views.tokenRef(r.address).address, priceMusd: price.toString(), change24h: this.book.change24h(r.address, ts) });
+      moves.push({ address: this.views.tokenRef(r.address).address as Address, priceMusd: price.toString(), change24h: this.book.change24h(r.address, ts) });
     }
     if (moves.length) log("prices.moved", { block, count: moves.length });
     return moves;

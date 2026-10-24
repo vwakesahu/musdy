@@ -1,21 +1,23 @@
 import { erc20Abi, type Address } from "viem";
-import { CandleTf, FeedScope, launchpadAbi, PnlWindow, TokenSort, tokenLogo, vaultAbi, type Deployment, type Health } from "shared";
+import { FeedScope, launchpadAbi, PnlWindow, tokenLogo, vaultAbi, type Deployment, type Health } from "shared";
 import { applyFollow, applyProfile } from "./auth";
 import { BlockLoop } from "./blocks";
-import { buildCandles, TF_SECONDS } from "./candles";
 import { makeClients } from "./chain";
 import { openDb } from "./db";
 import { deploymentFor, faucetEnabled, type Env } from "./env";
-import { HttpError, simulationError } from "./errors";
+import { simulationError } from "./errors";
 import { clientIp, handleHttp, param, qAddress, qBool, qOptional, qUint, type Handlers } from "./http";
 import { Hub, type WsData } from "./hub";
 import { Indexer } from "./indexer";
+import { Market } from "./market/market";
+import { marketRoutes } from "./market/routes";
 import { errMessage, log } from "./log";
 import { PriceBook } from "./price-book";
 import { Pricer } from "./pricer";
 import { readMany } from "./reads";
-import { Relayer } from "./relayer";
+import { FAUCET_AMOUNT, Relayer } from "./relayer";
 import { Sender, type SenderOpts } from "./sender";
+import { makeSolver, type SolverOpts } from "./solver";
 import { Store, type Venue } from "./store";
 import { Views } from "./views";
 import { Watcher } from "./watcher";
@@ -29,10 +31,9 @@ export interface App {
   stop(): Promise<void>;
 }
 
-const CANDLE_COUNT = 500;
-
 export interface AppOpts {
   sender?: SenderOpts;
+  solver?: SolverOpts;
 }
 
 export const startApp = async (env: Env, deployment?: Deployment, opts: AppOpts = {}): Promise<App> => {
@@ -57,7 +58,7 @@ export const startApp = async (env: Env, deployment?: Deployment, opts: AppOpts 
   });
 
   let current = Number(await pub.getBlockNumber());
-  const views = new Views(store, book, musd, curveSupply, () => current);
+  const views = new Views(store, book, musd, curveSupply, () => current, dep.chainId);
   if (store.getMeta("positions_built") !== "1") {
     views.rebuildPositions();
     store.setMeta("positions_built", "1");
@@ -78,6 +79,9 @@ export const startApp = async (env: Env, deployment?: Deployment, opts: AppOpts 
     const token = views.token(address);
     if (token) hub.publish("tokens", (topic) => ({ type: "token", topic, token }));
   };
+  const market = env.MARKET ? new Market({ onPrices: (prices) => hub.publish("prices", (topic) => ({ type: "prices", topic, block: current, prices })) }) : null;
+  market?.start();
+  const memeRoutes = marketRoutes(market, views, store, dep.chainId);
   const pricer = new Pricer(pub, store, book, views, dep);
   const indexer = new Indexer({
     pub,
@@ -93,6 +97,7 @@ export const startApp = async (env: Env, deployment?: Deployment, opts: AppOpts 
       pricer.poke(address);
       publishToken(address);
     },
+    onIntent: (ev) => kit.onIntent(ev),
     valueAt: views.value,
   });
 
@@ -100,7 +105,10 @@ export const startApp = async (env: Env, deployment?: Deployment, opts: AppOpts 
   const faucetSender = clients.faucet && faucetEnabled(env) ? new Sender(clients.faucet, pub, "faucet", opts.sender) : null;
   relayerSender.start();
   faucetSender?.start();
-  const relayer = new Relayer({ pub, relayer: relayerSender, faucet: faucetSender, dep, chainId: env.CHAIN_ID, hub, store, faucetHourlyCap: env.FAUCET_HOURLY_CAP });
+  const relayer: Relayer = new Relayer({ pub, relayer: relayerSender, faucet: faucetSender, dep, chainId: env.CHAIN_ID, hub, store, faucetHourlyCap: env.FAUCET_HOURLY_CAP });
+
+  const kit = makeSolver(env, { pub, chain: clients.chain, rpcUrl: env.RPC_URL, dep, store, views, book, hub, relayer }, { ...opts.solver, sender: opts.sender });
+  await kit.start();
 
   log("indexer.backfill_start", { from: indexer.lastBlock() + 1, to: current });
   await indexer.syncTo(current);
@@ -115,7 +123,7 @@ export const startApp = async (env: Env, deployment?: Deployment, opts: AppOpts 
       price: async (target) => {
         const block = await pub.getBlock({ blockNumber: BigInt(target) });
         const moves = await pricer.tick(target, Number(block.timestamp));
-        if (moves.length) hub.publish("prices", (topic) => ({ type: "prices", topic, block: target, prices: moves }));
+        if (moves.length) hub.publish("prices", (topic) => ({ type: "prices", topic, block: target, prices: moves.map((m) => ({ ...m, chainId: env.CHAIN_ID })) }));
       },
       watch: () => watcher.tick(),
     },
@@ -136,23 +144,15 @@ export const startApp = async (env: Env, deployment?: Deployment, opts: AppOpts 
       ok: true,
       block: current,
       chainId: env.CHAIN_ID,
+      faucetAmount: FAUCET_AMOUNT.toString(),
       relayer: relayerSender.address,
       relayerBtc: (await pub.getBalance({ address: relayerSender.address })).toString(),
       faucet: !!faucetSender,
     }),
     config: () => dep,
-    tokens: ({ query }) => views.tokens(param(TokenSort.default("trending"), query.get("sort"), "sort")),
-    token: ({ params }) => {
-      const t = views.token(param(qAddress, params.address, "address"));
-      if (!t) throw new HttpError(404, "not_found", "unknown token");
-      return t;
-    },
-    candles: ({ params, query }) => {
-      const token = param(qAddress, params.address, "address");
-      const tf = param(CandleTf.default("1m"), query.get("tf"), "tf");
-      const since = Math.floor(Date.now() / 1000) - TF_SECONDS[tf] * CANDLE_COUNT;
-      return buildCandles(store.tokenTicks(token, since).map((r) => ({ ts: r.ts, price: r.price_f, volume: r.musd_f })), tf);
-    },
+    tokens: memeRoutes.tokens,
+    token: memeRoutes.token,
+    candles: memeRoutes.candles,
     tokenTrades: ({ params, query }) =>
       views.feed(store.tokenTrades(param(qAddress, params.address, "address"), param(qOptional, query.get("before"), "before"))),
     feed: ({ query }) => {
@@ -201,6 +201,7 @@ export const startApp = async (env: Env, deployment?: Deployment, opts: AppOpts 
       const n = await pub.readContract({ address: dep.vault, abi: vaultAbi, functionName: "nonces", args: [user] });
       return { nonce: n.toString() };
     },
+    ...kit.handlers,
     trade: ({ body }) => relayer.trade(body),
     withdraw: ({ body }) => relayer.withdraw(body),
     launch: ({ body }) => relayer.launch(body),
@@ -251,7 +252,9 @@ export const startApp = async (env: Env, deployment?: Deployment, opts: AppOpts 
     stop: async () => {
       unwatch();
       clearInterval(retry);
+      market?.stop();
       relayer.stop();
+      kit.stop();
       relayerSender.stop();
       faucetSender?.stop();
       await server.stop(true);

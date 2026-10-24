@@ -9,6 +9,7 @@ import { Medal } from "./ui/medal";
 import { Pnl } from "./ui/pnl";
 import { Skeleton } from "./ui/skeleton";
 import { TokenIcon } from "./ui/token-icon";
+import { keyOf, tokenHref } from "@/lib/xchain";
 
 function Change({ value }: { value: number }) {
   const up = value >= 0;
@@ -55,8 +56,8 @@ export function FeedRail({ traders = true }: { traders?: boolean }) {
         ) : (
           <ul>
             {(tokens.data ?? []).slice(0, 5).map((t) => (
-              <li key={t.address}>
-                <Link href={`/token/${t.address}`} className="flex h-16 items-center gap-3 rounded-[14px] px-2 transition-colors hover:bg-surface-3">
+              <li key={keyOf(t)}>
+                <Link href={tokenHref(t)} className="flex h-16 items-center gap-3 rounded-[14px] px-2 transition-colors hover:bg-surface-3">
                   <TokenIcon token={t} size={40} />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-[16px] leading-5 font-medium">{t.symbol}</span>

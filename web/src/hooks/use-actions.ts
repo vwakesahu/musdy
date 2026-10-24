@@ -2,18 +2,28 @@
 import { useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import type { Address } from "viem";
-import { faucetMessage, followMessage, profileMessage, type FeedItem, type TxStatus } from "shared";
-import { api } from "@/lib/http";
+import { faucetMessage, followMessage, profileMessage, type Deployment, type FeedItem, type TokenRef, type TxStatus } from "shared";
+import { ApiError, api } from "@/lib/http";
 import { liveTxs } from "@/lib/live";
-import { signLaunch, signTrade, signWithdraw, type TradeInput } from "@/lib/sign";
+import { signIntent, signLaunch, signTrade, signWithdraw } from "@/lib/sign";
 import type { Signer } from "@/lib/signer";
 import { errorText, toast } from "@/lib/toast";
 import { openSheet } from "@/lib/ui";
+import { isMezo } from "@/lib/xchain";
 import { useDeployment } from "./use-deployment";
 import { useSession } from "./use-session";
 
 const SLIPPAGE_BPS = 200n;
 export const withSlippage = (amountOut: bigint) => (amountOut * (10_000n - SLIPPAGE_BPS)) / 10_000n;
+
+export type Order = { token: Pick<TokenRef, "chainId" | "address">; isBuy: boolean; amountIn: bigint; minOut: bigint; ref?: Address };
+export const isSolverOff = (e: unknown) => e instanceof ApiError && e.code === "solver_off";
+
+async function place(s: Signer, dep: Deployment, o: Order) {
+  const { token, ...rest } = o;
+  if (isMezo(token)) return api.trade(await signTrade(s, dep, { ...rest, token: token.address as Address }));
+  return api.intent(await signIntent(s, dep, { ...rest, chainId: token.chainId, token: token.address }));
+}
 
 export function useActions() {
   const { signer } = useSession();
@@ -21,7 +31,7 @@ export function useActions() {
   const qc = useQueryClient();
 
   return useMemo(() => {
-    async function run<T>(fn: (s: Signer) => Promise<T>, onError?: (e: unknown) => void): Promise<T | null> {
+    async function run<T>(fn: (s: Signer) => Promise<T>, onError?: (e: unknown) => boolean | void): Promise<T | null> {
       if (!signer) {
         openSheet("login");
         return null;
@@ -29,8 +39,7 @@ export function useActions() {
       try {
         return await fn(signer);
       } catch (e) {
-        toast("error", errorText(e));
-        onError?.(e);
+        if (onError?.(e) !== true) toast("error", errorText(e));
         return null;
       }
     }
@@ -44,25 +53,17 @@ export function useActions() {
     };
 
     return {
-      trade: (t: TradeInput) => run(async (s) => track(await api.trade(await signTrade(s, needDep(), t)))),
-      copy: (item: FeedItem, cash: bigint) =>
+      trade: (o: Order, onError?: (e: unknown) => boolean | void) => run(async (s) => track(await place(s, needDep(), o)), onError),
+      copy: (item: FeedItem, cash: bigint, onError?: (e: unknown) => boolean | void) =>
         run(async (s) => {
           if (!item.isBuy) throw new Error("Only buys can be copied");
           const want = BigInt(item.musdAmount);
           const amountIn = want < cash ? want : cash;
           if (amountIn <= 0n) throw new Error("No cash to copy with. Add MUSD first");
-          const q = await api.quote(item.token.address, true, amountIn);
-          const tx = await api.trade(
-            await signTrade(s, needDep(), {
-              token: item.token.address,
-              isBuy: true,
-              amountIn,
-              minOut: withSlippage(BigInt(q.amountOut)),
-              ref: item.user.address,
-            }),
-          );
+          const q = await api.quote(item.token, true, amountIn);
+          const tx = await place(s, needDep(), { token: item.token, isBuy: true, amountIn, minOut: withSlippage(BigInt(q.amountOut)), ref: item.user.address });
           return track(tx);
-        }),
+        }, onError),
       withdraw: (w: { token: Address; amount: bigint; to: Address }, onError?: (e: unknown) => void) =>
         run(async (s) => track(await api.withdraw(await signWithdraw(s, needDep(), w))), onError),
       launch: (l: { name: string; symbol: string; image: string; initialBuy: bigint }) =>

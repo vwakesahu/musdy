@@ -1,20 +1,21 @@
 "use client";
 import type { Address } from "viem";
 import { useQuery } from "@tanstack/react-query";
-import { api } from "@/lib/http";
+import { api, type ChainToken } from "@/lib/http";
 import { liveBalances, livePrices, liveTokens, liveTxs, lk, type LivePrice } from "@/lib/live";
 import { useStore } from "@/lib/store";
+import { keyOf } from "@/lib/xchain";
 import { useDeployment } from "./use-deployment";
 import { useSession } from "./use-session";
 
-export const useLivePrice = (address: string | undefined): LivePrice | null =>
-  useStore(livePrices, (p) => (address ? (p[lk(address)] ?? null) : null), null);
+export const useLivePrice = (t: ChainToken | undefined): LivePrice | null =>
+  useStore(livePrices, (p) => (t ? (p[keyOf(t)] ?? null) : null), null);
 
-export function useCurrentPrice(address: string): bigint | null {
-  const live = useLivePrice(address);
+export function useCurrentPrice(t: ChainToken): bigint | null {
+  const live = useLivePrice(t);
   const one = useQuery({
-    queryKey: ["token", lk(address)],
-    queryFn: () => api.token(address as Address),
+    queryKey: ["token", keyOf(t)],
+    queryFn: () => api.token(t),
     enabled: !live,
     staleTime: 60_000,
   });
@@ -22,8 +23,8 @@ export function useCurrentPrice(address: string): bigint | null {
   return one.data ? BigInt(one.data.priceMusd) : null;
 }
 
-export const useLiveToken = (address: string | undefined) =>
-  useStore(liveTokens, (t) => (address ? (t[lk(address)] ?? null) : null), null);
+export const useLiveToken = (ref: ChainToken | undefined) =>
+  useStore(liveTokens, (t) => (ref ? (t[keyOf(ref)] ?? null) : null), null);
 
 export const useTx = (id: string | null) => useStore(liveTxs, (t) => (id ? (t[id] ?? null) : null), null);
 

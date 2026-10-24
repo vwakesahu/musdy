@@ -67,7 +67,7 @@ export const FollowBody = z.object({ address: zAddress, target: zAddress, follow
 
 export const Accepted = TxStatus;
 
-export const Health = z.object({ ok: z.boolean(), block: z.number(), chainId: z.number(), relayer: zAddress, relayerBtc: zUint, faucet: z.boolean() });
+export const Health = z.object({ ok: z.boolean(), block: z.number(), chainId: z.number(), relayer: zAddress, relayerBtc: zUint, faucet: z.boolean(), faucetAmount: zUint });
 
 export const TokenSort = z.enum(["trending", "new", "stocks"]);
 export const CandleTf = z.enum(["1m", "5m", "1h", "1d"]);

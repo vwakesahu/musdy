@@ -1,0 +1,114 @@
+import { createWalletClient, http, type Chain, type PublicClient, type Transport } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
+import type { Deployment } from "shared";
+import { HttpError } from "../errors";
+import { param, qAddress, type Ctx } from "../http";
+import type { Hub } from "../hub";
+import { log } from "../log";
+import type { PriceBook } from "../price-book";
+import type { Relayer } from "../relayer";
+import { Sender, type SenderOpts } from "../sender";
+import type { Store } from "../store";
+import type { Views } from "../views";
+import type { SolverEnv } from "./config";
+import { Deposits } from "./deposits";
+import { LiveRunner, type StepRunner } from "./exec";
+import { MezoOps } from "./mezo";
+import { RelayHttp, type RelayApi } from "./relay";
+import { Solver, type IntentEvent } from "./solver";
+import { SolverStore } from "./store";
+
+export interface SolverOpts {
+  relay?: RelayApi;
+  runner?: StepRunner;
+  pollMs?: number;
+  depositTickMs?: number;
+}
+
+export interface SolverKit {
+  solver: Solver | null;
+  deposits: Deposits;
+  onIntent(ev: IntentEvent): void;
+  handlers: { intent(ctx: Ctx): unknown; depositChains(ctx: Ctx): unknown; depositAddress(ctx: Ctx): unknown };
+  start(): Promise<void>;
+  stop(): void;
+}
+
+const off = () => new HttpError(503, "solver_off", "cross chain trading is off, the server has no SOLVER_KEY");
+
+export const makeSolver = (
+  env: SolverEnv,
+  d: { pub: PublicClient<Transport, Chain>; chain: Chain; rpcUrl: string; dep: Deployment; store: Store; views: Views; book: PriceBook; hub: Hub; relayer: Relayer },
+  opts: SolverOpts & { sender?: SenderOpts } = {},
+): SolverKit => {
+  const relay = opts.relay ?? new RelayHttp(env.RELAY_URL, env.RELAY_API_KEY);
+  const sstore = new SolverStore(d.store);
+  let sender: Sender | null = null;
+  let ops: MezoOps | null = null;
+  let solver: Solver | null = null;
+  if (env.SOLVER_KEY) {
+    const wallet = createWalletClient({ chain: d.chain, transport: http(d.rpcUrl), account: privateKeyToAccount(env.SOLVER_KEY) });
+    sender = new Sender(wallet, d.pub, "solver", opts.sender);
+    ops = new MezoOps(d.pub, d.dep, sender, d.relayer);
+    const runner =
+      opts.runner ??
+      new LiveRunner({ key: env.SOLVER_KEY, solanaKey: env.SOLVER_SOLANA_KEY, rpc: { base: env.BASE_RPC_URL, bsc: env.BSC_RPC_URL, solana: env.SOLANA_RPC_URL } });
+    solver = new Solver({ relay, runner, ops, store: sstore, views: d.views, book: d.book, hub: d.hub, pollMs: opts.pollMs });
+  }
+  const deposits = new Deposits({
+    relay,
+    store: sstore,
+    hub: d.hub,
+    ops,
+    tickMs: opts.depositTickMs,
+    receipt: (hash) => d.pub.getTransactionReceipt({ hash }).then((r) => r.status === "success", () => null),
+  });
+  let active = false;
+
+  return {
+    get solver() {
+      return active ? solver : null;
+    },
+    deposits,
+    onIntent: (ev) => {
+      if (active) solver?.onEvent(ev);
+      else log("solver.intent_ignored", { id: ev.id, kind: ev.kind });
+    },
+    handlers: {
+      intent: ({ body }) => {
+        const s = active ? solver : null;
+        if (!s) throw off();
+        return d.relayer.intent(body, (i) => s.check(i));
+      },
+      depositChains: () => deposits.chains(),
+      depositAddress: ({ params }) => {
+        const user = param(qAddress, params.address, "address");
+        const chainId = Number(params.chainId);
+        if (!Number.isInteger(chainId)) throw new HttpError(400, "bad_param", "chainId: not a number");
+        if (!active) throw off();
+        return deposits.address(user, chainId);
+      },
+    },
+    start: async () => {
+      if (!ops || !solver || !sender) {
+        log("solver.off", { reason: "no SOLVER_KEY" });
+        return;
+      }
+      const onChain = await ops.solverOnChain();
+      if (onChain.toLowerCase() !== ops.address.toLowerCase()) {
+        log("solver.off", { reason: "vault.solver is a different address", vault: onChain, key: ops.address });
+        return;
+      }
+      sender.start();
+      await solver.start();
+      deposits.start();
+      active = true;
+      log("solver.on", { address: ops.address, relayKey: relay.hasKey });
+    },
+    stop: () => {
+      solver?.stop();
+      deposits.stop();
+      sender?.stop();
+    },
+  };
+};

@@ -19,6 +19,7 @@ export class Views {
     private musd: string,
     private curveSupply: bigint,
     private block: () => number,
+    private chainId = 31337,
   ) {}
 
   userRef(address: string): UserRef {
@@ -28,8 +29,10 @@ export class Views {
 
   tokenRef(address: string): TokenRef {
     const row = this.store.token(address);
-    if (!row) return { address: addr(address), symbol: "?", name: "unknown", image: null, decimals: 18 };
-    return { address: addr(row.address), symbol: row.symbol, name: row.name, image: row.image, decimals: row.decimals };
+    if (!row) return { address: address.startsWith("0x") ? addr(address) : address, chainId: this.chainId, symbol: "?", name: "unknown", image: null, decimals: 18 };
+    if (row.chain_id && row.raw_address)
+      return { address: row.raw_address, chainId: row.chain_id, symbol: row.symbol, name: row.name, image: row.image, decimals: row.decimals };
+    return { address: addr(row.address), chainId: this.chainId, symbol: row.symbol, name: row.name, image: row.image, decimals: row.decimals };
   }
 
   holderCount(token: string): number {
@@ -91,6 +94,7 @@ export class Views {
     const sold = onCurve && row.virtual_token0 && row.virtual_token ? BigInt(row.virtual_token0) - BigInt(row.virtual_token) : 0n;
     return {
       address: addr(row.address),
+      chainId: this.chainId,
       symbol: row.symbol,
       name: row.name,
       image: row.image,
@@ -116,7 +120,7 @@ export class Views {
 
   tokens(sort: TokenSort): TokenInfo[] {
     const vols = this.volumes(now() - 86400);
-    const rows = this.store.tokens().filter((r) => r.kind !== "musd");
+    const rows = this.store.tokens().filter((r) => r.kind !== "musd" && r.kind !== "meme");
     const infos = rows.map((r) => this.tokenInfo(r, vols));
     if (sort === "new") return infos.filter((t) => t.kind === "launch").slice(0, LIST_LIMIT);
     if (sort === "stocks") return infos.filter((t) => t.kind === "stock");
@@ -205,7 +209,7 @@ export class Views {
         costMusd: h.cost.toString(),
         pnlMusd: pnl.toString(),
         pnlPct: ratio(pnl, h.cost),
-        withdrawable: !(row.kind === "launch" && !row.graduated),
+        withdrawable: !(row.kind === "launch" && !row.graduated) && row.kind !== "meme",
       });
     }
     return out.sort((a, b) => (BigInt(b.valueMusd) > BigInt(a.valueMusd) ? 1 : -1));

@@ -13,6 +13,7 @@ import { useCash, useProfile } from "@/hooks/use-live";
 import { useSession } from "@/hooks/use-session";
 import { signedBig, usd } from "@/lib/format";
 import { openSheet } from "@/lib/ui";
+import { keyOf } from "@/lib/xchain";
 
 export function PortfolioScreen() {
   return (
@@ -114,7 +115,7 @@ function Portfolio() {
       ) : (
         <ul>
           {positions.map((x) => (
-            <li key={x.token.address}>
+            <li key={keyOf(x.token)}>
               <PositionRow position={x} />
             </li>
           ))}
@@ -151,7 +152,7 @@ function Portfolio() {
         </section>
         <section>
           <h2 className="mb-1 text-[17px] leading-[22px] font-medium tracking-[-0.01em]">Add money</h2>
-          <p className="mb-3 text-[14px] leading-5 text-muted">Send MUSD or BTC on Mezo to your address. It lands in your cash on its own.</p>
+          <p className="mb-3 text-[14px] leading-5 text-muted">Send from Mezo, Solana, Base and more. It lands as dollars in your cash.</p>
           <Button variant="secondary" className="w-full" onClick={() => openSheet("deposit")}>
             Show deposit address
           </Button>

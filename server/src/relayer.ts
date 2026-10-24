@@ -1,6 +1,8 @@
-import { erc20Abi, maxUint256, parseEther, serializeSignature, verifyTypedData, type Address, type Chain, type Hash, type PublicClient, type Transport } from "viem";
+import { erc20Abi, hashTypedData, maxUint256, parseEther, serializeSignature, verifyTypedData, type Address, type Chain, type Hash, type PublicClient, type Transport } from "viem";
 import {
   FaucetBody,
+  IntentBody,
+  intentTypes,
   LaunchBody,
   PermitDepositBody,
   TradeBody,
@@ -25,7 +27,7 @@ import { errMessage, log } from "./log";
 import { signCall, type Fees, type Sender, type SendFn } from "./sender";
 import type { Store } from "./store";
 
-export const FAUCET_AMOUNT = parseEther("1000");
+export const FAUCET_AMOUNT = parseEther(process.env.FAUCET_AMOUNT ?? "1000");
 export const FAUCET_PERIOD = 86400;
 export const FAUCET_PER_IP = 3;
 
@@ -180,15 +182,15 @@ export class Relayer {
     user: Address,
     sender: Sender,
     send: SendFn,
-    opts: { lock?: string; onFail?: () => void; vaultNonce?: bigint } = {},
+    opts: { lock?: string; onFail?: () => void; vaultNonce?: bigint; id?: string; holdConfirm?: boolean } = {},
   ): TxStatus {
-    const id = crypto.randomUUID();
+    const id = opts.id ?? crypto.randomUUID();
     const status: TxStatus = { id, kind, status: "pending", hash: null, error: null };
     this.pushTx(user, status);
     const settle = (s: TxStatus) => {
       if (opts.lock) this.inFlight.delete(opts.lock);
       if (s.status === "failed") opts.onFail?.();
-      this.pushTx(user, s);
+      if (!(opts.holdConfirm && s.status === "confirmed")) this.pushTx(user, s);
       log("relayer.tx", { id, kind, user, status: s.status, hash: s.hash, error: s.error });
     };
     sender
@@ -203,7 +205,7 @@ export class Relayer {
     return status;
   }
 
-  private async checkVaultSig(user: Address, primaryType: "Trade" | "Withdraw" | "Launch", types: object, message: object, sig: `0x${string}`) {
+  private async checkVaultSig(user: Address, primaryType: "Trade" | "Withdraw" | "Launch" | "Intent", types: object, message: object, sig: `0x${string}`) {
     const domain = domainFor(this.d.chainId, this.d.dep.vault);
     const args = { address: user, domain, types, primaryType, message, signature: sig } as Parameters<typeof verifyTypedData>[0];
     this.checkSig(await verifyTypedData(args).catch(() => false));
@@ -230,6 +232,37 @@ export class Relayer {
       return this.dispatch("trade", t.user, this.d.relayer, (nonce, fees) => signCall(this.d.relayer.wallet, at(request, gas, nonce, fees)), {
         lock,
         vaultNonce: message.nonce,
+      });
+    });
+  }
+
+  // the tx id is the intent id, the solver sends the final confirmed or failed once it settles
+  async intent(body: unknown, check: (i: { user: Address; isBuy: boolean; chainId: number; token: string; amountIn: bigint }) => void): Promise<TxStatus> {
+    const { intent: it, sig } = parseBody(IntentBody, body);
+    const message = {
+      ...it,
+      chainId: toUint(it.chainId, "intent.chainId"),
+      amountIn: toUint(it.amountIn, "intent.amountIn"),
+      minOut: toUint(it.minOut, "intent.minOut"),
+      nonce: toUint(it.nonce, "intent.nonce"),
+      deadline: toUint(it.deadline, "intent.deadline"),
+    };
+    if (message.amountIn === 0n) throw new HttpError(400, "bad_body", "intent.amountIn: must be positive");
+    this.checkDeadline(message.deadline);
+    check({ user: it.user, isBuy: it.isBuy, chainId: Number(message.chainId), token: it.token, amountIn: message.amountIn });
+    await this.checkVaultSig(it.user, "Intent", intentTypes, message, sig);
+    const id = hashTypedData({ domain: domainFor(this.d.chainId, this.d.dep.vault), types: intentTypes, primaryType: "Intent", message });
+    return this.locked(`${it.user}:${message.nonce}`, async (lock) => {
+      await this.checkNonce(it.user, message.nonce);
+      const { request } = await this.simulate(() =>
+        this.d.pub.simulateContract({ account: this.d.relayer.wallet.account, address: this.d.dep.vault, abi: vaultAbi, functionName: "executeIntent", args: [message, sig] }),
+      );
+      const gas = await this.gas(request);
+      return this.dispatch("intent", it.user, this.d.relayer, (nonce, fees) => signCall(this.d.relayer.wallet, at(request, gas, nonce, fees)), {
+        lock,
+        vaultNonce: message.nonce,
+        id,
+        holdConfirm: true,
       });
     });
   }

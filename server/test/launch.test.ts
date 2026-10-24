@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import type { TokenInfo } from "shared";
+import type { Address, TokenInfo } from "shared";
 import { PriceBook } from "../src/price-book";
 import { WAD } from "../src/pricing";
 import { Views } from "../src/views";
@@ -19,7 +19,7 @@ describe.skipIf(!CONTRACTS_READY)(`launch and graduation${SKIP_NOTE}`, () => {
     const [creator, ...buyers] = actors as [Actor, ...Actor[]];
     creator.socket.send({ type: "subscribe", topic: "tokens" });
     await creator.submit("/actions/launch", await creator.launchBody("Graduate", "GRAD", 900n * WAD));
-    const coin = (await get<TokenInfo[]>(s.app.url, "/tokens?sort=new")).body.find((t) => t.symbol === "GRAD")!;
+    const coin = (await get<(TokenInfo & { address: Address })[]>(s.app.url, "/tokens?sort=new")).body.find((t) => t.symbol === "GRAD")!;
     for (const b of buyers) await b.trade(coin.address, true, 950n * WAD);
 
     const info = (await get<TokenInfo>(s.app.url, `/tokens/${coin.address}`)).body;

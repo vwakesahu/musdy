@@ -1,0 +1,294 @@
+import type { Address, Hash } from "viem";
+import { SOLANA, type TxStatus } from "shared";
+import { HttpError } from "../errors";
+import type { Hub } from "../hub";
+import { errMessage, log } from "../log";
+import type { PriceBook } from "../price-book";
+import { toFloat, tradePrice } from "../pricing";
+import type { TradeRow } from "../store";
+import type { Views } from "../views";
+import { BASE, BASE_USDC, coinAddress, USDC_TO_MUSD } from "./config";
+import type { StepRunner } from "./exec";
+import type { MezoOps } from "./mezo";
+import { amountOut, type Quote, type QuoteParams, type RelayApi } from "./relay";
+import { xKey, type IntentRow, type SolverStore } from "./store";
+
+export interface IntentEvent {
+  kind: "opened" | "settled";
+  id: Hash;
+  user: Address;
+  txHash: Hash;
+  block: number;
+  logIndex: number;
+  ts: number;
+  isBuy?: boolean;
+  chainId?: number;
+  token?: string;
+  amountIn?: bigint;
+  minOut?: bigint;
+  ref?: Address;
+  musdToUser?: bigint;
+  tokenAmount?: bigint;
+  ok?: boolean;
+}
+
+export interface IntentAsk {
+  user: Address;
+  isBuy: boolean;
+  chainId: number;
+  token: string;
+  amountIn: bigint;
+}
+
+export interface SolverDeps {
+  relay: RelayApi;
+  runner: StepRunner;
+  ops: MezoOps;
+  store: SolverStore;
+  views: Views;
+  book: PriceBook;
+  hub: Hub;
+  pollMs?: number;
+  waitingMs?: number;
+  fillMs?: number;
+}
+
+export const MIN_BUY_MUSD = 10n ** 18n;
+const RETRY_MS = 30_000;
+
+class Fail extends Error {}
+
+export class Solver {
+  private running = new Set<string>();
+  private timer: ReturnType<typeof setInterval> | null = null;
+  private stopped = false;
+  private fee: bigint | null = null;
+
+  constructor(private d: SolverDeps) {}
+
+  async start() {
+    this.fee = BigInt(await this.d.ops.feeBps());
+    this.timer = setInterval(() => this.resume(), RETRY_MS);
+    this.resume();
+  }
+
+  stop() {
+    this.stopped = true;
+    if (this.timer) clearInterval(this.timer);
+  }
+
+  private resume() {
+    for (const row of this.d.store.unfinished()) this.kick(row.id);
+  }
+
+  // checked before the relayer spends gas on executeIntent
+  check(i: IntentAsk) {
+    const token = coinAddress(i.chainId, i.token);
+    if (!token) throw new HttpError(400, "bad_token", `not a coin address on chain ${i.chainId} (solana, base and bsc are supported)`);
+    if (i.chainId === SOLANA && !this.d.runner.solanaAddress) throw new HttpError(503, "solver_off", "solana trading is off, the server has no SOLVER_SOLANA_KEY");
+    if (i.isBuy && i.amountIn < MIN_BUY_MUSD) throw new HttpError(400, "too_small", "a cross chain buy needs at least 1 MUSD");
+    if (!i.isBuy) {
+      const free = this.d.store.held(i.user, i.chainId, token) - this.d.store.reservedSells(i.user, i.chainId, token);
+      if (free < i.amountIn) throw new HttpError(400, "insufficient_position", "you hold less of this coin than you are selling");
+    }
+  }
+
+  onEvent(ev: IntentEvent) {
+    if (ev.kind === "opened") {
+      const token = coinAddress(ev.chainId!, ev.token!) ?? ev.token!;
+      this.d.store.openIntent({ id: ev.id, user: ev.user, isBuy: ev.isBuy!, chainId: ev.chainId!, token, amountIn: ev.amountIn!, minOut: ev.minOut!, ref: ev.ref!, at: ev.ts });
+      this.kick(ev.id);
+      return;
+    }
+    this.closed(ev);
+  }
+
+  private pushTx(user: string, tx: TxStatus) {
+    this.d.hub.publish(`user:${user.toLowerCase()}`, (topic) => ({ type: "tx", topic, tx }));
+  }
+
+  private closed(ev: IntentEvent) {
+    const row = this.d.store.intent(ev.id);
+    if (!row || row.status === "settled" || row.status === "refunded") return;
+    const s = this.d.store;
+    if (ev.ok) {
+      const isBuy = row.is_buy === 1;
+      const key = xKey(row.chain_id, row.token);
+      const decimals = s.store.token(key)?.decimals ?? 18;
+      const musd = isBuy ? BigInt(row.amount_in) : ev.musdToUser!;
+      const tokens = isBuy ? ev.tokenAmount! : BigInt(row.amount_in);
+      const fee = BigInt(row.fee);
+      const price = tradePrice(isBuy, musd, fee, tokens, decimals);
+      const trade: TradeRow = {
+        id: `${ev.txHash}:${ev.logIndex}`,
+        block: ev.block,
+        log_index: ev.logIndex,
+        ts: ev.ts,
+        tx_hash: ev.txHash,
+        user: row.user,
+        token: key,
+        is_buy: isBuy ? 1 : 0,
+        musd_amount: musd.toString(),
+        token_amount: tokens.toString(),
+        fee: fee.toString(),
+        ref: row.ref,
+        venue: "relay",
+        price: price.toString(),
+        price_f: toFloat(price),
+        musd_f: toFloat(musd),
+      };
+      const fresh = s.store.tx(() => {
+        s.update(row.id, { status: "settled" });
+        return s.store.insertTrade(trade);
+      });
+      if (fresh) {
+        if (price > 0n) this.d.book.record(key, ev.ts, ev.block, price);
+        this.d.hub.publishTrade(this.d.views.feedItem(trade), s.store.followers(row.user));
+      }
+    } else s.update(row.id, { status: "refunded", error: row.error ?? "refunded" });
+    this.pushTx(row.user, { id: row.id, kind: "intent", status: ev.ok ? "confirmed" : "failed", hash: ev.txHash, error: ev.ok ? null : (row.error ?? "refunded") });
+    log("solver.closed", { id: row.id, ok: ev.ok });
+  }
+
+  private kick(id: string) {
+    if (this.stopped || this.running.has(id)) return;
+    this.running.add(id);
+    void this.drive(id)
+      .catch((e: unknown) => log("solver.error", { id, error: errMessage(e) }))
+      .finally(() => this.running.delete(id));
+  }
+
+  private recipient(row: IntentRow): string {
+    if (!row.is_buy) return this.d.runner.evmAddress;
+    if (row.chain_id !== SOLANA) return this.d.runner.evmAddress;
+    const sol = this.d.runner.solanaAddress;
+    if (!sol) throw new Fail("solana trading is off, the server has no SOLVER_SOLANA_KEY");
+    return sol;
+  }
+
+  private quoteParams(row: IntentRow): QuoteParams {
+    const evm = this.d.runner.evmAddress;
+    if (row.is_buy)
+      return {
+        user: evm,
+        recipient: this.recipient(row),
+        originChainId: BASE,
+        originCurrency: BASE_USDC,
+        destinationChainId: row.chain_id,
+        destinationCurrency: row.token,
+        amount: (BigInt(row.amount_in) / USDC_TO_MUSD).toString(),
+        tradeType: "EXACT_INPUT",
+      };
+    const user = row.chain_id === SOLANA ? this.d.runner.solanaAddress : evm;
+    if (!user) throw new Fail("solana trading is off, the server has no SOLVER_SOLANA_KEY");
+    return {
+      user,
+      recipient: evm,
+      originChainId: row.chain_id,
+      originCurrency: row.token,
+      destinationChainId: BASE,
+      destinationCurrency: BASE_USDC,
+      amount: row.amount_in,
+      tradeType: "EXACT_INPUT",
+    };
+  }
+
+  private sellNet(usdc: bigint): { musd: bigint; fee: bigint } {
+    const gross = usdc * USDC_TO_MUSD;
+    const fee = (gross * (this.fee ?? 50n)) / 10_000n;
+    return { musd: gross - fee, fee };
+  }
+
+  private async drive(id: string) {
+    let row = this.d.store.intent(id);
+    if (!row || row.status === "settled" || row.status === "refunded") return;
+    if (await this.d.ops.settled(row.id as Hash)) return;
+    try {
+      if (row.status === "open") await this.start1(row);
+      row = this.d.store.intent(id)!;
+      if (row.status === "filling") await this.waitFill(row);
+    } catch (e) {
+      if (!(e instanceof Fail)) throw e;
+      this.failed(row!, e.message);
+    }
+    row = this.d.store.intent(id)!;
+    if (row.status === "filled" || row.status === "settling") await this.settle(row);
+  }
+
+  private failed(row: IntentRow, error: string) {
+    log("solver.intent_failed", { id: row.id, error });
+    this.d.store.update(row.id, { status: "filled", error, token_amount: "0", musd_out: row.is_buy ? row.amount_in : "0", fee: "0" });
+  }
+
+  private async start1(row: IntentRow) {
+    if (!row.is_buy) {
+      const free = this.d.store.held(row.user, row.chain_id, row.token) - this.d.store.reservedSells(row.user, row.chain_id, row.token, row.id);
+      if (free < BigInt(row.amount_in)) throw new Fail("you hold less of this coin than you are selling");
+    }
+    let q: Quote;
+    try {
+      q = await this.d.relay.quote(this.quoteParams(row));
+    } catch (e) {
+      if (e instanceof Fail) throw e;
+      throw new Fail(`no route: ${errMessage(e)}`);
+    }
+    const coin = row.is_buy ? q.details.currencyOut.currency : q.details.currencyIn.currency;
+    this.d.store.seedCoin({ ...coin, address: row.token });
+    const out = BigInt(q.details.currencyOut.amount);
+    const minOut = BigInt(row.min_out);
+    if (row.is_buy ? out < minOut : this.sellNet(out).musd < minOut) throw new Fail("the price moved past your minimum");
+    const requestId = q.requestId ?? q.steps.find((s) => s.requestId)?.requestId;
+    if (!requestId) throw new Fail("relay returned no request id");
+    this.d.store.update(row.id, { status: "filling", request_id: requestId });
+    try {
+      await this.d.runner.run(q);
+    } catch (e) {
+      log("solver.steps_error", { id: row.id, error: errMessage(e) });
+      this.d.store.update(row.id, { error: errMessage(e) });
+    }
+  }
+
+  private async waitFill(row: IntentRow) {
+    const requestId = row.request_id!;
+    const poll = this.d.pollMs ?? 3000;
+    const start = Date.now();
+    const sentFailed = row.error !== null;
+    while (!this.stopped) {
+      const st = await this.d.relay.status(requestId).catch(() => null);
+      const s = st?.status ?? "unknown";
+      if (s === "refund") throw new Fail(`relay refunded the swap${st?.failReason && st.failReason !== "N/A" ? `: ${st.failReason}` : ""}`);
+      if (s === "success") break;
+      const waited = Date.now() - start;
+      if ((s === "waiting" || s === "unknown") && waited > (sentFailed ? (this.d.pollMs ?? 3000) * 5 : (this.d.waitingMs ?? 600_000)))
+        throw new Fail(row.error ?? "relay never saw the deposit");
+      if (waited > (this.d.fillMs ?? 1_800_000)) return;
+      await Bun.sleep(poll);
+    }
+    if (this.stopped) return;
+    const recipient = this.recipient(row);
+    const currency = row.is_buy ? row.token : BASE_USDC;
+    let got: bigint | null = null;
+    for (let i = 0; i < 5 && got === null; i++) {
+      const req = await this.d.relay.request(requestId).catch(() => null);
+      got = req ? amountOut(req, recipient, currency) : null;
+      if (got === null) await Bun.sleep(this.d.pollMs ?? 3000);
+    }
+    if (got === null) {
+      log("solver.amount_unknown", { id: row.id, requestId });
+      return;
+    }
+    if (row.is_buy) this.d.store.update(row.id, { status: "filled", token_amount: got.toString(), musd_out: "0", fee: "0", error: null });
+    else {
+      const { musd, fee } = this.sellNet(got);
+      this.d.store.update(row.id, { status: "filled", token_amount: row.amount_in, musd_out: musd.toString(), fee: fee.toString(), error: null });
+    }
+  }
+
+  private async settle(row: IntentRow) {
+    const ok = row.error === null;
+    this.d.store.update(row.id, { status: "settling" });
+    const out = await this.d.ops.settle(row.id as Hash, row.user as Address, BigInt(row.musd_out ?? "0"), BigInt(row.token_amount ?? "0"), ok);
+    log("solver.settle_sent", { id: row.id, ok, hash: out.hash, mined: out.ok });
+    if (!out.ok) this.d.store.update(row.id, { status: "filled" });
+  }
+}

@@ -20,6 +20,8 @@ export interface TokenRow {
   virtual_token: string | null;
   virtual_token0: string | null;
   total_supply: string;
+  chain_id?: number | null;
+  raw_address?: string | null;
 }
 
 export interface TradeRow {

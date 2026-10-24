@@ -92,6 +92,7 @@ export const startStack = async (overrides: Overrides | ((anvil: Anvil) => Overr
     DB_PATH: tempDb(),
     // actors pick their ip with x-forwarded-for
     TRUST_PROXY: "1",
+    MARKET: "0",
     ...(typeof overrides === "function" ? overrides(anvil) : overrides),
   });
   const app = await startApp(env, dep, opts);

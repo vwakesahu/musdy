@@ -26,6 +26,7 @@ const friendly: Record<string, string> = {
   curve_locked: "This coin is still on its launch curve and can't leave until it graduates.",
   self_follow: "You can't follow yourself.",
   network: "Can't reach the musdy server.",
+  solver_off: "Trading this coin opens soon.",
   Expired: "That took too long to send. Try again.",
   BadNonce: "Another action was in flight. Try again.",
   BadSignature: "The signature didn't check out. Log in again and retry.",

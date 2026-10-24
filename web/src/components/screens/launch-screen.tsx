@@ -19,6 +19,8 @@ import { liveTokens, lk } from "@/lib/live";
 import { useIsDesktop } from "@/hooks/use-media-query";
 import { cn } from "@/lib/utils";
 import { hashOf, marbleUri } from "@/lib/art";
+import { env } from "@/lib/env";
+import { tokenHref } from "@/lib/xchain";
 import { RightRail } from "../right-rail";
 
 // art links go on chain forever, so they use the public app url, never the host this ran on
@@ -88,7 +90,7 @@ function LaunchForm() {
   const go = (token: Address | null) => {
     if (went.current) return;
     went.current = true;
-    router.push(token ? `/token/${token}` : "/explore?sort=new");
+    router.push(token ? tokenHref({ chainId: env.chainId, address: token }) : "/explore?sort=new");
   };
 
   useEffect(() => {
@@ -96,7 +98,7 @@ function LaunchForm() {
     const check = () => {
       const l = launching.current;
       const fresh = l && Object.values(liveTokens.get()).find((t) => t.creator && lk(t.creator) === lk(address) && t.symbol === l.symbol && t.createdAt >= l.at - 60);
-      if (fresh) go(fresh.address);
+      if (fresh) go(fresh.address as Address);
     };
     check();
     return liveTokens.subscribe(check);
