@@ -66,7 +66,7 @@ export class LiveRunner implements StepRunner {
   private async send(id: string, item: StepItem): Promise<string> {
     const d = item.data;
     if (isSvm(d)) return this.sendSolana(d);
-    if (isEvm(d)) return this.sendEvm(d);
+    if (isEvm(d)) return this.sendEvm(id === "approve" ? maxApproval(d) : d);
     throw new Error(`relay step ${id} has no transaction data`);
   }
 
@@ -94,7 +94,7 @@ export class LiveRunner implements StepRunner {
     const chain = this.chains[d.chainId];
     if (!chain) throw new Error(`no rpc for chain ${d.chainId}`);
     const wallet = createWalletClient({ chain, transport: http(), account: this.account });
-    const pub = createPublicClient({ chain, transport: http() });
+    const pub = createPublicClient({ chain, transport: http(), pollingInterval: 500 });
     const hash = await wallet.sendTransaction({
       to: d.to as Hex,
       data: (d.data ?? "0x") as Hex,
@@ -132,3 +132,10 @@ export class LiveRunner implements StepRunner {
     return sig;
   }
 }
+
+// one unlimited approval to relay's spender means later trades are a single swap tx
+const maxApproval = (d: EvmTxData): EvmTxData => {
+  const data = (d.data ?? "0x") as Hex;
+  if (!data.startsWith("0x095ea7b3") || data.length !== 138) return d;
+  return { ...d, data: `${data.slice(0, 74)}${"f".repeat(64)}` as Hex };
+};

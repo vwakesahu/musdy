@@ -1,6 +1,6 @@
-import { createWalletClient, erc20Abi, http, type Chain, type PublicClient, type Transport } from "viem";
+import { createWalletClient, erc20Abi, http, type Chain, type Hash, type PublicClient, type Transport } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import type { Deployment } from "shared";
+import { IntentBody, type Deployment } from "shared";
 import { HttpError } from "../errors";
 import { param, qAddress, type Ctx } from "../http";
 import type { Hub } from "../hub";
@@ -100,7 +100,12 @@ export const makeSolver = (
       intent: ({ body }) => {
         const s = active ? solver : null;
         if (!s) throw off();
-        return d.relayer.intent(body, (i) => s.check(i));
+        return d.relayer.intent(body, (i) => s.check(i)).then((tx) => {
+          // speed over certainty: the fill starts once the signed intent is accepted, the onchain open only has to land before settle
+          const it = IntentBody.parse(body).intent;
+          s.onEvent({ kind: "opened", id: tx.id as Hash, user: it.user, txHash: "0x" as Hash, block: 0, logIndex: 0, ts: Math.floor(Date.now() / 1000), isBuy: it.isBuy, chainId: Number(it.chainId), token: it.token, amountIn: BigInt(it.amountIn), minOut: BigInt(it.minOut), ref: it.ref });
+          return tx;
+        });
       },
       depositChains: () => deposits.chains(),
       depositAddress: ({ params }) => {

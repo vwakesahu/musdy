@@ -256,7 +256,12 @@ export class Solver {
     if (!requestId) throw new Fail("relay returned no request id");
     this.d.store.update(row.id, { status: "filling", request_id: requestId });
     try {
-      await this.d.runner.run(q);
+      const hashes = await this.d.runner.run(q);
+      // a same chain evm swap is final once its receipt is in, so the amount comes from it without waiting on relay's status
+      if (row.chain_id === BASE && hashes.length) {
+        const got = await this.d.runner.received(BASE, hashes, row.is_buy ? row.token : BASE_USDC, this.recipient(row)).catch(() => null);
+        if (got !== null) this.filled(row, got);
+      }
     } catch (e) {
       log("solver.steps_error", { id: row.id, error: errMessage(e) });
       this.d.store.update(row.id, { error: errMessage(e) });
@@ -265,7 +270,7 @@ export class Solver {
 
   private async waitFill(row: IntentRow) {
     const requestId = row.request_id!;
-    const poll = this.d.pollMs ?? 3000;
+    const poll = this.d.pollMs ?? 1000;
     const start = Date.now();
     const sentFailed = row.error !== null;
     while (!this.stopped) {
@@ -274,7 +279,7 @@ export class Solver {
       if (s === "refund") throw new Fail(`relay refunded the swap${st?.failReason && st.failReason !== "N/A" ? `: ${st.failReason}` : ""}`);
       if (s === "success") break;
       const waited = Date.now() - start;
-      if ((s === "waiting" || s === "unknown") && waited > (sentFailed ? (this.d.pollMs ?? 3000) * 5 : (this.d.waitingMs ?? 600_000)))
+      if ((s === "waiting" || s === "unknown") && waited > (sentFailed ? (this.d.pollMs ?? 1000) * 5 : (this.d.waitingMs ?? 600_000)))
         throw new Fail(row.error ?? "relay never saw the deposit");
       if (waited > (this.d.fillMs ?? 1_800_000)) return;
       await Bun.sleep(poll);
@@ -286,7 +291,7 @@ export class Solver {
     for (let i = 0; i < 5 && got === null; i++) {
       const req = await this.d.relay.request(requestId).catch(() => null);
       got = req ? amountOut(req, recipient, currency) : null;
-      if (got === null) await Bun.sleep(this.d.pollMs ?? 3000);
+      if (got === null) await Bun.sleep(this.d.pollMs ?? 1000);
     }
     if (got === null) {
       const st = await this.d.relay.status(requestId).catch(() => null);
@@ -297,6 +302,10 @@ export class Solver {
       log("solver.amount_unknown", { id: row.id, requestId });
       return;
     }
+    this.filled(row, got);
+  }
+
+  private filled(row: IntentRow, got: bigint) {
     if (row.is_buy) this.d.store.update(row.id, { status: "filled", token_amount: got.toString(), musd_out: "0", fee: "0", error: null });
     else {
       const { musd, fee } = this.sellNet(got);

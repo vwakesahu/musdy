@@ -39,12 +39,14 @@ const position = async () => {
   return p.positions.find((x) => x.token.chainId === 8453);
 };
 
-log("buy", JSON.stringify(await intent(true, parseUnits(process.env.BUY_USD ?? "3", 18))));
+const t0 = Date.now();
+log("buy", JSON.stringify(await intent(true, parseUnits(process.env.BUY_USD ?? "3", 18))), "accepted in", Date.now() - t0, "ms");
 let pos;
 for (let i = 0; i < 60 && !(pos = await position()); i++) await sleep(3000);
-log("position", JSON.stringify(pos ?? null), "cash", formatUnits(await cash(), 18));
+log("position after", Date.now() - t0, "ms", JSON.stringify(pos?.amount ?? null), "cash", formatUnits(await cash(), 18));
 if (!pos) process.exit(1);
-log("sell", JSON.stringify(await intent(false, BigInt(pos.amount))));
+const t1 = Date.now();
+log("sell", JSON.stringify(await intent(false, BigInt(pos.amount))), "accepted in", Date.now() - t1, "ms");
 const before = await cash();
 for (let i = 0; i < 60 && (await cash()) === before; i++) await sleep(3000);
-log("cash after sell", formatUnits(await cash(), 18), "position", JSON.stringify((await position()) ?? null));
+log("sold after", Date.now() - t1, "ms", "cash after sell", formatUnits(await cash(), 18), "position", JSON.stringify((await position()) ?? null));
