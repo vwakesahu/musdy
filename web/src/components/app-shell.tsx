@@ -1,5 +1,6 @@
 "use client";
 import { useState, type ReactNode } from "react";
+import { BetaNote } from "./beta-note";
 import { NavRail } from "./nav-rail";
 import { RightRailSlot } from "./right-rail";
 import { TabBar } from "./tab-bar";
@@ -8,6 +9,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [slot, setSlot] = useState<HTMLElement | null>(null);
   return (
     <RightRailSlot.Provider value={slot}>
+      <BetaNote />
       <div className="min-h-dvh lg:mx-auto lg:grid lg:max-w-[1320px] lg:grid-cols-[72px_minmax(0,1fr)_360px] xl:grid-cols-[240px_minmax(0,720px)_360px]">
         <NavRail />
         <main className="mx-auto flex min-h-dvh w-full max-w-[720px] min-w-0 flex-col pb-[calc(56px+env(safe-area-inset-bottom))] lg:border-x lg:border-border lg:pb-8">{children}</main>
