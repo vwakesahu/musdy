@@ -8,5 +8,6 @@
     "e2e": "pnpm --filter web e2e",
     "anvil": "anvil --block-time 1",
     "check:comments": "node scripts/check-comments.mjs"
-  }
+  },
+  "packageManager": "pnpm@11.25.0"
 }
