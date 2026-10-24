@@ -1,3 +1,5 @@
+<img src="web/public/brand/app-icon-512.png" width="72" alt="musdy" />
+
 # musdy
 
 fomo on mezo. log in with google and you get one dollar balance. buy bitcoin, stocks and coins people launch on musdy from it, see what everyone else is buying as it happens, and copy any trade in one tap. no gas, no bridges, no wallet popups. musdy.fun
