@@ -60,7 +60,7 @@ export const routes = {
   candles: "/tokens/:address/candles", // ?tf=1m|5m|1h|1d -> Candle[]
   tokenTrades: "/tokens/:address/trades", // ?before=<id> -> FeedItem[]
   feed: "/feed", // ?scope=global|following&address=&before= -> FeedItem[]
-  user: "/users/:address", // Profile
+  user: "/users/:address", // ?viewer=<addr> -> Profile
   userTrades: "/users/:address/trades", // FeedItem[]
   leaderboard: "/leaderboard", // ?window=d1|d7|all -> LeaderRow[]
   quote: "/quote", // ?token=&isBuy=&amountIn= -> Quote

@@ -33,6 +33,7 @@ export const TokenInfo = TokenRef.extend({
   marketCapMusd: zUint,
   curveProgress: z.number().nullable(), // 0..1 while on the curve, null otherwise
   pool: zAddress.nullable(),
+  holders: z.number(), // addresses with a non zero vault balance of this token
   createdAt: z.number(), // unix seconds
 });
 export type TokenInfo = z.infer<typeof TokenInfo>;
@@ -47,6 +48,7 @@ export const FeedItem = z.object({
   musdAmount: zUint,
   tokenAmount: zUint,
   priceMusd: zUint,
+  marketCapMusd: zUint, // at the time of the trade
   ref: UserRef.nullable(), // the trader this one copied
   venue: z.enum(["pool", "curve"]),
   txHash: zHex,
@@ -76,6 +78,7 @@ export const Profile = z.object({
   positions: z.array(Position),
   followers: z.number(),
   following: z.number(),
+  followedByViewer: z.boolean().nullable(), // null when no ?viewer= was given
   trades: z.number(),
 });
 export type Profile = z.infer<typeof Profile>;
