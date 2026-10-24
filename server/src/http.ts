@@ -10,7 +10,7 @@ export interface Ctx {
   params: Record<string, string>;
   query: URLSearchParams;
   body: unknown;
-  // the caller's ip, x-forwarded-for first
+  // the caller's ip, see clientIp
   ip: string;
 }
 export type Handlers = Record<RouteName, (ctx: Ctx) => Promise<unknown> | unknown>;
@@ -32,9 +32,10 @@ export const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body, replacer), { status, headers: { "content-type": "application/json", ...CORS } });
 const fail = (status: number, code: string, message: string) => json({ code, message }, status);
 
-// the first x-forwarded-for hop, else the socket address
-export const clientIp = (req: Request, socketIp: string | null | undefined): string =>
-  req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || socketIp || "unknown";
+// the socket address. x-forwarded-for is only believed behind a proxy that sets it (TRUST_PROXY=1),
+// otherwise any client could pick its own ip for the faucet and socket limits
+export const clientIp = (req: Request, socketIp: string | null | undefined, trustProxy = false): string =>
+  (trustProxy ? req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() : undefined) || socketIp || "unknown";
 
 export const handleHttp = async (req: Request, handlers: Handlers, ip = "unknown"): Promise<Response> => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });

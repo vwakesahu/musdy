@@ -1,14 +1,16 @@
-import { erc20Abi, maxUint256, parseEther, verifyTypedData, type Address, type Chain, type Hash, type PublicClient, type Transport } from "viem";
+import { erc20Abi, maxUint256, parseAbi, parseEther, serializeSignature, verifyTypedData, type Address, type Chain, type Hash, type PublicClient, type Transport } from "viem";
 import {
   FaucetBody,
   LaunchBody,
   PermitDepositBody,
   TradeBody,
   WithdrawBody,
+  btcPermitDomain,
   domainFor,
   faucetMessage,
   launchpadAbi,
   launchTypes,
+  permitTypes,
   tradeTypes,
   vaultAbi,
   withdrawTypes,
@@ -20,7 +22,7 @@ import { checkIssued, checkPersonalSig } from "./auth";
 import { HttpError, simulationError } from "./errors";
 import type { Hub } from "./hub";
 import { errMessage, log } from "./log";
-import type { Fees, Sender, SendFn } from "./sender";
+import { signCall, type Fees, type Sender, type SendFn } from "./sender";
 import type { Store } from "./store";
 
 export const FAUCET_AMOUNT = parseEther("1000");
@@ -54,11 +56,18 @@ export interface RelayerDeps {
 type Outcome = { hash: Hash; ok: boolean; error: string | null };
 
 // a simulated request at a given nonce and gas, with the fees of a replacement when the watchdog bumps it
-const at = <R extends object>(request: R, gas: bigint, nonce: number, fees?: Fees): R => ({ ...request, gas, nonce, ...fees });
+const at = <R extends object>(request: R, gas: bigint, nonce: number, fees?: Fees): R & { gas: bigint; nonce: number } => ({ ...request, gas, nonce, ...fees });
 // the estimate runs against the current block, a new block can cost more (pool oracles write on their first trade)
 const GAS_BUFFER_PCT = 130n;
 
 const LOST_GRACE_MS = 1000;
+
+const permitReadAbi = parseAbi([
+  "function eip712Domain() view returns (bytes1, string, string, uint256, address, bytes32, uint256[])",
+  "function nonces(address owner) view returns (uint256)",
+  "function nonce(address owner) view returns (uint256)",
+]);
+type PermitDomain = { name: string; version: string; chainId: number; verifyingContract: Address };
 
 const nowSec = () => BigInt(Math.floor(Date.now() / 1000));
 
@@ -214,7 +223,7 @@ export class Relayer {
         this.d.pub.simulateContract({ account: this.d.relayer.wallet.account, address: this.d.dep.vault, abi: vaultAbi, functionName: "executeTrade", args: [message, sig] }),
       );
       const gas = await this.gas(request);
-      return this.dispatch("trade", t.user, this.d.relayer, (nonce, fees) => this.d.relayer.wallet.writeContract(at(request, gas, nonce, fees)), {
+      return this.dispatch("trade", t.user, this.d.relayer, (nonce, fees) => signCall(this.d.relayer.wallet, at(request, gas, nonce, fees)), {
         lock,
         vaultNonce: message.nonce,
       });
@@ -235,7 +244,7 @@ export class Relayer {
         this.d.pub.simulateContract({ account: this.d.relayer.wallet.account, address: this.d.dep.vault, abi: vaultAbi, functionName: "executeWithdraw", args: [message, sig] }),
       );
       const gas = await this.gas(request);
-      return this.dispatch("withdraw", w.user, this.d.relayer, (nonce, fees) => this.d.relayer.wallet.writeContract(at(request, gas, nonce, fees)), {
+      return this.dispatch("withdraw", w.user, this.d.relayer, (nonce, fees) => signCall(this.d.relayer.wallet, at(request, gas, nonce, fees)), {
         lock,
         vaultNonce: message.nonce,
       });
@@ -254,14 +263,29 @@ export class Relayer {
         this.d.pub.simulateContract({ account: this.d.relayer.wallet.account, address: this.d.dep.vault, abi: vaultAbi, functionName: "executeLaunch", args: [message, sig] }),
       );
       const gas = await this.gas(request);
-      return this.dispatch("launch", l.user, this.d.relayer, (nonce, fees) => this.d.relayer.wallet.writeContract(at(request, gas, nonce, fees)), {
+      return this.dispatch("launch", l.user, this.d.relayer, (nonce, fees) => signCall(this.d.relayer.wallet, at(request, gas, nonce, fees)), {
         lock,
         vaultNonce: message.nonce,
       });
     });
   }
 
-  // the permit is already signed by the owner, the vault checks it inside depositWithPermit
+  // the token's own permit domain and the owner's current permit nonce, read the same way the web signs.
+  // MUSD has eip712Domain() and nonces(), the BTC precompile has neither, a fixed domain and nonce(owner)
+  private async permitDomain(token: Address, owner: Address): Promise<{ domain: PermitDomain; nonce: bigint }> {
+    const pub = this.d.pub;
+    let domain: PermitDomain;
+    try {
+      const [, name, version, chainId, verifyingContract] = await pub.readContract({ address: token, abi: permitReadAbi, functionName: "eip712Domain" });
+      domain = { name, version, chainId: Number(chainId), verifyingContract };
+    } catch {
+      const nonce = await pub.readContract({ address: token, abi: permitReadAbi, functionName: "nonce", args: [owner] });
+      return { domain: btcPermitDomain(this.d.chainId, token), nonce };
+    }
+    return { domain, nonce: await pub.readContract({ address: token, abi: permitReadAbi, functionName: "nonces", args: [owner] }) };
+  }
+
+  // the vault only falls back to a standing allowance when permit() reverts, so the server checks the permit itself first
   deposit(body: unknown): Promise<TxStatus> {
     const p = parseBody(PermitDepositBody, body);
     const token = p.token.toLowerCase();
@@ -273,12 +297,17 @@ export class Relayer {
     this.checkDeadline(p.deadline);
     return this.locked(`${p.owner}:${p.token}`, async (lock) => {
       const v = p.v < 27 ? p.v + 27 : p.v;
+      const { domain, nonce } = await this.permitDomain(p.token, p.owner);
+      const message = { owner: p.owner, spender: this.d.dep.vault, value: BigInt(p.amount), nonce, deadline: BigInt(p.deadline) };
+      const signature = serializeSignature({ r: p.r, s: p.s, v: BigInt(v) });
+      const ok = await verifyTypedData({ address: p.owner, domain, types: permitTypes, primaryType: "Permit", message, signature }).catch(() => false);
+      if (!ok) throw new HttpError(400, "bad_signature", "permit signature does not recover to owner");
       const args = [p.owner, p.token, BigInt(p.amount), BigInt(p.deadline), v, p.r, p.s] as const;
       const { request } = await this.simulate(() =>
         this.d.pub.simulateContract({ account: this.d.relayer.wallet.account, address: this.d.dep.vault, abi: vaultAbi, functionName: "depositWithPermit", args }),
       );
       const gas = await this.gas(request);
-      return this.dispatch("deposit", p.owner, this.d.relayer, (nonce, fees) => this.d.relayer.wallet.writeContract(at(request, gas, nonce, fees)), { lock });
+      return this.dispatch("deposit", p.owner, this.d.relayer, (nonce, fees) => signCall(this.d.relayer.wallet, at(request, gas, nonce, fees)), { lock });
     });
   }
 
@@ -286,9 +315,9 @@ export class Relayer {
     this.approval ??= (async () => {
       const allowance = await this.d.pub.readContract({ address: this.d.dep.musd, abi: erc20Abi, functionName: "allowance", args: [faucet.address, this.d.dep.vault] });
       if (allowance >= FAUCET_AMOUNT * 1000n) return;
-      const hash = await faucet.submit((nonce, fees) =>
-        faucet.wallet.writeContract({ address: this.d.dep.musd, abi: erc20Abi, functionName: "approve", args: [this.d.dep.vault, maxUint256], nonce, ...fees }),
-      );
+      const call = { address: this.d.dep.musd, abi: erc20Abi, functionName: "approve", args: [this.d.dep.vault, maxUint256] } as const;
+      const gas = await this.gas({ ...call, account: faucet.wallet.account });
+      const hash = await faucet.submit((nonce, fees) => signCall(faucet.wallet, { ...call, gas, nonce, ...fees }));
       const r = await this.mined(faucet, hash);
       if (!r?.ok) throw new Error(`faucet approve ${r?.error ?? "did not finish"}`);
       log("faucet.approved", { hash: r.hash });
@@ -317,7 +346,7 @@ export class Relayer {
         this.d.pub.simulateContract({ account: faucet.wallet.account, address: this.d.dep.vault, abi: vaultAbi, functionName: "deposit", args: [this.d.dep.musd, FAUCET_AMOUNT, address] }),
       );
       const gas = await this.gas(request);
-      return this.dispatch("faucet", address, faucet, (nonce, fees) => faucet.wallet.writeContract(at(request, gas, nonce, fees)), { onFail: release });
+      return this.dispatch("faucet", address, faucet, (nonce, fees) => signCall(faucet.wallet, at(request, gas, nonce, fees)), { onFail: release });
     } catch (e) {
       release();
       throw e;

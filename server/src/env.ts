@@ -12,6 +12,8 @@ export const Env = z.object({
   FAUCET_KEY: z.preprocess((v) => (v === "" ? undefined : v), zKey.optional()),
   DB_PATH: z.string().default("./musdy.db"),
   FAUCET_HOURLY_CAP: z.coerce.number().int().positive().default(50),
+  // believe x-forwarded-for, only behind a reverse proxy that overwrites it
+  TRUST_PROXY: z.enum(["0", "1", ""]).default("0").transform((v) => v === "1"),
 });
 export type Env = z.infer<typeof Env>;
 

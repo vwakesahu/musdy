@@ -15,7 +15,7 @@ import { Pricer } from "./pricer";
 import { readMany } from "./reads";
 import { Relayer } from "./relayer";
 import { Sender, type SenderOpts } from "./sender";
-import { Store } from "./store";
+import { Store, type Venue } from "./store";
 import { Views } from "./views";
 import { Watcher } from "./watcher";
 
@@ -68,10 +68,10 @@ export const startApp = async (env: Env, deployment?: Deployment, opts: AppOpts 
     welcome: () => ({ type: "welcome", serverTime: Date.now(), block: current, chainId: env.CHAIN_ID }),
     replay: (topic) => views.replay(topic),
     onHello: (addr) => void watcher.push(addr, true).catch((e) => log("watcher.error", { address: addr, error: errMessage(e) })),
-    onSubscribe: (topic) => {
-      if (!topic.startsWith("user:")) return;
-      const addr = topic.slice(5);
-      void watcher.push(addr, true).catch((e) => log("watcher.error", { address: addr, error: errMessage(e) }));
+    // only a socket's own user topic gets an immediate balance push, any other user topic waits for the next change
+    onSubscribe: (topic, address) => {
+      if (!address || topic !== `user:${address}`) return;
+      void watcher.push(address, true).catch((e) => log("watcher.error", { address, error: errMessage(e) }));
     },
   });
   const watcher = new Watcher(pub, store, hub, dep, () => current);
@@ -79,17 +79,23 @@ export const startApp = async (env: Env, deployment?: Deployment, opts: AppOpts 
     const token = views.token(address);
     if (token) hub.publish("tokens", (topic) => ({ type: "token", topic, token }));
   };
+  const pricer = new Pricer(pub, store, book, views, dep);
   const indexer = new Indexer({
     pub,
     store,
     book,
     dep,
     launchTotalSupply: launchSupply,
-    onTrade: (row) => hub.publishTrade(views.feedItem(row), store.followers(row.user)),
-    onToken: publishToken,
+    onTrade: (row) => {
+      if (row.venue === "pool") pricer.poke(row.token);
+      hub.publishTrade(views.feedItem(row), store.followers(row.user));
+    },
+    onToken: (address) => {
+      pricer.poke(address);
+      publishToken(address);
+    },
     valueAt: views.value,
   });
-  const pricer = new Pricer(pub, store, book, views, dep);
 
   const relayerSender = new Sender(clients.relayer, pub, "relayer", opts.sender);
   const faucetSender = clients.faucet && faucetEnabled(env) ? new Sender(clients.faucet, pub, "faucet", opts.sender) : null;
@@ -208,7 +214,7 @@ export const startApp = async (env: Env, deployment?: Deployment, opts: AppOpts 
         const got = isBuy ? amountOut : amountOut + fee;
         if (expected > 0n && got < expected) impact = Number(((expected - got) * 1_000_000n) / expected) / 1_000_000;
       }
-      return { amountOut: amountOut.toString(), fee: fee.toString(), priceImpact: impact, venue: onCurve ? "curve" : "pool" };
+      return { amountOut: amountOut.toString(), fee: fee.toString(), priceImpact: impact, venue: (onCurve ? "curve" : "pool") satisfies Venue };
     },
     nonce: async ({ params }) => {
       const user = param(qAddress, params.address, "address");
@@ -234,7 +240,7 @@ export const startApp = async (env: Env, deployment?: Deployment, opts: AppOpts 
   const server = Bun.serve<WsData>({
     port: env.PORT,
     fetch(req, srv) {
-      const ip = clientIp(req, srv.requestIP(req)?.address);
+      const ip = clientIp(req, srv.requestIP(req)?.address, env.TRUST_PROXY);
       if (new URL(req.url).pathname === "/ws") {
         const data = hub.admit(ip);
         if (!data) return new Response("too many sockets from this address", { status: 429 });

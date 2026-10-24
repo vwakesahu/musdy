@@ -1,8 +1,9 @@
 import type { Database } from "bun:sqlite";
-import type { TokenInfo } from "shared";
+import type { TOKEN_KINDS, VENUES } from "shared";
 import { applyFlow, type Flow, type Holding } from "./pnl";
 
-export type TokenKind = TokenInfo["kind"];
+export type TokenKind = (typeof TOKEN_KINDS)[number];
+export type Venue = (typeof VENUES)[number];
 
 export interface TokenRow {
   address: string;
@@ -34,7 +35,7 @@ export interface TradeRow {
   token_amount: string;
   fee: string;
   ref: string | null;
-  venue: "pool" | "curve";
+  venue: Venue;
   price: string;
   price_f: number;
   musd_f: number;

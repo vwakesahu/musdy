@@ -2,11 +2,11 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import type { Server } from "bun";
 import type { FeedItem, ServerMsg } from "shared";
 import { openDb } from "../src/db";
-import { CLOSE_RATE_LIMIT, Hub, MAX_SOCKETS_PER_IP, MAX_TOPICS, type WsData } from "../src/hub";
+import { CLOSE_RATE_LIMIT, Hub, MAX_HELLOS, MAX_SOCKETS_PER_IP, MAX_TOPICS, type Ws, type WsData } from "../src/hub";
 import { PriceBook } from "../src/price-book";
 import { Store } from "../src/store";
 import { Views } from "../src/views";
-import { CONTRACTS_READY, SKIP_NOTE, startStack, tempDb, type Stack } from "./helpers/anvil";
+import { CONTRACTS_READY, SKIP_NOTE, rpcCounter, startStack, tempDb, type Stack } from "./helpers/anvil";
 import { Actor } from "./helpers/actors";
 import { TestSocket } from "./helpers/ws";
 
@@ -179,6 +179,54 @@ describe("socket hub", () => {
     expect(h.admit("9.9.9.9")).not.toBeNull();
   });
 
+  // a socket object the hub can drive without a server
+  const fakeWs = (h: Hub, ip = "7.7.7.7") => {
+    const sent: ServerMsg[] = [];
+    const ws = { data: h.admit(ip)!, send: (f: string) => void sent.push(JSON.parse(f) as ServerMsg), close: () => {} };
+    return { ws: ws as unknown as Ws, sent };
+  };
+  const bareHub = (extra: Partial<ConstructorParameters<typeof Hub>[0]> = {}) =>
+    new Hub({ welcome: () => ({ type: "welcome", serverTime: 0, block: 0, chainId: 31337 }), replay: () => null, ...extra });
+  const addr = (i: number) => `0x${(i + 1).toString(16).padStart(40, "0")}`;
+
+  test("topic sets are dropped once their last socket unsubscribes or closes", () => {
+    const h = bareHub();
+    const a = fakeWs(h);
+    const b = fakeWs(h);
+    for (let i = 0; i < 5; i++) h.message(a.ws, JSON.stringify({ type: "subscribe", topic: `token:${addr(i)}` }));
+    h.message(b.ws, JSON.stringify({ type: "subscribe", topic: `token:${addr(0)}` }));
+    expect(h.topicCount()).toBe(5);
+    h.message(a.ws, JSON.stringify({ type: "unsubscribe", topic: `token:${addr(1)}` }));
+    expect(h.topicCount()).toBe(4);
+    h.close(a.ws);
+    expect(h.topicCount()).toBe(1);
+    expect(h.hasSubscribers(`token:${addr(0)}`)).toBe(true);
+    h.message(b.ws, JSON.stringify({ type: "unsubscribe", topic: `token:${addr(0)}` }));
+    h.close(b.ws);
+    expect(h.topicCount()).toBe(0);
+  });
+
+  test("hello address changes per socket and watched addresses overall are capped", () => {
+    const hellos: string[] = [];
+    const h = bareHub({ maxWatched: 4, onHello: (a) => void hellos.push(a) });
+    const a = fakeWs(h);
+    for (let i = 0; i <= MAX_HELLOS; i++) h.message(a.ws, JSON.stringify({ type: "hello", address: addr(i) }));
+    expect(hellos).toHaveLength(MAX_HELLOS);
+    expect(a.sent.at(-1)).toMatchObject({ type: "error", code: "too_many_hellos" });
+    expect(h.watchedAddresses()).toEqual([addr(MAX_HELLOS - 1)]);
+    const others = Array.from({ length: 4 }, () => fakeWs(h));
+    others.forEach((o, i) => h.message(o.ws, JSON.stringify({ type: "hello", address: addr(10 + i) })));
+    expect(h.watchedAddresses()).toHaveLength(4);
+    expect(others[3]!.sent.at(-1)).toMatchObject({ type: "error", code: "server_busy" });
+    // an address already watched never counts against the cap
+    const again = fakeWs(h);
+    h.message(again.ws, JSON.stringify({ type: "hello", address: addr(10) }));
+    expect(again.sent).toHaveLength(0);
+    h.close(a.ws);
+    h.message(others[3]!.ws, JSON.stringify({ type: "hello", address: addr(13) }));
+    expect(h.watchedAddresses()).toContain(addr(13));
+  });
+
   test("unsubscribe stops delivery", async () => {
     const s = await TestSocket.open(url);
     s.send({ type: "subscribe", topic: `token:${TOKEN}` });
@@ -220,6 +268,35 @@ describe.skipIf(!CONTRACTS_READY)(`socket against anvil${SKIP_NOTE}`, () => {
     expect(back.messages.every((m) => m.type !== "trade" || m.replay)).toBe(true);
     back.close();
   }, 60000);
+
+  test("subscribing to other users' topics reads nothing from the chain, only the socket's own address does", async () => {
+    let target = "";
+    const proxy = rpcCounter(() => target);
+    const own = await startStack((node) => {
+      target = node.rpc;
+      return { RPC_URL: proxy.url };
+    });
+    try {
+      const me = "0x00000000000000000000000000000000000000c1";
+      const sock = await TestSocket.open(`ws://localhost:${own.app.port}/ws`);
+      sock.send({ type: "hello", address: me });
+      await Bun.sleep(500);
+      // the hello itself reads the socket's own balances
+      expect(proxy.count("eth_call")).toBeGreaterThan(0);
+      proxy.reset();
+      for (let i = 0; i < 10; i++) sock.send({ type: "subscribe", topic: `user:0x${crypto.randomUUID().replace(/-/g, "").padEnd(40, "0")}` });
+      await Bun.sleep(1000);
+      expect(proxy.count("eth_call", "eth_getBalance")).toBe(0);
+      expect(sock.messages.some((m) => m.type === "balances")).toBe(false);
+      // its own topic gets a push, served from the same block's read
+      sock.send({ type: "subscribe", topic: `user:${me}` });
+      await sock.next((m) => m.type === "balances");
+      sock.close();
+    } finally {
+      await own.stop();
+      proxy.stop();
+    }
+  }, 120000);
 
   test("prices stream once per block with only what moved", async () => {
     const tsla = s.dep.tokens.find((t) => t.symbol === "TSLA")!.address;

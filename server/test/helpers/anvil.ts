@@ -78,7 +78,10 @@ export interface Stack {
 
 export const tempDb = () => join(mkdtempSync(join(tmpdir(), "musdy-")), "test.db");
 
-export const startStack = async (overrides: Partial<Record<keyof Env, string>> = {}, opts: AppOpts = {}): Promise<Stack> => {
+type Overrides = Partial<Record<keyof Env, string>>;
+
+// overrides can depend on the node, e.g. to put an rpc proxy in front of it
+export const startStack = async (overrides: Overrides | ((anvil: Anvil) => Overrides) = {}, opts: AppOpts = {}): Promise<Stack> => {
   const anvil = await startAnvil();
   const dep = await deployLocal(anvil.rpc);
   const env = Env.parse({
@@ -89,7 +92,9 @@ export const startStack = async (overrides: Partial<Record<keyof Env, string>> =
     RELAYER_KEY: KEYS.RELAYER_KEY,
     FAUCET_KEY: KEYS.FAUCET_KEY,
     DB_PATH: tempDb(),
-    ...overrides,
+    // actors pick their ip with x-forwarded-for
+    TRUST_PROXY: "1",
+    ...(typeof overrides === "function" ? overrides(anvil) : overrides),
   });
   const app = await startApp(env, dep, opts);
   return {
@@ -101,5 +106,30 @@ export const startStack = async (overrides: Partial<Record<keyof Env, string>> =
       await app.stop();
       anvil.stop();
     },
+  };
+};
+
+// a json-rpc proxy in front of the node that counts calls per method
+export const rpcCounter = (target: () => string) => {
+  const counts = new Map<string, number>();
+  const server = Bun.serve({
+    port: 0,
+    async fetch(req) {
+      const body = await req.text();
+      try {
+        const parsed = JSON.parse(body) as { method: string } | { method: string }[];
+        for (const c of Array.isArray(parsed) ? parsed : [parsed]) counts.set(c.method, (counts.get(c.method) ?? 0) + 1);
+      } catch {
+        // forwarded as is
+      }
+      const r = await fetch(target(), { method: "POST", headers: { "content-type": "application/json" }, body });
+      return new Response(await r.text(), { status: r.status, headers: { "content-type": "application/json" } });
+    },
+  });
+  return {
+    url: `http://127.0.0.1:${server.port}`,
+    count: (...methods: string[]) => methods.reduce((n, m) => n + (counts.get(m) ?? 0), 0),
+    reset: () => counts.clear(),
+    stop: () => server.stop(true),
   };
 };

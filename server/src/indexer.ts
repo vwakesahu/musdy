@@ -1,4 +1,4 @@
-import { erc20Abi, type Chain, type PublicClient, type Transport } from "viem";
+import { erc20Abi, type Address, type Chain, type PublicClient, type Transport } from "viem";
 import { launchpadAbi, vaultAbi, VENUES, type Deployment } from "shared";
 import { log } from "./log";
 import type { PriceBook } from "./price-book";
@@ -25,18 +25,54 @@ export interface IndexerDeps {
 type Curve = { virtualMusd: bigint; virtualToken: bigint; tokensSold: bigint };
 type Meta = { symbol: string; name: string; decimals: number };
 
+const clip = (v: unknown, fallback: string, max: number) => (typeof v === "string" && v.length ? v.slice(0, max) : fallback);
+
+// erc20 metadata that never throws, a token whose reads revert or return junk gets placeholders
+export const readTokenMeta = async (pub: PublicClient<Transport, Chain>, token: Address): Promise<Meta> => {
+  const base = { address: token, abi: erc20Abi } as const;
+  const [symbol, name, decimals] = await Promise.allSettled([
+    pub.readContract({ ...base, functionName: "symbol" }),
+    pub.readContract({ ...base, functionName: "name" }),
+    pub.readContract({ ...base, functionName: "decimals" }),
+  ]);
+  const d = decimals.status === "fulfilled" ? Number(decimals.value) : NaN;
+  const meta = {
+    symbol: clip(symbol.status === "fulfilled" ? symbol.value : null, "???", 32),
+    name: clip(name.status === "fulfilled" ? name.value : null, "unknown token", 64),
+    decimals: Number.isInteger(d) && d >= 0 && d <= 36 ? d : 18,
+  };
+  if ([symbol, name, decimals].some((r) => r.status === "rejected")) log("indexer.meta_fallback", { token, ...meta });
+  return meta;
+};
+
 export class Indexer {
   private chunk: number;
   private vault: string;
   private launchpad: string;
   private musd: string;
   private tsCache = new Map<bigint, number>();
+  // MUSD, BTC and the deployment's tokens, launchpad tokens are recognised from the store
+  private fixed: Set<string>;
+  private ignored = new Set<string>();
 
   constructor(private d: IndexerDeps) {
     this.chunk = d.chunk ?? 2000;
     this.vault = d.dep.vault.toLowerCase();
     this.launchpad = d.dep.launchpad.toLowerCase();
     this.musd = d.dep.musd.toLowerCase();
+    this.fixed = new Set([d.dep.musd, d.dep.btc, ...d.dep.tokens.map((t) => t.address)].map((a) => a.toLowerCase()));
+  }
+
+  // deposits and withdrawals of anything else are ignored, any contract can be deposited
+  private tracked(token: string, createdHere: Set<string>): boolean {
+    const t = token.toLowerCase();
+    if (this.fixed.has(t) || createdHere.has(t) || this.d.store.token(t)?.kind === "launch") return true;
+    if (!this.ignored.has(t)) {
+      if (this.ignored.size > 10_000) this.ignored.clear();
+      this.ignored.add(t);
+      log("indexer.untracked_token", { token: t });
+    }
+    return false;
   }
 
   lastBlock(): number {
@@ -77,16 +113,6 @@ export class Indexer {
     }
   }
 
-  private async tokenMeta(token: `0x${string}`): Promise<Meta> {
-    const base = { address: token, abi: erc20Abi } as const;
-    const [symbol, name, decimals] = await Promise.all([
-      this.d.pub.readContract({ ...base, functionName: "symbol" }),
-      this.d.pub.readContract({ ...base, functionName: "name" }),
-      this.d.pub.readContract({ ...base, functionName: "decimals" }),
-    ]);
-    return { symbol, name, decimals };
-  }
-
   private async range(from: number, to: number): Promise<number> {
     const logs = await this.d.pub.getLogs({
       address: [this.d.dep.vault, this.d.dep.launchpad],
@@ -102,13 +128,18 @@ export class Indexer {
     for (const n of new Set(logs.map((l) => l.blockNumber))) ts.set(n, await this.blockTs(n));
     const curves = new Map<string, Curve>();
     const metas = new Map<string, Meta>();
-    for (const l of logs) {
+    const created = new Set<string>();
+    for (const l of logs) if (l.eventName === "TokenCreated" && l.address.toLowerCase() === this.launchpad) created.add(l.args.token.toLowerCase());
+    // the vault accepts any contract, flows of untracked tokens are dropped before anything reads them
+    const keep = (l: (typeof logs)[number]) =>
+      !(l.address.toLowerCase() === this.vault && (l.eventName === "Deposited" || l.eventName === "Withdrawn") && !this.tracked(l.args.token, created));
+    const kept = logs.filter(keep);
+    for (const l of kept) {
       if (l.eventName === "TokenCreated" && l.address.toLowerCase() === this.launchpad)
         curves.set(l.args.token.toLowerCase(), await this.curveAt(l.args.token, l.blockNumber));
       if (l.eventName === "Traded" || l.eventName === "Deposited" || l.eventName === "Withdrawn") {
         const t = l.args.token.toLowerCase();
-        const created = logs.some((x) => x.eventName === "TokenCreated" && x.args.token.toLowerCase() === t);
-        if (!created && !metas.has(t) && !this.d.store.token(t)) metas.set(t, await this.tokenMeta(l.args.token));
+        if (!created.has(t) && !metas.has(t) && !this.d.store.token(t)) metas.set(t, await readTokenMeta(this.d.pub, l.args.token));
       }
     }
 
@@ -118,7 +149,7 @@ export class Indexer {
     store.tx(() => {
       for (const [address, m] of metas)
         store.seedToken({ address, symbol: m.symbol, name: m.name, decimals: m.decimals, kind: "other", createdAt: ts.get(logs[0]!.blockNumber) ?? 0 });
-      for (const l of logs) {
+      for (const l of kept) {
         const id = `${l.transactionHash}:${l.logIndex}`;
         const block = Number(l.blockNumber);
         const at = ts.get(l.blockNumber) ?? 0;

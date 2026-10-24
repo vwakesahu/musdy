@@ -9,6 +9,8 @@ export interface WsData {
   tokens: number;
   refilled: number;
   address: string | null;
+  // how many times hello changed the address
+  hellos: number;
   // lowercase topics this socket is subscribed to
   subs: Set<string>;
 }
@@ -19,7 +21,9 @@ export interface HubDeps {
   // newest 50 trades for a trade topic, oldest first, or null if the topic has no replay
   replay(topic: string): FeedItem[] | null;
   onHello?(address: string): void;
-  onSubscribe?(topic: string): void;
+  // address is the one this socket said hello with, if any
+  onSubscribe?(topic: string, address: string | null): void;
+  maxWatched?: number;
 }
 
 export const MAX_TOPICS = 64;
@@ -29,6 +33,9 @@ export const MAX_SOCKETS_PER_IP = 32;
 export const MSG_RATE = 20;
 const MSG_BURST = MSG_RATE * 2;
 export const CLOSE_RATE_LIMIT = 1008;
+// hello address changes per socket, and distinct addresses the server watches in total
+export const MAX_HELLOS = 3;
+export const MAX_WATCHED = 2000;
 
 export class Hub {
   private topics = new Map<string, Set<Ws>>();
@@ -43,7 +50,7 @@ export class Hub {
     const n = this.perIp.get(ip) ?? 0;
     if (n >= MAX_SOCKETS_PER_IP) return null;
     this.perIp.set(ip, n + 1);
-    return { id: this.nextId++, ip, tokens: MSG_BURST, refilled: Date.now(), address: null, subs: new Set() };
+    return { id: this.nextId++, ip, tokens: MSG_BURST, refilled: Date.now(), address: null, hellos: 0, subs: new Set() };
   }
 
   // an admitted socket that never opened
@@ -93,9 +100,14 @@ export class Hub {
     if (msg.type === "hello") {
       const addr = msg.address ? msg.address.toLowerCase() : null;
       if (addr === ws.data.address) return;
+      if (addr && ws.data.hellos >= MAX_HELLOS)
+        return this.send(ws, { type: "error", code: "too_many_hellos", message: `at most ${MAX_HELLOS} addresses per socket` });
+      if (addr && !this.watched.has(addr) && this.watched.size >= (this.deps.maxWatched ?? MAX_WATCHED))
+        return this.send(ws, { type: "error", code: "server_busy", message: "the server is watching too many addresses, try again later" });
       if (ws.data.address) this.unwatch(ws.data.address);
       ws.data.address = addr;
       if (addr) {
+        ws.data.hellos++;
         this.watched.set(addr, (this.watched.get(addr) ?? 0) + 1);
         this.deps.onHello?.(addr);
       }
@@ -104,7 +116,7 @@ export class Hub {
     const topic = msg.topic;
     if (msg.type === "unsubscribe") {
       ws.data.subs.delete(topic);
-      this.topics.get(topic)?.delete(ws);
+      this.leave(topic, ws);
       return;
     }
     if (!ws.data.subs.has(topic) && ws.data.subs.size >= MAX_TOPICS)
@@ -115,15 +127,27 @@ export class Hub {
     this.topics.set(topic, set);
     const items = this.deps.replay(topic);
     if (items) for (const item of items) this.send(ws, { type: "trade", topic, item, replay: true });
-    this.deps.onSubscribe?.(topic);
+    this.deps.onSubscribe?.(topic, ws.data.address);
   }
 
   close(ws: Ws) {
-    for (const topic of ws.data.subs) this.topics.get(topic)?.delete(ws);
+    for (const topic of ws.data.subs) this.leave(topic, ws);
     ws.data.subs.clear();
     if (ws.data.address) this.unwatch(ws.data.address);
     ws.data.address = null;
     this.release(ws.data);
+  }
+
+  private leave(topic: string, ws: Ws) {
+    const set = this.topics.get(topic);
+    if (!set) return;
+    set.delete(ws);
+    if (!set.size) this.topics.delete(topic);
+  }
+
+  // how many topics have at least one subscriber
+  topicCount(): number {
+    return this.topics.size;
   }
 
   private unwatch(addr: string) {

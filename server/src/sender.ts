@@ -1,4 +1,20 @@
-import { TransactionNotFoundError, type Chain, type Hash, type PublicClient, type Transport } from "viem";
+import {
+  BaseError,
+  encodeFunctionData,
+  HttpRequestError,
+  keccak256,
+  SocketClosedError,
+  TimeoutError,
+  TransactionNotFoundError,
+  WebSocketRequestError,
+  type Abi,
+  type Address,
+  type Chain,
+  type Hash,
+  type Hex,
+  type PublicClient,
+  type Transport,
+} from "viem";
 import type { Wallet } from "./chain";
 import { errMessage, log } from "./log";
 
@@ -6,8 +22,37 @@ export interface Fees {
   maxFeePerGas: bigint;
   maxPriorityFeePerGas: bigint;
 }
-// sends one tx at `nonce`. fees are only set when the watchdog replaces a stuck tx
-export type SendFn = (nonce: number, fees?: Fees) => Promise<Hash>;
+// signs one tx at `nonce` locally and returns the raw tx, the sender broadcasts it.
+// fees are only set when the watchdog replaces a stuck tx
+export type SendFn = (nonce: number, fees?: Fees) => Promise<Hex>;
+
+export interface CallRequest {
+  address: Address;
+  abi: Abi | readonly unknown[];
+  functionName: string;
+  args?: readonly unknown[];
+  value?: bigint;
+  gas: bigint;
+  nonce: number;
+  maxFeePerGas?: bigint;
+  maxPriorityFeePerGas?: bigint;
+}
+
+// a contract call signed by the wallet's local key, nothing is sent
+export const signCall = async (wallet: Wallet, r: CallRequest): Promise<Hex> => {
+  const data = encodeFunctionData({ abi: r.abi as Abi, functionName: r.functionName, args: r.args } as Parameters<typeof encodeFunctionData>[0]);
+  const fees = r.maxFeePerGas !== undefined ? { maxFeePerGas: r.maxFeePerGas, maxPriorityFeePerGas: r.maxPriorityFeePerGas } : {};
+  const tx = await wallet.prepareTransactionRequest({ to: r.address, data, value: r.value, gas: r.gas, nonce: r.nonce, ...fees });
+  return wallet.signTransaction(tx as Parameters<Wallet["signTransaction"]>[0]);
+};
+
+// a send error is ambiguous when the node may have taken the tx before the answer was lost
+export const ambiguous = (e: unknown): boolean => {
+  const transport = (x: unknown) =>
+    x instanceof HttpRequestError || x instanceof TimeoutError || x instanceof WebSocketRequestError || x instanceof SocketClosedError;
+  if (e instanceof BaseError) return !!e.walk(transport);
+  return transport(e) || /fetch failed|ECONNRESET|ECONNREFUSED|socket hang up|timed? ?out/i.test(e instanceof Error ? e.message : String(e));
+};
 
 export interface SenderOpts {
   // a tx still unmined after this long gets replaced at a higher fee
@@ -56,7 +101,8 @@ export class Sender {
       if (this.nonce === null) this.nonce = await this.pub.getTransactionCount({ address: this.address, blockTag: "pending" });
       const nonce = this.nonce;
       try {
-        const hash = await send(nonce);
+        const raw = await send(nonce);
+        const hash = await this.broadcast(raw);
         this.nonce = nonce + 1;
         this.pending.set(nonce, { nonce, hashes: [hash], send, at: Date.now(), bumps: 0 });
         log("sender.sent", { sender: this.name, nonce, hash });
@@ -69,6 +115,19 @@ export class Sender {
     const p = this.queue.then(run, run);
     this.queue = p.catch(() => undefined);
     return p;
+  }
+
+  // the hash is known before sending. a definitive rejection throws, a lost answer keeps the hash:
+  // the tx may still mine, receipts and the account nonce settle it and the watchdog resends it if it never landed
+  private async broadcast(raw: Hex): Promise<Hash> {
+    const hash = keccak256(raw);
+    try {
+      await this.wallet.sendRawTransaction({ serializedTransaction: raw });
+    } catch (e) {
+      if (!ambiguous(e)) throw e;
+      log("sender.send_ambiguous", { sender: this.name, hash, error: errMessage(e) });
+    }
+    return hash;
   }
 
   private entry(hash: Hash): Pending | null {
@@ -139,7 +198,7 @@ export class Sender {
         if (now - e.at < this.opts.stuckMs || e.bumps >= this.opts.maxBumps) continue;
         try {
           const fees = await this.fees(e.hashes[e.hashes.length - 1]!);
-          const hash = await e.send(e.nonce, fees);
+          const hash = await this.broadcast(await e.send(e.nonce, fees));
           e.hashes.push(hash);
           e.bumps++;
           e.at = Date.now();
