@@ -21,6 +21,9 @@ export const Env = z.object({
   BASE_RPC_URL: z.preprocess((v) => (v === "" ? undefined : v), z.string().url().optional()),
   BSC_RPC_URL: z.preprocess((v) => (v === "" ? undefined : v), z.string().url().optional()),
   SOLANA_RPC_URL: z.preprocess((v) => (v === "" ? undefined : v), z.string().url().optional()),
+  ETHEREUM_RPC_URL: z.preprocess((v) => (v === "" ? undefined : v), z.string().url().optional()),
+  ARBITRUM_RPC_URL: z.preprocess((v) => (v === "" ? undefined : v), z.string().url().optional()),
+  OPTIMISM_RPC_URL: z.preprocess((v) => (v === "" ? undefined : v), z.string().url().optional()),
 });
 export type Env = z.infer<typeof Env>;
 

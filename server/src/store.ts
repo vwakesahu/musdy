@@ -41,6 +41,7 @@ export interface TradeRow {
   price: string;
   price_f: number;
   musd_f: number;
+  market_cap?: string | null;
 }
 
 export interface TransferRow {
@@ -189,8 +190,8 @@ export class Store {
     const isNew =
       this.db
         .query(
-          `INSERT OR IGNORE INTO trades (id, block, log_index, ts, tx_hash, user, token, is_buy, musd_amount, token_amount, fee, ref, venue, price, price_f, musd_f)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT OR IGNORE INTO trades (id, block, log_index, ts, tx_hash, user, token, is_buy, musd_amount, token_amount, fee, ref, venue, price, price_f, musd_f, market_cap)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .run(
           t.id,
@@ -209,6 +210,7 @@ export class Store {
           t.price,
           t.price_f,
           t.musd_f,
+          t.market_cap ?? null,
         ).changes === 1;
     if (isNew)
       this.applyFlow(t.user, t.token, { kind: t.is_buy ? "buy" : "sell", amount: BigInt(t.token_amount), musd: BigInt(t.musd_amount) });

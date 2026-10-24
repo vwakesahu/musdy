@@ -119,6 +119,7 @@ export class Solver {
       const tokens = isBuy ? ev.tokenAmount! : BigInt(row.amount_in);
       const fee = BigInt(row.fee);
       const price = tradePrice(isBuy, musd, fee, tokens, decimals);
+      const listed = this.d.views.marketCoin?.({ chainId: row.chain_id, address: row.token }) ?? null;
       const trade: TradeRow = {
         id: `${ev.txHash}:${ev.logIndex}`,
         block: ev.block,
@@ -136,8 +137,10 @@ export class Solver {
         price: price.toString(),
         price_f: toFloat(price),
         musd_f: toFloat(musd),
+        market_cap: listed && listed.marketCapMusd !== "0" ? listed.marketCapMusd : null,
       };
       const fresh = s.store.tx(() => {
+        if (listed) s.brand(key, listed);
         s.update(row.id, { status: "settled" });
         return s.store.insertTrade(trade);
       });

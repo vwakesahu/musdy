@@ -45,6 +45,24 @@ export interface FillRow {
   created_at: number;
 }
 
+export type SweepStatus = "pending" | "submitted" | "received" | "credited" | "failed";
+
+export interface SweepRow {
+  id: string;
+  user: string;
+  chain_id: number;
+  token: string;
+  value: string;
+  valid_after: string;
+  valid_before: string;
+  nonce: string;
+  sig: string;
+  status: SweepStatus;
+  hash: string | null;
+  error: string | null;
+  created_at: number;
+}
+
 const now = () => Math.floor(Date.now() / 1000);
 const lc = (a: string) => a.toLowerCase();
 
@@ -103,6 +121,10 @@ export class SolverStore {
     this.db.query("UPDATE tokens SET chain_id = ?, raw_address = ? WHERE address = ?").run(c.chainId, c.address, key);
   }
 
+  brand(key: string, m: { symbol: string; name: string; image: string | null }) {
+    this.db.query("UPDATE tokens SET symbol = ?, name = ?, image = COALESCE(?, image) WHERE address = ?").run(m.symbol, m.name, m.image, key);
+  }
+
   depositAddress(user: string, chainId: number): DepositAddressRow | null {
     return this.db.query<DepositAddressRow, [string, number]>("SELECT * FROM deposit_addresses WHERE user = ? AND chain_id = ?").get(lc(user), chainId);
   }
@@ -147,5 +169,30 @@ export class SolverStore {
 
   pendingFills(): FillRow[] {
     return this.db.query<FillRow, []>("SELECT * FROM deposit_fills WHERE status IN ('pending', 'sent') ORDER BY created_at").all();
+  }
+
+  sweep(id: string): SweepRow | null {
+    return this.db.query<SweepRow, [string]>("SELECT * FROM sweeps WHERE id = ?").get(id);
+  }
+
+  addSweep(r: Omit<SweepRow, "status" | "hash" | "error" | "created_at">): boolean {
+    return (
+      this.db
+        .query("INSERT OR IGNORE INTO sweeps (id, user, chain_id, token, value, valid_after, valid_before, nonce, sig, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)")
+        .run(r.id, lc(r.user), r.chain_id, lc(r.token), r.value, r.valid_after, r.valid_before, lc(r.nonce), r.sig, now()).changes === 1
+    );
+  }
+
+  setSweep(id: string, status: SweepStatus, hash: string | null, error: string | null = null) {
+    this.db.query("UPDATE sweeps SET status = ?, hash = COALESCE(?, hash), error = ? WHERE id = ?").run(status, hash, error, id);
+  }
+
+  openSweeps(): SweepRow[] {
+    return this.db.query<SweepRow, []>("SELECT * FROM sweeps WHERE status IN ('pending', 'submitted', 'received') ORDER BY created_at").all();
+  }
+
+  // musd the solver still owes on fills not yet credited
+  owedUsdc(): bigint {
+    return this.pendingFills().reduce((s, f) => s + BigInt(f.usdc), 0n) + this.openSweeps().reduce((s, r) => s + BigInt(r.value), 0n);
   }
 }

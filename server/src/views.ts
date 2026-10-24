@@ -22,6 +22,9 @@ export class Views {
     private chainId = 31337,
   ) {}
 
+  // the market's live listing for a cross chain coin, its casing and market cap beat relay's metadata
+  marketCoin: ((ref: { chainId: number; address: string }) => TokenInfo | null) | null = null;
+
   userRef(address: string): UserRef {
     const p = this.store.profile(address);
     return { address: addr(address), handle: p?.handle ?? null, avatar: p?.avatar ?? null };
@@ -30,8 +33,10 @@ export class Views {
   tokenRef(address: string): TokenRef {
     const row = this.store.token(address);
     if (!row) return { address: address.startsWith("0x") ? addr(address) : address, chainId: this.chainId, symbol: "?", name: "unknown", image: null, decimals: 18 };
-    if (row.chain_id && row.raw_address)
-      return { address: row.raw_address, chainId: row.chain_id, symbol: row.symbol, name: row.name, image: row.image, decimals: row.decimals };
+    if (row.chain_id && row.raw_address) {
+      const m = this.marketCoin?.({ chainId: row.chain_id, address: row.raw_address });
+      return { address: row.raw_address, chainId: row.chain_id, symbol: m?.symbol ?? row.symbol, name: m?.name ?? row.name, image: m?.image ?? row.image, decimals: row.decimals };
+    }
     return { address: addr(row.address), chainId: this.chainId, symbol: row.symbol, name: row.name, image: row.image, decimals: row.decimals };
   }
 
@@ -41,7 +46,8 @@ export class Views {
 
   feedItem(t: TradeRow): FeedItem {
     const row = this.store.token(t.token);
-    const mcap = row ? valueOf(BigInt(row.total_supply), BigInt(t.price), row.decimals) : 0n;
+    const live = row?.chain_id && row.raw_address ? this.marketCoin?.({ chainId: row.chain_id, address: row.raw_address })?.marketCapMusd : undefined;
+    const mcap = t.market_cap ?? live ?? (row ? valueOf(BigInt(row.total_supply), BigInt(t.price), row.decimals).toString() : "0");
     return {
       id: t.id,
       block: t.block,
@@ -52,7 +58,7 @@ export class Views {
       musdAmount: t.musd_amount,
       tokenAmount: t.token_amount,
       priceMusd: t.price,
-      marketCapMusd: mcap.toString(),
+      marketCapMusd: mcap,
       ref: t.ref && t.ref !== zeroAddress ? this.userRef(t.ref) : null,
       venue: t.venue,
       txHash: t.tx_hash as `0x${string}`,

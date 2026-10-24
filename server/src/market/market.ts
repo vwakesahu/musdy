@@ -238,6 +238,11 @@ export class Market {
     return null;
   }
 
+  cached(ref: Ref): TokenInfo | null {
+    const c = this.coins.get(keyOf(ref));
+    return c ? toInfo(c) : null;
+  }
+
   private async coin(ref: Ref): Promise<Coin | null> {
     const k = keyOf(ref);
     const known = this.coins.get(k);

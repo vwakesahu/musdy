@@ -7,6 +7,7 @@ import type { Store } from "./store";
 
 type Bal = { token: Address; amount: string };
 type Snap = { vault: Bal[]; wallet: Bal[] };
+export type ExternalSource = { get(addr: string): { chainId: number; token: Address; amount: string }[]; touch(addr: string): void };
 
 export class Watcher {
   private last = new Map<string, string>();
@@ -18,6 +19,7 @@ export class Watcher {
     private hub: Hub,
     private dep: Deployment,
     private block: () => number,
+    private external: ExternalSource | null = null,
   ) {}
 
   private snapshot(a: string): Promise<Snap | null> {
@@ -48,7 +50,9 @@ export class Watcher {
 
   async push(addr: string, force: boolean) {
     const a = addr.toLowerCase();
-    const snap = await this.snapshot(a);
+    this.external?.touch(a);
+    const read = await this.snapshot(a);
+    const snap = read && { ...read, external: this.external?.get(a) ?? [] };
     if (!snap) {
       this.reads.delete(a);
       return log("watcher.read_failed", { address: a });

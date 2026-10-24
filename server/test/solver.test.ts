@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { Keypair } from "@solana/web3.js";
 import bs58 from "bs58";
 import type { Address, Hash } from "viem";
-import { SOLANA, type ServerMsg } from "shared";
+import { SOLANA, type ServerMsg, type TokenInfo } from "shared";
 import { openDb } from "../src/db";
 import { HttpError } from "../src/errors";
 import { Hub } from "../src/hub";
@@ -14,7 +14,7 @@ import { LiveRunner, parseSolanaKey } from "../src/solver/exec";
 import type { MezoOps } from "../src/solver/mezo";
 import { amountOut, RelayError, RelayHttp, type Quote, type RelayRequest } from "../src/solver/relay";
 import { Solver, type IntentEvent } from "../src/solver/solver";
-import { SolverStore } from "../src/solver/store";
+import { SolverStore, xKey } from "../src/solver/store";
 import { Store } from "../src/store";
 import { Views } from "../src/views";
 import { tempDb } from "./helpers/anvil";
@@ -172,6 +172,27 @@ describe("solver intents", () => {
     expect(tx?.type === "tx" && [tx.tx.id, tx.tx.kind, tx.tx.status]).toEqual([o.id, "intent", "confirmed"]);
     const trade = r.sent.find((m) => m.type === "trade");
     expect(trade?.type === "trade" && [trade.topic, trade.item.venue, trade.item.token.chainId]).toEqual(["feed:global", "relay", SOLANA]);
+    r.solver.stop();
+  });
+
+  test("a relay trade's feed item carries the market's casing and its market cap at trade time", async () => {
+    const r = rig();
+    await r.solver.start();
+    let mcap = "1500000000000000000000000000";
+    r.views.marketCoin = (ref) => (ref.chainId === SOLANA && ref.address === BONK ? ({ symbol: "Bonk", name: "Bonk Inu", image: "https://dex/bonk.png", marketCapMusd: mcap } as TokenInfo) : null);
+    r.relay.requestFor = (id) => filled(id, SOLVER_SOL, BONK, 160_000_000_000n, SOLANA);
+    const o = opened(true, 10n * WAD);
+    r.solver.onEvent(o);
+    await until(() => r.ops.settles.length === 1);
+    r.store.db.query("UPDATE tokens SET symbol = 'bonk', name = 'bonk' WHERE address = ?").run(xKey(SOLANA, BONK));
+    r.solver.onEvent(settledEv(o, 0n, 160_000_000_000n, true));
+    mcap = "9";
+    const item = r.views.feed(r.store.userTrades(USER))[0]!;
+    expect(item.marketCapMusd).toBe("1500000000000000000000000000");
+    expect(item.token).toMatchObject({ symbol: "Bonk", name: "Bonk Inu", image: "https://dex/bonk.png" });
+    r.views.marketCoin = null;
+    expect(r.views.feed(r.store.userTrades(USER))[0]!.token).toMatchObject({ symbol: "Bonk", name: "Bonk Inu" });
+    expect(r.views.feed(r.store.userTrades(USER))[0]!.marketCapMusd).toBe("1500000000000000000000000000");
     r.solver.stop();
   });
 

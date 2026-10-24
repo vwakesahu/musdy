@@ -143,10 +143,16 @@ export class Deposits {
           this.pushTx(a.user, { id: r.id, kind: "bridge", status: "pending", hash: null, error: null });
         }
       }
-      for (const f of this.d.store.pendingFills()) await this.credit(f, ops);
+      await this.creditPending();
     } finally {
       this.ticking = false;
     }
+  }
+
+  async creditPending() {
+    const ops = this.d.ops;
+    if (!ops) return;
+    for (const f of this.d.store.pendingFills()) await this.credit(f, ops);
   }
 
   private async credit(f: FillRow, ops: MezoOps) {

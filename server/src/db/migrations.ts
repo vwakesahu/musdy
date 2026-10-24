@@ -148,4 +148,23 @@ export const migrations: string[] = [
   ALTER TABLE tokens ADD COLUMN chain_id INTEGER;
   ALTER TABLE tokens ADD COLUMN raw_address TEXT;
   `,
+  `
+  CREATE TABLE sweeps (
+    id TEXT PRIMARY KEY,
+    user TEXT NOT NULL,
+    chain_id INTEGER NOT NULL,
+    token TEXT NOT NULL,
+    value TEXT NOT NULL,
+    valid_after TEXT NOT NULL,
+    valid_before TEXT NOT NULL,
+    nonce TEXT NOT NULL,
+    sig TEXT NOT NULL,
+    status TEXT NOT NULL,
+    hash TEXT,
+    error TEXT,
+    created_at INTEGER NOT NULL
+  );
+  CREATE INDEX sweeps_status ON sweeps (status);
+  ALTER TABLE trades ADD COLUMN market_cap TEXT;
+  `,
 ];

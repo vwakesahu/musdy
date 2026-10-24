@@ -74,13 +74,17 @@ export const startApp = async (env: Env, deployment?: Deployment, opts: AppOpts 
       void watcher.push(address, true).catch((e) => log("watcher.error", { address, error: errMessage(e) }));
     },
   });
-  const watcher = new Watcher(pub, store, hub, dep, () => current);
+  const watcher = new Watcher(pub, store, hub, dep, () => current, {
+    get: (a) => kit?.external?.get(a) ?? [],
+    touch: (a) => kit?.external?.touch(a),
+  });
   const publishToken = (address: string) => {
     const token = views.token(address);
     if (token) hub.publish("tokens", (topic) => ({ type: "token", topic, token }));
   };
   const market = env.MARKET ? new Market({ onPrices: (prices) => hub.publish("prices", (topic) => ({ type: "prices", topic, block: current, prices })) }) : null;
   market?.start();
+  if (market) views.marketCoin = (r) => market.cached(r);
   const memeRoutes = marketRoutes(market, views, store, dep.chainId);
   const pricer = new Pricer(pub, store, book, views, dep);
   const indexer = new Indexer({
@@ -107,7 +111,18 @@ export const startApp = async (env: Env, deployment?: Deployment, opts: AppOpts 
   faucetSender?.start();
   const relayer: Relayer = new Relayer({ pub, relayer: relayerSender, faucet: faucetSender, dep, chainId: env.CHAIN_ID, hub, store, faucetHourlyCap: env.FAUCET_HOURLY_CAP });
 
-  const kit = makeSolver(env, { pub, chain: clients.chain, rpcUrl: env.RPC_URL, dep, store, views, book, hub, relayer }, { ...opts.solver, sender: opts.sender });
+  const kit = makeSolver(env, {
+      pub,
+      chain: clients.chain,
+      rpcUrl: env.RPC_URL,
+      dep,
+      store,
+      views,
+      book,
+      hub,
+      relayer,
+      onExternal: (a) => void watcher.push(a, false).catch((e) => log("watcher.error", { address: a, error: errMessage(e) })),
+    }, { ...opts.solver, sender: opts.sender });
   await kit.start();
 
   log("indexer.backfill_start", { from: indexer.lastBlock() + 1, to: current });
