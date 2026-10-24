@@ -30,7 +30,8 @@ export class MezoOps {
     let gas: bigint;
     try {
       ({ request } = await this.pub.simulateContract({ account, address, abi, functionName, args } as Parameters<PublicClient<Transport, Chain>["simulateContract"]>[0]));
-      gas = ((await this.pub.estimateContractGas(request as Parameters<PublicClient<Transport, Chain>["estimateContractGas"]>[0])) * GAS_BUFFER_PCT) / 100n;
+      const est = ((await this.pub.estimateContractGas(request as Parameters<PublicClient<Transport, Chain>["estimateContractGas"]>[0])) * GAS_BUFFER_PCT) / 100n;
+      gas = est > 600_000n ? est : 600_000n;
     } catch (e) {
       throw simulationError(e);
     }

@@ -274,6 +274,11 @@ export class Solver {
       if (got === null) await Bun.sleep(this.d.pollMs ?? 3000);
     }
     if (got === null) {
+      const st = await this.d.relay.status(requestId).catch(() => null);
+      const hashes = [...(st?.inTxHashes ?? []), ...(st?.txHashes ?? [])];
+      got = await this.d.runner.received(row.is_buy ? row.chain_id : BASE, hashes, currency, recipient).catch(() => null);
+    }
+    if (got === null) {
       log("solver.amount_unknown", { id: row.id, requestId });
       return;
     }

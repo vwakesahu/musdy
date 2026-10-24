@@ -8,7 +8,7 @@ import {
   VersionedTransaction,
 } from "@solana/web3.js";
 import bs58 from "bs58";
-import { createPublicClient, createWalletClient, http, type Account, type Chain, type Hex } from "viem";
+import { createPublicClient, createWalletClient, http, keccak256, toHex, type Account, type Chain, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { arbitrum, base, bsc, mainnet } from "viem/chains";
 import { SOLANA } from "shared";
@@ -19,6 +19,7 @@ export interface StepRunner {
   evmAddress: string;
   solanaAddress: string | null;
   run(q: Quote): Promise<string[]>;
+  received(chainId: number, hashes: string[], token: string, recipient: string): Promise<bigint | null>;
 }
 
 export const parseSolanaKey = (raw: string): Keypair => {
@@ -67,6 +68,26 @@ export class LiveRunner implements StepRunner {
     if (isSvm(d)) return this.sendSolana(d);
     if (isEvm(d)) return this.sendEvm(d);
     throw new Error(`relay step ${id} has no transaction data`);
+  }
+
+  // relay reports a same chain swap as "no need to execute" with no amounts, so the receipt's transfer logs are the truth
+  async received(chainId: number, hashes: string[], token: string, recipient: string): Promise<bigint | null> {
+    const chain = this.chains[chainId];
+    if (!chain || !hashes.length) return null;
+    const pub = createPublicClient({ chain, transport: http() });
+    const topic = keccak256(toHex("Transfer(address,address,uint256)"));
+    let sum = 0n;
+    let seen = false;
+    for (const hash of hashes) {
+      const r = await pub.getTransactionReceipt({ hash: hash as Hex }).catch(() => null);
+      for (const l of r?.logs ?? []) {
+        if (l.address.toLowerCase() !== token.toLowerCase() || l.topics[0] !== topic || !l.topics[2]) continue;
+        if (`0x${l.topics[2].slice(26)}`.toLowerCase() !== recipient.toLowerCase()) continue;
+        sum += BigInt(l.data);
+        seen = true;
+      }
+    }
+    return seen ? sum : null;
   }
 
   private async sendEvm(d: EvmTxData): Promise<string> {

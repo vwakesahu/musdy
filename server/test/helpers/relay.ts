@@ -53,6 +53,10 @@ export class FakeRelay implements RelayApi {
 }
 
 export class FakeRunner implements StepRunner {
+  received(): Promise<bigint | null> {
+    return Promise.resolve(null);
+  }
+
   runs: Quote[] = [];
   fail: Error | null = null;
   constructor(

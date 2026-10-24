@@ -19,6 +19,10 @@ import { Drawer } from "./ui/drawer";
 import { applyKey, NumberPad } from "./ui/number-pad";
 import { TokenIcon } from "./ui/token-icon";
 import { keyOf } from "@/lib/xchain";
+import { chain } from "@/lib/chain";
+import { mezoTestnet, SOLANA } from "shared";
+
+const chainLabel = (id: number) => (id === SOLANA ? "Solana" : id === 56 ? "BSC" : id === 8453 ? "Base" : "its own chain");
 
 export type Side = "buy" | "sell";
 export type TradeToken = TokenRef & { marketCapMusd?: string };
@@ -208,6 +212,7 @@ export function TradePanel({ token, priceMusd, change, held, side, faces = [], h
       : `${tokenAmount(amountIn > 0n ? amountIn : held, token.decimals)} ${token.symbol}${amountIn > 0n ? "" : " held"}`;
   const empty = !input && sellPct === null;
 
+  const demoFill = token.chainId !== chain.id && chain.id === mezoTestnet.id;
   let cta: React.ReactNode;
   if (!address) {
     cta = (
@@ -340,6 +345,11 @@ export function TradePanel({ token, priceMusd, change, held, side, faces = [], h
       </p>
 
       <div className="mt-3">{cta}</div>
+      {demoFill && (
+        <p className="mt-2 text-center text-[13px] text-muted" data-testid="demo-note">
+          Demo: your balance is Mezo testnet MUSD, the fill is real on {chainLabel(token.chainId)}
+        </p>
+      )}
     </div>
   );
 }

@@ -55,6 +55,9 @@ export interface RelayerDeps {
 
 type Outcome = { hash: Hash; ok: boolean; error: string | null };
 
+// mezo testnet estimateGas can return far too little for these calls and gas costs almost nothing, so every send gets a floor
+const GAS_FLOOR = 600_000n;
+const LAUNCH_GAS_FLOOR = 5_000_000n;
 const at = <R extends object>(request: R, gas: bigint, nonce: number, fees?: Fees): R & { gas: bigint; nonce: number } => ({ ...request, gas, nonce, ...fees });
 // the estimate runs against the current block, a new block can cost more (pool oracles write on their first trade)
 const GAS_BUFFER_PCT = 130n;
@@ -123,9 +126,10 @@ export class Relayer {
     }
   }
 
-  private async gas(request: Parameters<PublicClient<Transport, Chain>["estimateContractGas"]>[0]): Promise<bigint> {
+  private async gas(request: Parameters<PublicClient<Transport, Chain>["estimateContractGas"]>[0], floor = GAS_FLOOR): Promise<bigint> {
     try {
-      return ((await this.d.pub.estimateContractGas(request)) * GAS_BUFFER_PCT) / 100n;
+      const est = ((await this.d.pub.estimateContractGas(request)) * GAS_BUFFER_PCT) / 100n;
+      return est > floor ? est : floor;
     } catch (e) {
       throw simulationError(e);
     }
@@ -297,7 +301,7 @@ export class Relayer {
       const { request } = await this.simulate(() =>
         this.d.pub.simulateContract({ account: this.d.relayer.wallet.account, address: this.d.dep.vault, abi: vaultAbi, functionName: "executeLaunch", args: [message, sig] }),
       );
-      const gas = await this.gas(request);
+      const gas = await this.gas(request, LAUNCH_GAS_FLOOR);
       return this.dispatch("launch", l.user, this.d.relayer, (nonce, fees) => signCall(this.d.relayer.wallet, at(request, gas, nonce, fees)), {
         lock,
         vaultNonce: message.nonce,
