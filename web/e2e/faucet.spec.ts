@@ -1,23 +1,15 @@
 import { expect, test, type Page } from "@playwright/test";
 import { parseUnits } from "viem";
-import { generatePrivateKey, privateKeyToAccount, type PrivateKeyAccount } from "viem/accounts";
-import { faucetMessage, routes } from "shared";
-import { dep, devLogin, shot, vaultBalance } from "./helpers";
+import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
+import { routes } from "shared";
+import { dep, loginAs, shot, vaultBalance } from "./helpers";
 
-// the dev key already claimed today, so the app's faucet request is re-signed for a brand new key
-// from a fresh ip, which the local e2e server believes because it runs with TRUST_PROXY=1. the button, toasts and limit handling are the app's own, only the claimant changes
-async function claimAs(page: Page, account: PrivateKeyAccount) {
-  await page.route(`**${routes.faucet}`, async (route) => {
-    const req = route.request();
-    if (req.method() !== "POST") return route.continue();
-    const issued = new Date().toISOString();
-    const sig = await account.signMessage({ message: faucetMessage(account.address, issued) });
-    const ip = `10.${rand()}.${rand()}.${rand()}`;
-    await route.continue({
-      headers: { ...req.headers(), "x-forwarded-for": ip },
-      postData: JSON.stringify({ address: account.address, issued, sig }),
-    });
-  });
+// the app logs in as a brand new key (dev login on 31337 reads localStorage "musdy:devkey") and signs its own faucet
+// request. the only thing the spec touches is the x-forwarded-for header, a fresh ip the local server believes
+// because it runs with TRUST_PROXY=1, so the per ip daily cap doesn't carry over between runs. the body is untouched
+async function freshIp(page: Page) {
+  const ip = `10.${rand()}.${rand()}.${rand()}`;
+  await page.route(`**${routes.faucet}`, (route) => route.continue({ headers: { ...route.request().headers(), "x-forwarded-for": ip } }));
 }
 const rand = () => Math.floor(Math.random() * 250) + 1;
 
@@ -30,21 +22,23 @@ async function openFaucet(page: Page) {
 
 // AC3 from the web side: a fresh address gets 1,000 MUSD, a second claim shows the limit in words
 test("faucet credits a fresh address, then explains the daily limit", async ({ page }, info) => {
-  const fresh = privateKeyToAccount(generatePrivateKey());
-  await devLogin(page, "/portfolio");
-  // a remembered claim from an earlier run would disable the button
-  await page.evaluate(() => {
-    for (const k of Object.keys(localStorage)) if (k.startsWith("musdy:faucet:")) localStorage.removeItem(k);
-  });
-  await claimAs(page, fresh);
+  const key = generatePrivateKey();
+  const fresh = privateKeyToAccount(key);
+  await freshIp(page);
+  await loginAs(page, key, "/portfolio");
 
   let button = await openFaucet(page);
+  // logged in as the fresh key, not the build's dev key
+  await expect(page.getByRole("dialog").getByTestId("deposit-address")).toContainText(fresh.address);
   await expect(button).toHaveText(/Get 1,000 test MUSD/);
   const answer = page.waitForResponse((r) => r.url().endsWith(routes.faucet) && r.request().method() === "POST");
   await button.click();
   const first = await answer;
   const dialog = page.getByRole("dialog");
 
+  // the app's own signed body, for the logged in fresh address
+  const body = first.request().postDataJSON() as { address: string; issued: string; sig: string };
+  expect(body.address.toLowerCase()).toBe(fresh.address.toLowerCase());
   expect(first.status()).toBe(200);
   await expect(dialog.locator('[data-toast="success"]')).toContainText("1,000 MUSD is on its way");
   await expect(button).toBeDisabled();

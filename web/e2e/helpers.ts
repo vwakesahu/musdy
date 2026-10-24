@@ -14,19 +14,20 @@ import {
 import { privateKeyToAccount } from "viem/accounts";
 import { foundry } from "viem/chains";
 import {
-  btcPermitDomain,
   deployments,
   domainFor,
   faucetMessage,
   FeedItem,
   launchTypes,
   permitTypes,
+  readPermitDomain,
   routes,
   tradeTypes,
   vaultAbi,
   withdrawTypes,
   type Deployment,
 } from "shared";
+import { displayName, usd } from "../src/lib/format";
 
 export const SERVER = process.env.E2E_SERVER_URL ?? "http://localhost:8080";
 export const RPC = process.env.E2E_RPC_URL ?? "http://127.0.0.1:8545";
@@ -58,6 +59,16 @@ export async function devLogin(page: Page, path = "/") {
   await expect(pill).toBeVisible();
 }
 
+// the app's dev login as a given key: on 31337 the app takes its dev key from localStorage "musdy:devkey" when set
+export async function loginAs(page: Page, key: Hex, path = "/") {
+  await page.addInitScript((k) => window.localStorage.setItem("musdy:devkey", k), key);
+  await devLogin(page, path);
+}
+
+// what a feed row says for a trade: the app's own name and dollar helpers
+export const rowName = (u: FeedItem["user"]) => displayName(u);
+export const rowDollars = (x: FeedItem) => usd(BigInt(x.musdAmount));
+
 export const cashText = async (page: Page) => (await page.getByTestId("balance-pill").innerText()).replace(/[^\d.]/g, "");
 
 export async function post(path: string, body: unknown) {
@@ -71,11 +82,6 @@ const erc20 = parseAbi([
   "function transfer(address to, uint256 amount) returns (bool)",
   "function balanceOf(address owner) view returns (uint256)",
   "function mint(address to, uint256 amount)",
-]);
-const permitRead = parseAbi([
-  "function eip712Domain() view returns (bytes1 fields, string name, string version, uint256 chainId, address verifyingContract, bytes32 salt, uint256[] extensions)",
-  "function nonces(address owner) view returns (uint256)",
-  "function nonce(address owner) view returns (uint256)",
 ]);
 const funder = createWalletClient({ account: privateKeyToAccount(FUNDER_KEY), chain: foundry, transport: http(RPC) });
 
@@ -107,18 +113,9 @@ export async function faucet(account: PrivateKeyAccount) {
   return post(routes.faucet, { address: account.address, issued, sig });
 }
 
-// a permit deposit the way the app signs it: ask the token for its domain, fall back to the BTC precompile shape
+// a permit deposit the way the app signs it, with the shared domain reader
 export async function permitDeposit(account: PrivateKeyAccount, token: Address, amount: bigint) {
-  let domain: { name: string; version: string; chainId: number; verifyingContract: Address };
-  let nonce: bigint;
-  try {
-    const [, name, version, chainId, verifyingContract] = await publicClient.readContract({ address: token, abi: permitRead, functionName: "eip712Domain" });
-    domain = { name, version, chainId: Number(chainId), verifyingContract };
-    nonce = await publicClient.readContract({ address: token, abi: permitRead, functionName: "nonces", args: [account.address] });
-  } catch {
-    domain = btcPermitDomain(31337, token);
-    nonce = await publicClient.readContract({ address: token, abi: permitRead, functionName: "nonce", args: [account.address] });
-  }
+  const { domain, nonce } = await readPermitDomain(publicClient, 31337, token, account.address);
   const dl = deadline();
   const sig = await account.signTypedData({ domain, types: permitTypes, primaryType: "Permit", message: { owner: account.address, spender: dep.vault, value: amount, nonce, deadline: dl } });
   const { r, s, v, yParity } = parseSignature(sig);

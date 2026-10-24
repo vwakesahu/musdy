@@ -10,6 +10,7 @@ export type Session = {
   signer: Signer | null;
   method: "privy" | "dev" | null;
   canPrivy: boolean;
+  loginBusy: boolean;
   canDev: boolean;
   loginPrivy: () => void;
   loginDev: () => void;

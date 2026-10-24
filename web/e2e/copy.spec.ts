@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { cashText, dep, devLogin, ensureCash, me, nextTrade, other, otherBuys, setCash, shot, stock, tradeAs, userTrades, vaultBalance } from "./helpers";
+import { cashText, dep, devLogin, ensureCash, me, nextTrade, other, otherBuys, rowDollars, rowName, setCash, shot, stock, tradeAs, userTrades, vaultBalance } from "./helpers";
 
 // AC9: copy buys the same coin for the same dollars, with ref set to the copied trader
 test("copy a trade from the feed", async ({ page }, info) => {
@@ -19,7 +19,11 @@ test("copy a trade from the feed", async ({ page }, info) => {
   expect(BigInt(mine.musdAmount)).toBe(BigInt(copied.musdAmount));
 
   const myRow = page.locator(`[data-testid="feed-row"][data-id="${mine.id}"]`);
-  await expect(myRow).toContainText("copied", { timeout: 30_000 });
+  await expect(myRow).toBeVisible({ timeout: 30_000 });
+  await expect(myRow).toContainText(rowName(mine.user));
+  await expect(myRow).toContainText(rowDollars(mine));
+  expect(rowDollars(mine)).toBe("$3.00");
+  await expect(myRow).toContainText(`copied ${rowName(copied.user)}`);
   await expect(myRow).toContainText(stock.symbol);
   await shot(page, info, "copy");
 });

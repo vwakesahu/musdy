@@ -11,6 +11,12 @@ const handleRule = ProfileBody.shape.handle;
 export function HandleSheet({ open, onOpenChange, current }: { open: boolean; onOpenChange: (o: boolean) => void; current: string | null }) {
   const actions = useActions();
   const [value, setValue] = useState(current ?? "");
+  // every open starts from the handle they have now, which may have loaded after this mounted
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open) setValue(current ?? "");
+  }
   const [saving, setSaving] = useState(false);
   const ok = handleRule.safeParse(value).success && value !== current;
 

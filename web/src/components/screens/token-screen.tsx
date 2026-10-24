@@ -36,7 +36,13 @@ const RANGES: { label: string; tf: CandleTf; secs: number }[] = [
 export function TokenScreen() {
   const params = useParams<{ address: string }>();
   const raw = params.address ?? "";
-  if (!isAddress(raw)) return <EmptyState title="That isn't a token address" action={<Link href="/explore" className="text-accent">Back to explore</Link>} />;
+  if (!isAddress(raw))
+    return (
+      <>
+        <BackBar title="" />
+        <EmptyState title="That isn't a token address" action={<Link href="/explore" className="text-accent">Back to explore</Link>} />
+      </>
+    );
   return <TokenView address={raw} />;
 }
 
@@ -178,7 +184,9 @@ function TokenView({ address }: { address: Address }) {
               <li key={b.user.address}>
                 <Link href={`/u/${b.user.address}`} className="flex w-16 flex-col items-center gap-1">
                   <Avatar user={b.user} />
-                  <span className="w-full truncate text-center text-[12px] leading-4 font-medium">{displayName(b.user)}</span>
+                  <span className="w-full truncate text-center text-[12px] leading-4 font-medium" data-testid="buyer-name">
+                    {displayName(b.user, true)}
+                  </span>
                   <span className="text-[12px] leading-4 text-muted tabular-nums">{usd(b.total)}</span>
                 </Link>
               </li>

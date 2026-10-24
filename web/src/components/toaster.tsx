@@ -7,7 +7,7 @@ import { Icon } from "./ui/icon";
 
 const none: Toast[] = [];
 
-// the page toaster sits at the top, the sheet one floats just above the open sheet
+// the page toaster sits just under the 56px header so the back chevron and balance pill stay tappable, the sheet one floats just above the open sheet
 export function Toaster({ inSheet = false }: { inSheet?: boolean }) {
   const list = useStore(toasts, (t) => t, none);
   const dialogs = useStore(openDialogs, (n) => n, 0);
@@ -18,7 +18,7 @@ export function Toaster({ inSheet = false }: { inSheet?: boolean }) {
       className={
         inSheet
           ? "pointer-events-none absolute inset-x-0 bottom-full z-[60] mb-2 flex flex-col gap-2 px-4"
-          : "pointer-events-none fixed inset-x-0 top-0 z-[60] mx-auto flex w-full max-w-[480px] flex-col gap-2 px-4 pt-[max(12px,env(safe-area-inset-top))]"
+          : "pointer-events-none fixed inset-x-0 top-[calc(56px+env(safe-area-inset-top))] z-[60] mx-auto flex w-full max-w-[480px] flex-col gap-2 px-4 pt-2"
       }
     >
       <AnimatePresence initial={false}>

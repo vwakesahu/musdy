@@ -1,7 +1,7 @@
-import { parseAbi, parseSignature, zeroAddress, type Address } from "viem";
+import { parseSignature, zeroAddress, type Address } from "viem";
 import {
-  btcPermitDomain,
   domainFor,
+  readPermitDomain,
   launchTypes,
   permitTypes,
   tradeTypes,
@@ -15,12 +15,6 @@ import {
 import { publicClient } from "./chain";
 import { api } from "./http";
 import type { Signer } from "./signer";
-
-const permitReadAbi = parseAbi([
-  "function eip712Domain() view returns (bytes1 fields, string name, string version, uint256 chainId, address verifyingContract, bytes32 salt, uint256[] extensions)",
-  "function nonces(address owner) view returns (uint256)",
-  "function nonce(address owner) view returns (uint256)",
-]);
 
 const deadline = () => BigInt(Math.floor(Date.now() / 1000) + 600);
 const nonceOf = async (user: Address) => BigInt((await api.nonce(user)).nonce);
@@ -73,23 +67,10 @@ export async function signLaunch(
   };
 }
 
-type PermitDomain = { name: string; version: string; chainId: number; verifyingContract: Address };
-
-// erc2612 permit for the vault. ask the token for its domain and nonces(), fall back to the BTC precompile shape when it can't say
-async function permitDomain(token: Address, owner: Address, chainId: number): Promise<{ domain: PermitDomain; nonce: bigint }> {
-  try {
-    const [, name, version, cid, verifyingContract] = await publicClient.readContract({ address: token, abi: permitReadAbi, functionName: "eip712Domain" });
-    const nonce = await publicClient.readContract({ address: token, abi: permitReadAbi, functionName: "nonces", args: [owner] });
-    return { domain: { name, version, chainId: Number(cid), verifyingContract }, nonce };
-  } catch {
-    const nonce = await publicClient.readContract({ address: token, abi: permitReadAbi, functionName: "nonce", args: [owner] });
-    return { domain: btcPermitDomain(chainId, token), nonce };
-  }
-}
-
 export async function signPermit(signer: Signer, dep: Deployment, token: Address, amount: bigint): Promise<PermitDepositBody> {
   const owner = signer.address;
-  const { domain, nonce } = await permitDomain(token, owner, dep.chainId);
+  // the same domain reader the server verifies with
+  const { domain, nonce } = await readPermitDomain(publicClient, dep.chainId, token, owner);
   const dl = deadline();
   const sig = await signer.signTypedData({
     domain,

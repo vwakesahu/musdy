@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import type { FeedItem } from "shared";
-import { useLivePrice } from "@/hooks/use-live";
+import { useCurrentPrice } from "@/hooks/use-live";
 import { useNow } from "@/hooks/use-now";
 import { displayName, timeAgo, usd } from "@/lib/format";
 import { CopyButton } from "./copy-button";
@@ -12,15 +12,15 @@ import { TokenIcon } from "./ui/token-icon";
 
 export function FeedRow({ item, self }: { item: FeedItem; self: boolean }) {
   const now = useNow();
-  const live = useLivePrice(item.token.address);
+  const current = useCurrentPrice(item.token.address);
   const at = BigInt(item.priceMusd);
-  // how this buy has done since, from the live price
-  const since = item.isBuy && live && at > 0n ? Number(((live.priceMusd - at) * 10_000n) / at) / 10_000 : null;
+  // how this buy has done since, from the token's price now
+  const since = item.isBuy && current !== null && at > 0n ? Number(((current - at) * 10_000n) / at) / 10_000 : null;
 
   return (
     <div className="relative flex min-h-[72px] items-center gap-3 border-b border-line px-4 py-3" data-testid="feed-row" data-id={item.id} data-user={item.user.address.toLowerCase()} data-side={item.isBuy ? "buy" : "sell"}>
       <Link href={`/token/${item.token.address}`} className="absolute inset-0" aria-label={`${item.token.symbol} details`} />
-      <Link href={`/u/${item.user.address}`} className="relative z-10" aria-label={displayName(item.user)}>
+      <Link href={`/u/${item.user.address}`} className="relative z-10 -mx-0.5 grid h-11 w-11 shrink-0 place-items-center" aria-label={displayName(item.user)}>
         <Avatar user={item.user} />
       </Link>
       <div className="pointer-events-none min-w-0 flex-1">
@@ -39,7 +39,11 @@ export function FeedRow({ item, self }: { item: FeedItem; self: boolean }) {
           <span className="truncate">
             {usd(BigInt(item.musdAmount))} <span className="text-muted">at {usd(BigInt(item.marketCapMusd))} MC</span>
           </span>
-          {since !== null && <PctChip value={since} />}
+          {since !== null && (
+            <span data-testid="since-buy" className="shrink-0">
+              <PctChip value={since} />
+            </span>
+          )}
         </div>
         {item.ref && <p className="mt-0.5 text-[12px] leading-4 font-medium text-muted">copied {displayName(item.ref)}</p>}
       </div>

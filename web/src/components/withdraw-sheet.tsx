@@ -38,12 +38,15 @@ export function WithdrawSheet({ open, onOpenChange }: { open: boolean; onOpenCha
   const asset = choices.find((a) => a.address === selected) ?? null;
 
   let amountWei = 0n;
+  let amountBad = false;
   try {
     amountWei = asset && amount ? parseUnits(amount, asset.decimals) : 0n;
   } catch {
-    amountWei = 0n;
+    amountBad = true;
   }
+  if (amount && !/^\d*\.?\d+$|^\d+\.$/.test(amount)) amountBad = true;
   const validTo = isAddress(to);
+  const toBad = to !== "" && !validTo;
   const tooMuch = asset !== null && amountWei > asset.amount;
 
   useEffect(() => {
@@ -101,8 +104,15 @@ export function WithdrawSheet({ open, onOpenChange }: { open: boolean; onOpenCha
                         value={amount}
                         onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ""))}
                         placeholder="0"
+                        aria-invalid={amountBad}
                         className="h-12 rounded-[14px] bg-raised px-4 text-[16px] outline-none placeholder:text-muted"
                       />
+                      {amountBad && (
+                        <span role="alert" className="text-[13px] leading-5 text-muted" data-testid="withdraw-amount-error">
+                          That amount isn&apos;t a number. Use digits and one decimal point, like 12.5.
+                        </span>
+                      )}
+                      {!amountBad && tooMuch && <span className="text-[13px] leading-5 text-muted">That&apos;s more than you hold.</span>}
                     </label>
                     <div className="flex gap-2">
                       {[25n, 50n, 100n].map((p) => (
@@ -120,17 +130,22 @@ export function WithdrawSheet({ open, onOpenChange }: { open: boolean; onOpenCha
                         autoCapitalize="off"
                         autoCorrect="off"
                         spellCheck={false}
+                        aria-invalid={toBad}
                         className="h-12 rounded-[14px] bg-raised px-4 font-mono text-[16px] outline-none placeholder:text-muted"
                       />
+                      {toBad && (
+                        <span role="alert" className="text-[13px] leading-5 text-muted" data-testid="withdraw-to-error">
+                          That isn&apos;t a valid address. It&apos;s 0x followed by 40 letters and digits.
+                        </span>
+                      )}
                     </label>
-                    {tooMuch && <p className="text-[13px] text-muted">That&apos;s more than you hold.</p>}
                     {locked && (
                       <p className="flex items-start gap-2 text-[13px] leading-5 text-muted" role="alert" data-testid="withdraw-locked">
                         <Icon name="lock" size={16} className="mt-0.5 shrink-0" />
                         {locked}
                       </p>
                     )}
-                    <Button variant="accent" className="h-[52px] w-full" disabled={!validTo || amountWei === 0n || tooMuch || sending} onClick={submit}>
+                    <Button variant="accent" className="h-[52px] w-full" disabled={!validTo || amountBad || amountWei === 0n || tooMuch || sending} onClick={submit}>
                       {sending ? "Sending" : `Withdraw ${asset.symbol}`}
                     </Button>
                   </div>

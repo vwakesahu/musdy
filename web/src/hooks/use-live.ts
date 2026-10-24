@@ -10,6 +10,20 @@ import { useSession } from "./use-session";
 export const useLivePrice = (address: string | undefined): LivePrice | null =>
   useStore(livePrices, (p) => (address ? (p[lk(address)] ?? null) : null), null);
 
+// the token's price now: the live block price, else what the token lists said on load, else the token itself.
+// every feed row asks the same way, so a since buy chip shows as soon as any of them is known
+export function useCurrentPrice(address: string): bigint | null {
+  const live = useLivePrice(address);
+  const one = useQuery({
+    queryKey: ["token", lk(address)],
+    queryFn: () => api.token(address as Address),
+    enabled: !live,
+    staleTime: 60_000,
+  });
+  if (live) return live.priceMusd;
+  return one.data ? BigInt(one.data.priceMusd) : null;
+}
+
 export const useLiveToken = (address: string | undefined) =>
   useStore(liveTokens, (t) => (address ? (t[lk(address)] ?? null) : null), null);
 

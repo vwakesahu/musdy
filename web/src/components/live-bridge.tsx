@@ -1,15 +1,28 @@
 "use client";
 import { useEffect, useRef } from "react";
-import { useQueryClient } from "@tanstack/react-query";
-import { topicKey } from "shared";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { topicKey, type TokenInfo } from "shared";
 import { useDeployment } from "@/hooks/use-deployment";
 import { useSession } from "@/hooks/use-session";
 import { useTopic } from "@/hooks/use-topic";
 import { api } from "@/lib/http";
-import { liveBalances, livePrices, liveTokens, liveTxs, lk } from "@/lib/live";
+import { BTC_GAS_RESERVE, liveBalances, livePrices, liveTokens, liveTxs, lk } from "@/lib/live";
 import { signPermit } from "@/lib/sign";
 import { socket } from "@/lib/socket";
 import { errorText, toast } from "@/lib/toast";
+
+// the token lists carry every listed token's price, so prices are known before the first block moves them.
+// a price the socket already sent is newer and wins
+const seedPrices = (list: TokenInfo[] | undefined) => {
+  if (!list?.length) return;
+  livePrices.set((p) => {
+    const missing = list.filter((t) => !p[lk(t.address)]);
+    if (missing.length === 0) return p;
+    const next = { ...p };
+    for (const t of missing) next[lk(t.address)] = { priceMusd: BigInt(t.priceMusd), change24h: t.change24h };
+    return next;
+  });
+};
 
 const txDone: Record<string, string> = {
   deposit: "Deposit landed in your balance",
@@ -31,6 +44,13 @@ export function LiveBridge() {
     liveBalances.set(null);
   }, [address]);
 
+  const trending = useQuery({ queryKey: ["tokens", "trending"], queryFn: () => api.tokens("trending") }).data;
+  const fresh = useQuery({ queryKey: ["tokens", "new"], queryFn: () => api.tokens("new") }).data;
+  const stocks = useQuery({ queryKey: ["tokens", "stocks"], queryFn: () => api.tokens("stocks") }).data;
+  useEffect(() => seedPrices(trending), [trending]);
+  useEffect(() => seedPrices(fresh), [fresh]);
+  useEffect(() => seedPrices(stocks), [stocks]);
+
   useTopic(topicKey("prices"), (m) => {
     if (m.type !== "prices") return;
     livePrices.set((p) => {
@@ -43,6 +63,7 @@ export function LiveBridge() {
   useTopic(topicKey("tokens"), (m) => {
     if (m.type !== "token") return;
     liveTokens.set((t) => ({ ...t, [lk(m.token.address)]: m.token }));
+    seedPrices([m.token]);
   });
 
   useTopic(address ? topicKey(`user:${address}`) : null, (m) => {
@@ -66,11 +87,13 @@ export function LiveBridge() {
       const b = liveBalances.get();
       if (!b) return;
       for (const token of sweepable) {
-        const amount = b.wallet[token] ?? 0n;
-        const key = `${signer.address}:${token}:${amount}`;
+        const isBtc = token === lk(dep.btc);
+        const held = b.wallet[token] ?? 0n;
+        const amount = isBtc ? held - BTC_GAS_RESERVE : held;
+        const key = `${signer.address}:${token}:${held}`;
         if (amount <= 0n || attempted.current.has(key)) continue;
         attempted.current.add(key);
-        const addr = token === lk(dep.btc) ? dep.btc : dep.musd;
+        const addr = isBtc ? dep.btc : dep.musd;
         signPermit(signer, dep, addr, amount)
           .then((body) => api.deposit(body))
           .catch((e: unknown) => toast("error", `Auto deposit: ${errorText(e)}`));

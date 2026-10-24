@@ -10,8 +10,8 @@ export function LoginOptions() {
   return (
     <div className="flex flex-col gap-3">
       {s.canPrivy && (
-        <Button variant="accent" className="h-[52px] w-full" onClick={s.loginPrivy}>
-          Continue with Google
+        <Button variant="accent" className="h-[52px] w-full" onClick={s.loginPrivy} disabled={s.loginBusy} data-testid="google-login">
+          {s.loginBusy ? "Signing in with Google" : "Continue with Google"}
         </Button>
       )}
       {s.canDev && (

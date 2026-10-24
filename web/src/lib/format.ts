@@ -45,6 +45,9 @@ export function price(x: bigint) {
   return `$0.0${sub(zeros)}${digits}`;
 }
 
+// the same price text from a plain number, for the chart's scale
+export const priceOfNumber = (n: number) => (Number.isFinite(n) && n > 0 ? price(BigInt(Math.round(n * 1e18))) : "$0.00");
+
 export function tokenAmount(x: bigint, decimals = 18) {
   const n = toNum(x, decimals);
   if (n === 0) return "0";
@@ -65,7 +68,9 @@ export function timeAgo(tsSec: number, nowMs: number) {
 
 export const shortAddr = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
 
-export const displayName = (u: { address: string; handle: string | null }) => u.handle ?? shortAddr(u.address);
+// a handle, else a short address. compact fits a 64px label, "0x90F…a1b"
+export const displayName = (u: { address: string; handle: string | null }, compact = false) =>
+  u.handle ?? (compact ? `${u.address.slice(0, 5)}…${u.address.slice(-3)}` : shortAddr(u.address));
 
 // "12.50" -> 12.5e18, anything unparsable is zero
 export function parseDollars(s: string): bigint {

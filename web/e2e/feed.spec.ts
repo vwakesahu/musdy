@@ -1,15 +1,21 @@
 import { expect, test } from "@playwright/test";
-import { otherBuys, shot, stock } from "./helpers";
+import { otherBuys, rowDollars, rowName, shot, stock } from "./helpers";
 
-// AC8: someone else's trade shows on the global feed within a block, live
+// AC8: someone else's trade shows on the global feed within a block, live, as one sentence
 test("a new trade slides into the global feed", async ({ page }, info) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Feed" })).toBeVisible();
   await page.waitForTimeout(1500);
-  const before = await page.getByTestId("feed-row").count();
-  await otherBuys(stock.address, "5");
-  await expect.poll(() => page.getByTestId("feed-row").count(), { timeout: 30_000 }).toBeGreaterThan(before);
-  await expect(page.getByTestId("feed-row").first()).toContainText(stock.symbol);
-  await expect(page.getByTestId("feed-row").first()).toContainText("Buy");
+  const item = await otherBuys(stock.address, "5");
+  const row = page.locator(`[data-testid="feed-row"][data-id="${item.id}"]`);
+  await expect(row).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId("feed-row").first()).toHaveAttribute("data-id", item.id);
+  // who, side, coin, dollars, and how it has done since the buy
+  await expect(row).toContainText(rowName(item.user));
+  await expect(row).toContainText("Buy");
+  await expect(row).toContainText(stock.symbol);
+  await expect(row).toContainText(rowDollars(item));
+  expect(rowDollars(item)).toBe("$5.00");
+  await expect(row.getByTestId("since-buy")).toHaveText(/\d+\.\d{2}%/);
   await shot(page, info, "feed");
 });

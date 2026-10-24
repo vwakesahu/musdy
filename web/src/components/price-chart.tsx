@@ -1,7 +1,11 @@
 "use client";
 import { useEffect, useRef } from "react";
-import { ColorType, LineSeries, createChart, type IChartApi, type ISeriesApi, type UTCTimestamp } from "lightweight-charts";
+import { ColorType, LineSeries, createChart, type AutoscaleInfo, type IChartApi, type ISeriesApi, type UTCTimestamp } from "lightweight-charts";
 import type { Candle } from "shared";
+import { priceOfNumber } from "@/lib/format";
+
+// the scale always spans at least this much either side of the mid, so a tiny wiggle stays a tiny wiggle
+const MIN_HALF_RANGE = 0.02;
 
 // line chart of closes, colour follows the direction over the shown range
 export function PriceChart({ candles }: { candles: Candle[] }) {
@@ -15,14 +19,28 @@ export function PriceChart({ candles }: { candles: Candle[] }) {
       autoSize: true,
       layout: { background: { type: ColorType.Solid, color: "transparent" }, textColor: "#8B8696", attributionLogo: false, fontFamily: "inherit" },
       grid: { vertLines: { visible: false }, horzLines: { visible: false } },
-      rightPriceScale: { visible: false },
+      rightPriceScale: { visible: true, borderVisible: false, scaleMargins: { top: 0.12, bottom: 0.12 } },
       leftPriceScale: { visible: false },
       timeScale: { visible: false, borderVisible: false },
       crosshair: { horzLine: { visible: false, labelVisible: false }, vertLine: { color: "#2A2633", labelVisible: false } },
       handleScroll: false,
       handleScale: false,
     });
-    series.current = c.addSeries(LineSeries, { lineWidth: 2, priceLineVisible: false, lastValueVisible: false, crosshairMarkerRadius: 4 });
+    series.current = c.addSeries(LineSeries, {
+      lineWidth: 2,
+      priceLineVisible: false,
+      lastValueVisible: false,
+      crosshairMarkerRadius: 4,
+      priceFormat: { type: "custom", formatter: priceOfNumber, minMove: 1e-15, base: 1e15 },
+      autoscaleInfoProvider: (base: () => AutoscaleInfo | null) => {
+        const info = base();
+        if (!info?.priceRange) return info;
+        const { minValue, maxValue } = info.priceRange;
+        const mid = (minValue + maxValue) / 2;
+        const half = Math.max((maxValue - minValue) / 2, Math.abs(mid) * MIN_HALF_RANGE);
+        return { ...info, priceRange: { minValue: mid - half, maxValue: mid + half } };
+      },
+    });
     chart.current = c;
     return () => {
       c.remove();
@@ -42,5 +60,5 @@ export function PriceChart({ candles }: { candles: Candle[] }) {
     chart.current?.timeScale().fitContent();
   }, [candles]);
 
-  return <div ref={el} className="chart-reveal h-[220px] w-full" />;
+  return <div ref={el} className="chart-reveal h-[220px] w-full" data-testid="price-chart" />;
 }

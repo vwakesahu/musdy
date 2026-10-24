@@ -1,6 +1,8 @@
 import { ServerMsg, topicKey, type Address } from "shared";
 import { env } from "./env";
+import { ApiError } from "./http";
 import { createStore } from "./store";
+import { errorText, toast } from "./toast";
 
 // the chain id from the latest welcome, checked against the build before anything signs
 export const socketChain = createStore<number | null>(null);
@@ -11,6 +13,7 @@ export type SocketStatus = "idle" | "connecting" | "open" | "closed";
 const MIN_DELAY = 500;
 const MAX_DELAY = 8000;
 const SEEN_CAP = 1000;
+const ERROR_QUIET_MS = 15_000; // the same server error is shown at most once in this window
 
 class SocketClient {
   private ws: WebSocket | null = null;
@@ -21,6 +24,7 @@ class SocketClient {
   private delay = MIN_DELAY;
   private timer: ReturnType<typeof setTimeout> | null = null;
   private statusListeners = new Set<() => void>();
+  private errorShown = new Map<string, number>();
   status: SocketStatus = "idle";
 
   private setStatus(s: SocketStatus) {
@@ -117,12 +121,23 @@ class SocketClient {
     if (!parsed.success) return;
     const msg = parsed.data;
     if (msg.type === "welcome") socketChain.set(msg.chainId);
+    if (msg.type === "error") this.showError(msg.code, msg.message);
     for (const h of this.globalHandlers) h(msg);
     if (!("topic" in msg)) return;
     const topic = topicKey(msg.topic);
     if (msg.type === "trade" && !this.firstSeen(topic, msg.item.id)) return;
     const set = this.handlers.get(topic);
     if (set) for (const h of set) h(msg);
+  }
+
+  // rate limits, caps and bad messages reach the person in words, an identical one repeats only after a quiet spell
+  private showError(code: string, message: string) {
+    const key = `${code}:${message}`;
+    const now = Date.now();
+    const last = this.errorShown.get(key);
+    if (last !== undefined && now - last < ERROR_QUIET_MS) return;
+    this.errorShown.set(key, now);
+    toast("error", errorText(new ApiError(code, message, 0)));
   }
 
   private firstSeen(topic: string, id: string) {

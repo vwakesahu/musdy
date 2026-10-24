@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useMemo, useSyncExternalStore, type ReactNode } from "react";
 import { privateKeyToAccount } from "viem/accounts";
-import { chainMismatch, devKeyState, devPrivateKey, signingAllowed } from "@/lib/env";
+import { chainMismatch, DEV_KEY_STORAGE, devKeyState, devPrivateKey, signingAllowed } from "@/lib/env";
 import type { Signer } from "@/lib/signer";
 import { socketChain } from "@/lib/socket";
 import { createStore, useStore } from "@/lib/store";
@@ -11,6 +11,7 @@ import { SessionContext, type Session } from "@/hooks/use-session";
 export type PrivyState = {
   ready: boolean;
   authenticated: boolean;
+  busy: boolean;
   signer: Signer | null;
   login: () => void;
   logout: () => void;
@@ -28,6 +29,17 @@ const readDev = () => {
   }
   return devStore.get() ?? false;
 };
+let storedKey: string | null | undefined;
+const readStoredKey = () => {
+  if (storedKey === undefined) {
+    try {
+      storedKey = window.localStorage.getItem(DEV_KEY_STORAGE);
+    } catch {
+      storedKey = null;
+    }
+  }
+  return storedKey;
+};
 const writeDev = (on: boolean) => {
   try {
     if (on) window.localStorage.setItem(DEV_FLAG, "1");
@@ -38,6 +50,7 @@ const writeDev = (on: boolean) => {
 
 export function SessionRoot({ privy, children }: { privy: PrivyState | null; children: ReactNode }) {
   const devOn = useSyncExternalStore(devStore.subscribe, readDev, () => false);
+  const stored = useSyncExternalStore(devStore.subscribe, readStoredKey, () => null);
   const hydrated = useSyncExternalStore(
     devStore.subscribe,
     () => true,
@@ -56,7 +69,7 @@ export function SessionRoot({ privy, children }: { privy: PrivyState | null; chi
   const socket = useStore(socketChain, (c) => c, null);
   const configError = chainMismatch({ config, socket });
   const allowed = signingAllowed({ config, socket });
-  const devKey = devPrivateKey({ config, socket });
+  const devKey = devPrivateKey({ config, socket }, stored);
 
   // no signer of any kind exists until the server's chain matches the build
   const devSigner = useMemo<Signer | null>(() => {
@@ -80,6 +93,7 @@ export function SessionRoot({ privy, children }: { privy: PrivyState | null; chi
       signer,
       method: dev ? "dev" : signer ? "privy" : null,
       canPrivy: privy !== null,
+      loginBusy: privy?.busy ?? false,
       canDev: devSigner !== null,
       loginPrivy,
       loginDev,
