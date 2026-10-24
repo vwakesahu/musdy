@@ -6,9 +6,9 @@ export const zHex = z.string().regex(/^0x[0-9a-fA-F]*$/).transform((s) => s as `
 export const zUint = z.string().regex(/^\d{1,78}$/);
 export const zIssued = z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/);
 
-export const VENUES = ["pool", "curve"] as const; // index matches the solidity Venue enum
+export const VENUES = ["pool", "curve", "relay"] as const; // index matches the solidity Venue enum
 export const zVenue = z.enum(VENUES);
-export const TOKEN_KINDS = ["musd", "btc", "stock", "launch", "other"] as const;
+export const TOKEN_KINDS = ["musd", "btc", "stock", "launch", "meme", "other"] as const;
 export const zTokenKind = z.enum(TOKEN_KINDS);
 
 export const UserRef = z.object({
@@ -19,13 +19,16 @@ export const UserRef = z.object({
 export type UserRef = z.infer<typeof UserRef>;
 
 export const TokenRef = z.object({
-  address: zAddress,
+  address: z.string(), // evm checksummed hex or solana base58
+  chainId: z.number(), // mezo for vault tokens, the coin's own chain for memecoins
   symbol: z.string(),
   name: z.string(),
   image: z.string().nullable(),
   decimals: z.number(),
 });
 export type TokenRef = z.infer<typeof TokenRef>;
+export const tokenKey = (t: { chainId: number; address: string }) => `${t.chainId}:${t.chainId === SOLANA ? t.address : t.address.toLowerCase()}`;
+export const SOLANA = 792703809; // relay's chain id for solana
 
 export const TokenInfo = TokenRef.extend({
   kind: zTokenKind,
@@ -102,7 +105,7 @@ export type Candle = z.infer<typeof Candle>;
 
 export const TxStatus = z.object({
   id: z.string(),
-  kind: z.enum(["deposit", "trade", "withdraw", "launch", "faucet"]),
+  kind: z.enum(["deposit", "trade", "withdraw", "launch", "faucet", "intent", "bridge"]),
   status: z.enum(["pending", "confirmed", "failed"]),
   hash: zHex.nullable(),
   error: z.string().nullable(),

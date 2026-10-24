@@ -35,6 +35,23 @@ export const LaunchBody = z.object({
   }),
   sig: zHex,
 });
+export const IntentBody = z.object({
+  intent: z.object({
+    user: zAddress,
+    isBuy: z.boolean(),
+    chainId: z.string().regex(/^\d{1,12}$/),
+    token: z.string().min(32).max(64),
+    amountIn: zUint,
+    minOut: zUint,
+    ref: zAddress,
+    nonce: zUint,
+    deadline: zUint,
+  }),
+  sig: zHex,
+});
+export const DepositChain = z.object({ chainId: z.number(), name: z.string(), icon: z.string(), currency: z.string() });
+export const DepositAddress = DepositChain.extend({ address: z.string(), minUsd: z.number() });
+
 export const PermitDepositBody = z.object({
   owner: zAddress,
   token: zAddress,
@@ -88,6 +105,9 @@ export const routes = {
 export const ErrorBody = z.object({ code: z.string(), message: z.string() });
 
 export type TradeBody = z.infer<typeof TradeBody>;
+export type IntentBody = z.infer<typeof IntentBody>;
+export type DepositChain = z.infer<typeof DepositChain>;
+export type DepositAddress = z.infer<typeof DepositAddress>;
 export type WithdrawBody = z.infer<typeof WithdrawBody>;
 export type LaunchBody = z.infer<typeof LaunchBody>;
 export type PermitDepositBody = z.infer<typeof PermitDepositBody>;

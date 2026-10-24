@@ -95,3 +95,15 @@ web. `NEXT_PUBLIC_PRIVY_APP_ID`, `NEXT_PUBLIC_CHAIN_ID`, `NEXT_PUBLIC_RPC_URL`, 
 ## acceptance criteria to tests
 
 AC1 web e2e `login.spec.ts`. AC2 contracts `test_depositWithPermit_*` and `test_fork_depositWithPermit`, server `deposit.test.ts`, e2e `deposit.spec.ts` for MUSD and BTC. AC3 server `faucet.test.ts`. AC4 and AC5 contracts `test_trade_*`, server `trade.test.ts`, e2e `trade.spec.ts`. AC6 contracts `test_launch_*`, e2e `launch.spec.ts`. AC7 contracts `test_graduation_*`, `invariant_curve_*`. AC8 server `feed.test.ts`, e2e `feed.spec.ts`. AC9 contracts `test_trade_ref`, e2e `copy.spec.ts`. AC10 server `pnl.test.ts`, `leaderboard.test.ts`. AC11 server `profile.test.ts`, e2e `profile.spec.ts`. AC12 contracts `test_withdraw_*`, e2e `withdraw.spec.ts`. AC13 contracts `test_escapeHatch`. AC14 server `socket.test.ts` kills and reconnects a client and checks the replay.
+
+## cross chain, milestone 2
+
+the user's cash stays MUSD in the vault. coins on solana, base and bsc are bought and sold by our solver through relay, the user never sees a chain.
+
+vault. `solver` is an owner set address. `executeIntent(Intent, sig)` checks the signature like the other actions. a buy moves `amountIn` MUSD from the user's balance to the solver's balance and emits `IntentOpened(id, user, isBuy, chainId, token, amountIn, minOut, ref)` where id is the eip712 digest. a sell moves no MUSD and emits the same event. `settleIntent(id, user, musdToUser, tokenAmount, ok)` is solver only, moves `musdToUser` from the solver's balance to the user (the sell proceeds, or the refund of a failed buy) and emits `IntentSettled(id, user, musdToUser, tokenAmount, ok)`. an intent settles once. a buy that isn't settled within 1 hour can be refunded by the user with `refundIntent(id)`.
+
+solver. holds USDC on base and MUSD on mezo. a buy quotes relay from base USDC to the coin on its chain, recipient is the solver's wallet on that chain, then settles with the token amount received. a sell quotes relay from the coin back to base USDC and settles the MUSD value. positions in coins on other chains are a ledger in the server, backed by the solver's wallets and the IntentSettled events. this is custodial for v1, said plainly in the app.
+
+deposits. `GET /deposit/chains` lists solana, base, bsc, ethereum and arbitrum. `GET /deposit/:address/:chainId` returns an open relay deposit address for that user and chain whose destination is USDC on base to the solver, reusable. when relay fills it the solver credits MUSD to the user with `deposit(MUSD, amount, user)`.
+
+discovery. trending and new coins on solana, base and bsc come from dexscreener's public api with their real images, candles from geckoterminal's public api. no keys.
