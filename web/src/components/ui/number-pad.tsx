@@ -13,7 +13,8 @@ export function applyKey(value: string, key: string, maxDecimals = 2) {
   return value + key;
 }
 
-export function NumberPad({ onKey }: { onKey: (key: string) => void }) {
+export function NumberPad({ onKey, size = "md" }: { onKey: (key: string) => void; size?: "md" | "lg" | "sm" }) {
+  const key = size === "lg" ? "h-16 text-[28px]" : size === "sm" ? "h-11 text-[20px]" : "h-12 text-[22px]";
   return (
     <div className="grid grid-cols-3 gap-1 select-none">
       {KEYS.map((k) => (
@@ -22,9 +23,10 @@ export function NumberPad({ onKey }: { onKey: (key: string) => void }) {
           type="button"
           aria-label={k === "del" ? "Delete" : k}
           onClick={() => onKey(k)}
-          className="press grid h-12 place-items-center rounded-[14px] text-[22px] font-medium active:bg-raised"
+          className={`group relative grid cursor-pointer place-items-center font-normal tabular-nums outline-none focus-visible:outline-2 focus-visible:outline-accent-hi ${key}`}
         >
-          {k === "del" ? <BackspaceIcon size={26} /> : k}
+          <span aria-hidden className="absolute top-1/2 left-1/2 size-14 -translate-x-1/2 -translate-y-1/2 scale-75 rounded-full bg-surface-3 opacity-0 transition-[opacity,transform] duration-150 group-hover:opacity-50 group-active:scale-100 group-active:opacity-100 group-active:duration-75" />
+          <span className="relative">{k === "del" ? <BackspaceIcon size={26} /> : k}</span>
         </button>
       ))}
     </div>
