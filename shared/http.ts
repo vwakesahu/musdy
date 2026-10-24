@@ -49,6 +49,16 @@ export const IntentBody = z.object({
   }),
   sig: zHex,
 });
+export const SweepBody = z.object({
+  owner: zAddress,
+  chainId: z.number(),
+  token: zAddress,
+  value: zUint,
+  validAfter: zUint,
+  validBefore: zUint,
+  nonce: zHex,
+  sig: zHex,
+});
 export const DepositChain = z.object({ chainId: z.number(), name: z.string(), icon: z.string(), currency: z.string() });
 export const DepositAddress = DepositChain.extend({ address: z.string(), minUsd: z.number() });
 
@@ -96,6 +106,7 @@ export const routes = {
   depositChains: "/deposit/chains",
   depositAddress: "/deposit/:address/:chainId",
   intent: "/actions/intent",
+  sweep: "/actions/sweep", // SweepBody -> Accepted, solver submits the authorization and credits MUSD
   trade: "/actions/trade",
   withdraw: "/actions/withdraw",
   launch: "/actions/launch",
@@ -109,6 +120,7 @@ export const ErrorBody = z.object({ code: z.string(), message: z.string() });
 
 export type TradeBody = z.infer<typeof TradeBody>;
 export type IntentBody = z.infer<typeof IntentBody>;
+export type SweepBody = z.infer<typeof SweepBody>;
 export type DepositChain = z.infer<typeof DepositChain>;
 export type DepositAddress = z.infer<typeof DepositAddress>;
 export type WithdrawBody = z.infer<typeof WithdrawBody>;

@@ -53,6 +53,18 @@ export const intentTypes = {
   ],
 } as const;
 
+// eip3009 on native usdc, the domain is the token's own (name "USD Coin", version "2" on base)
+export const transferWithAuthorizationTypes = {
+  TransferWithAuthorization: [
+    { name: "from", type: "address" },
+    { name: "to", type: "address" },
+    { name: "value", type: "uint256" },
+    { name: "validAfter", type: "uint256" },
+    { name: "validBefore", type: "uint256" },
+    { name: "nonce", type: "bytes32" },
+  ],
+} as const;
+
 export const permitTypes = {
   Permit: [
     { name: "owner", type: "address" },

@@ -36,6 +36,8 @@ export const ServerMsg = z.discriminatedUnion("type", [
     block: z.number(),
     vault: z.array(z.object({ token: zAddress, amount: zUint })),
     wallet: z.array(z.object({ token: zAddress, amount: zUint })),
+    // usdc sitting in the user's own address on other evm chains, swept with an eip3009 authorization
+    external: z.array(z.object({ chainId: z.number(), token: zAddress, amount: zUint })).default([]),
   }),
   z.object({ type: z.literal("tx"), topic: z.string(), tx: TxStatus }),
   z.object({ type: z.literal("error"), code: z.string(), message: z.string() }),
