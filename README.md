@@ -21,6 +21,12 @@ your balance is MUSD, mezo's dollar backed by bitcoin, held for you in the musdy
 
 bitcoin and stocks trade through mezo pools. a coin launched on musdy starts on a bonding curve, and when the curve sells out it moves into its own mezo pool with the liquidity locked forever. every trade costs 0.5%.
 
+## architecture
+
+![musdy architecture](docs/images/architecture.png)
+
+you sign, the server pays the gas and submits it to the vault on mezo. coins on other chains are filled by the solver through relay and settled back to the vault.
+
 ## proof
 
 every step below is a real transaction. the vault and its ledger live on mezo testnet, the coins are bought and sold on base and bnb chain mainnet with real usdc through relay.

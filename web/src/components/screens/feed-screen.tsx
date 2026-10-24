@@ -10,12 +10,10 @@ import { LoginOptions } from "../login-sheet";
 import { ScreenHeader } from "../screen-header";
 import { UnderlineTabs } from "../underline-tabs";
 import { EmptyState } from "../ui/empty-state";
-import { Button } from "../ui/button";
 import { Menu, MenuPopup, MenuRadioGroup, MenuRadioItem, MenuTrigger } from "../ui/menu";
 import { useTradeList } from "@/hooks/use-feed";
 import { useSession } from "@/hooks/use-session";
 import { api } from "@/lib/http";
-import { openSheet } from "@/lib/ui";
 import { cn } from "@/lib/utils";
 
 type Side = "all" | "buy" | "sell";
@@ -68,11 +66,8 @@ export function FeedScreen() {
         }
       />
       {ready && !address && !following && (
-        <div className="mx-4 mb-3 flex items-center gap-3 rounded-[14px] bg-surface py-3 pr-3 pl-4 lg:mx-6" data-testid="feed-intro">
+        <div className="mx-4 mb-3 flex items-center gap-3 rounded-[14px] bg-surface px-4 py-3 lg:mx-6" data-testid="feed-intro">
           <p className="flex-1 text-[15px] leading-[21px] text-text-2">Copy real traders in one tap. One USD balance, no gas.</p>
-          <Button variant="primary" size="sm" className="h-10 shrink-0 px-4" onClick={() => openSheet("login")}>
-            Log in
-          </Button>
         </div>
       )}
       <UnderlineTabs
