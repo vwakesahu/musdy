@@ -25,6 +25,16 @@ contract CurveHandler is Test {
     bool public foreignBuyWrongError;
     bool public preGraduationMint;
     uint256 public seeds;
+    // MUSD the launchpad gained (or lost) on each token's own calls, so solvency is checked per token
+    mapping(address => int256) public ghostMusd;
+
+    // books the launchpad's MUSD change during the call against the token it traded
+    modifier track(uint256 tSeed) {
+        address t = tokens[tSeed % tokens.length];
+        uint256 b0 = musd.balanceOf(address(lp));
+        _;
+        ghostMusd[t] += int256(musd.balanceOf(address(lp))) - int256(b0);
+    }
 
     constructor(MusdyLaunchpad lp_, MockERC20Permit musd_, MockPoolFactory factory_) {
         lp = lp_;
@@ -65,7 +75,7 @@ contract CurveHandler is Test {
     }
 
     // toSeed picks the recipient: the trader, the token's pool, or any address
-    function buy(uint256 tSeed, uint256 who, uint256 amount, uint256 toSeed, address randomTo) external {
+    function buy(uint256 tSeed, uint256 who, uint256 amount, uint256 toSeed, address randomTo) external track(tSeed) {
         address t = tokens[tSeed % tokens.length];
         address trader = traders[who % 3];
         amount = bound(amount, 1e15, 3000e18);
@@ -96,7 +106,7 @@ contract CurveHandler is Test {
         if (lp.isCurve(t) && _price(t) <= p0) priceViolated = true;
     }
 
-    function sell(uint256 tSeed, uint256 who, uint256 frac) external {
+    function sell(uint256 tSeed, uint256 who, uint256 frac) external track(tSeed) {
         address t = tokens[tSeed % tokens.length];
         address trader = traders[who % 3];
         uint256 bal = MusdyToken(t).balanceOf(trader);
@@ -152,13 +162,25 @@ contract CurveInvariantTest is Test {
         targetContract(address(handler));
     }
 
-    function invariant_curve_realMusdMatchesBalance() public view {
+    // per token: each live curve's realMusd is exactly the MUSD its own trades left in the launchpad,
+    // a graduated curve left nothing behind, and the launchpad holds every live curve's MUSD in full
+    function invariant_curve_realMusdBackedPerToken() public view {
+        uint256 held = musd.balanceOf(address(lp));
         uint256 sum;
         for (uint256 i; i < handler.tokenCount(); ++i) {
-            IMusdyLaunchpad.Curve memory c = lp.curveOf(handler.tokens(i));
-            if (!c.graduated) sum += c.realMusd;
+            address t = handler.tokens(i);
+            IMusdyLaunchpad.Curve memory c = lp.curveOf(t);
+            int256 ghost = handler.ghostMusd(t);
+            assertGe(ghost, 0);
+            if (c.graduated) {
+                assertEq(ghost, 0);
+                continue;
+            }
+            assertEq(uint256(ghost), c.realMusd);
+            assertLe(c.realMusd, held);
+            sum += c.realMusd;
         }
-        assertEq(sum, musd.balanceOf(address(lp)));
+        assertEq(sum, held);
     }
 
     function invariant_curve_tokensSoldBounded() public view {

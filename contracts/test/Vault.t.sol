@@ -8,6 +8,7 @@ import {MusdyVault} from "../src/MusdyVault.sol";
 import {MusdyToken} from "../src/MusdyToken.sol";
 import {MockERC20Permit} from "../src/mocks/MockERC20Permit.sol";
 import {MockBtcPermit} from "../src/mocks/MockBtcPermit.sol";
+import {MockPool} from "../src/mocks/MockPool.sol";
 
 contract VaultTest is Base {
     bytes32 internal constant PERMIT_TYPEHASH =
@@ -138,6 +139,8 @@ contract VaultTest is Base {
 
     function test_depositWithPermit_btcPrecompileDomain() public {
         MockBtcPermit pbtc = new MockBtcPermit();
+        // permit deposits are MUSD and BTC only, so this vault's BTC is the precompile copy
+        vault = new MusdyVault(address(musd), address(pbtc), address(router), address(launchpad), feeTo, 50, owner);
         assertEq(pbtc.name(), "BTC");
         assertEq(pbtc.decimals(), 18);
         (bool ok,) = address(pbtc).staticcall(abi.encodeWithSignature("nonces(address)", alice));
@@ -216,6 +219,36 @@ contract VaultTest is Base {
         vault.depositWithPermit(alice, address(musd), 50e18, deadline, v, r, s);
     }
 
+    // round 3: permit deposits credited any token to any owner, which undid the deposit recipient rule
+    function test_depositWithPermit_cashOnly() public {
+        nvda.mint(alice, 5e18);
+        vm.prank(alice);
+        nvda.approve(address(vault), 5e18);
+        uint256 deadline = block.timestamp + 100;
+        (uint8 v, bytes32 r, bytes32 s) = _permit(aliceKey, nvda, 5e18, deadline);
+        vm.prank(relayer);
+        vm.expectRevert(IMusdyVault.UnsupportedToken.selector);
+        vault.depositWithPermit(alice, address(nvda), 5e18, deadline, v, r, s);
+        // a fake token with no permit at all and a standing allowance
+        MockERC20Permit fake = new MockERC20Permit("Fake", "TSLA");
+        fake.mint(alice, 5e18);
+        vm.prank(alice);
+        fake.approve(address(vault), 5e18);
+        vm.expectRevert(IMusdyVault.UnsupportedToken.selector);
+        vault.depositWithPermit(alice, address(fake), 5e18, deadline, 27, bytes32(0), bytes32(0));
+        assertEq(vault.balanceOf(alice, address(nvda)), 0);
+        assertEq(vault.balanceOf(alice, address(fake)), 0);
+        // MUSD and BTC still go through
+        musd.mint(alice, 1e18);
+        btc.mint(alice, 1e18);
+        (v, r, s) = _permit(aliceKey, musd, 1e18, deadline);
+        vault.depositWithPermit(alice, address(musd), 1e18, deadline, v, r, s);
+        (v, r, s) = _permit(aliceKey, btc, 1e18, deadline);
+        vault.depositWithPermit(alice, address(btc), 1e18, deadline, v, r, s);
+        assertEq(vault.balanceOf(alice, address(musd)), 1e18);
+        assertEq(vault.balanceOf(alice, address(btc)), 1e18);
+    }
+
     // trades on pools
 
     function test_trade_buyPool() public {
@@ -270,6 +303,42 @@ contract VaultTest is Base {
         (pool, stable) = vault.poolFor(address(nvda));
         assertFalse(stable);
         assertEq(pool, factory.getPool(address(nvda), address(musd), false));
+    }
+
+    // reviewer round 3: a 1 wei volatile pool next to a deep stable pool used to take every trade
+    function test_poolFor_dustVolatileDoesNotShadowDeepStable() public {
+        address dust = factory.createPool(address(stab), address(musd), false);
+        stab.mint(dust, 1);
+        musd.mint(dust, 1);
+        MockPool(dust).sync();
+        (uint256 r0, uint256 r1,) = MockPool(dust).getReserves();
+        assertEq(r0, 1);
+        assertEq(r1, 1);
+        address deep = factory.getPool(address(stab), address(musd), true);
+        (address pool, bool stable) = vault.poolFor(address(stab));
+        assertEq(pool, deep);
+        assertTrue(stable);
+        _fund(alice, 100e18);
+        (uint256 q,) = vault.quote(address(stab), true, 100e18);
+        uint256 out = _execTrade(aliceKey, _trade(alice, address(stab), true, 100e18, 0, address(0)));
+        assertEq(out, q);
+        assertApproxEqRel(out, 99.5e18, 0.01e18);
+        // the dust pool got nothing
+        (r0, r1,) = MockPool(dust).getReserves();
+        assertEq(r0 + r1, 2);
+    }
+
+    // the mirror case: an attacker seeded stable pool with less MUSD can't take a deep volatile pool's trades
+    function test_poolFor_shallowStableDoesNotShadowDeepVolatile() public {
+        _seed(address(nvda), 1e18, 1000e18, true);
+        (address pool, bool stable) = vault.poolFor(address(nvda));
+        assertFalse(stable);
+        assertEq(pool, factory.getPool(address(nvda), address(musd), false));
+        // once the stable pool holds more MUSD it wins
+        _seed(address(nvda), 20_000e18, 2_000_000e18, true);
+        (pool, stable) = vault.poolFor(address(nvda));
+        assertTrue(stable);
+        assertEq(pool, factory.getPool(address(nvda), address(musd), true));
     }
 
     function test_poolFor_emptyPoolsAreNoRoute() public {

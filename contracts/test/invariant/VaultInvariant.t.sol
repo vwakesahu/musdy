@@ -6,6 +6,7 @@ import {Base} from "../Base.t.sol";
 import {MockERC20Permit} from "../../src/mocks/MockERC20Permit.sol";
 import {MusdyVault} from "../../src/MusdyVault.sol";
 import {IMusdyVault} from "../../src/interfaces/IMusdyVault.sol";
+import {IMusdyLaunchpad} from "../../src/interfaces/IMusdyLaunchpad.sol";
 
 contract VaultHandler is Test {
     MusdyVault public vault;
@@ -25,6 +26,12 @@ contract VaultHandler is Test {
     uint256 public tamperSuccess;
     uint256 public launches;
     uint256 public sweeps;
+    // attempts vs successes, so a run where everything quietly reverts fails instead of passing
+    uint256 public tradeTries;
+    uint256 public trades;
+    uint256 public withdrawTries;
+    uint256 public withdraws;
+    uint256 public launchTries;
 
     IMusdyVault.Trade[] internal doneTrades;
     bytes[] internal doneTradeSigs;
@@ -87,34 +94,58 @@ contract VaultHandler is Test {
         vm.stopPrank();
     }
 
+    // tops an actor's cash up so buys and launches have something to spend
+    function _cash(address a) internal returns (uint256 bal) {
+        bal = vault.balanceOf(a, address(musd));
+        if (bal >= 1e18) return bal;
+        musd.mint(a, 10_000e18);
+        vm.startPrank(a);
+        musd.approve(address(vault), 10_000e18);
+        vault.deposit(address(musd), 10_000e18, a);
+        vm.stopPrank();
+        bal += 10_000e18;
+    }
+
     function trade(uint256 who, uint256 tSeed, bool isBuy, uint256 amount) external watch(who) {
         address a = actor(who);
         address token = tokens[1 + tSeed % (tokens.length - 1)];
-        address spend = isBuy ? address(musd) : token;
-        uint256 bal = vault.balanceOf(a, spend);
-        if (bal == 0) return;
-        amount = bound(amount, 1, bal);
+        // nothing to sell turns into a buy, a buy always has cash
+        if (!isBuy && vault.balanceOf(a, token) == 0) isBuy = true;
+        uint256 bal = isBuy ? _cash(a) : vault.balanceOf(a, token);
+        amount = bound(amount, bal < 1e12 ? bal : 1e12, bal);
         IMusdyVault.Trade memory t =
             IMusdyVault.Trade(a, token, isBuy, amount, 0, address(0), vault.nonces(a), block.timestamp + 1);
         bytes memory sig = _sig(who, vault.hashTrade(t));
+        tradeTries++;
         try vault.executeTrade(t, sig) {
             ghostNonce[a]++;
+            trades++;
             doneTrades.push(t);
             doneTradeSigs.push(sig);
         } catch {}
     }
 
+    // a held, transferable token (curve tokens are locked until graduation), else MUSD topped up
+    function _withdrawable(address a, uint256 tSeed) internal returns (address token, uint256 bal) {
+        token = tokens[tSeed % tokens.length];
+        bal = vault.balanceOf(a, token);
+        if (bal == 0 || IMusdyLaunchpad(launchpad).isCurve(token)) {
+            token = address(musd);
+            bal = _cash(a);
+        }
+    }
+
     function withdrawSigned(uint256 who, uint256 tSeed, uint256 amount) external watch(who) {
         address a = actor(who);
-        address token = tokens[tSeed % tokens.length];
-        uint256 bal = vault.balanceOf(a, token);
-        if (bal == 0) return;
+        (address token, uint256 bal) = _withdrawable(a, tSeed);
         amount = bound(amount, 1, bal);
         IMusdyVault.Withdraw memory w =
             IMusdyVault.Withdraw(a, token, amount, address(0xBEEF), vault.nonces(a), block.timestamp + 1);
         bytes memory sig = _sig(who, vault.hashWithdraw(w));
+        withdrawTries++;
         try vault.executeWithdraw(w, sig) {
             ghostNonce[a]++;
+            withdraws++;
             doneWithdraws.push(w);
             doneWithdrawSigs.push(sig);
         } catch {}
@@ -171,10 +202,11 @@ contract VaultHandler is Test {
 
     function launch(uint256 who, uint256 buy) external watch(who) {
         address a = actor(who);
-        uint256 bal = vault.balanceOf(a, address(musd));
-        uint256 initialBuy = bal == 0 ? 0 : bound(buy, 1, bal);
+        // a third of launches buy nothing, the rest spend up to a fifth of the actor's cash
+        uint256 initialBuy = buy % 3 == 0 ? 0 : bound(buy, 1e15, _cash(a) / 5);
         IMusdyVault.Launch memory l =
             IMusdyVault.Launch(a, "Inv Coin", "INV", "", initialBuy, vault.nonces(a), block.timestamp + 1);
+        launchTries++;
         try vault.executeLaunch(l, _sig(who, vault.hashLaunch(l))) returns (address token, uint256) {
             ghostNonce[a]++;
             launches++;
@@ -207,12 +239,13 @@ contract VaultHandler is Test {
 
     function escape(uint256 who, uint256 tSeed, uint256 amount) external watch(who) {
         address a = actor(who);
-        address token = tokens[tSeed % tokens.length];
-        uint256 bal = vault.balanceOf(a, token);
-        if (bal == 0) return;
+        (address token, uint256 bal) = _withdrawable(a, tSeed);
         amount = bound(amount, 1, bal);
+        withdrawTries++;
         vm.prank(a);
-        try vault.withdraw(token, amount, a) {} catch {}
+        try vault.withdraw(token, amount, a) {
+            withdraws++;
+        } catch {}
     }
 
     // a signature from the wrong key must never move anything or bump a nonce
@@ -290,6 +323,43 @@ contract VaultInvariantTest is Base {
     }
 
     function invariant_vault_permitSweepCreditsOwnerOnly() public view {
+        assertFalse(handler.sweepMisCredited());
+    }
+
+    // every run must actually exercise the ledger: shaped inputs mean nearly every attempt succeeds
+    function afterInvariant() public view {
+        _assertMostlySucceeded(handler.trades(), handler.tradeTries());
+        _assertMostlySucceeded(handler.withdraws(), handler.withdrawTries());
+        _assertMostlySucceeded(handler.launches(), handler.launchTries());
+        // and the run did something at all (about 13 of 32 calls land on these four on average)
+        assertGe(handler.trades() + handler.withdraws() + handler.launches() + handler.sweeps(), 2);
+    }
+
+    function _assertMostlySucceeded(uint256 ok, uint256 tries) internal pure {
+        assertGe(ok * 10, tries * 9, "under 90% of attempts succeeded");
+    }
+
+    // drives the handler directly for a long sequence and asserts each action really succeeded many times
+    function test_vault_handlerActionsSucceed() public {
+        for (uint256 i; i < 400; ++i) {
+            uint256 r = uint256(keccak256(abi.encode(i)));
+            uint256 k = r % 5;
+            if (k == 0) handler.trade(r >> 8, r >> 16, (r >> 24) % 2 == 0, r >> 32);
+            else if (k == 1) handler.withdrawSigned(r >> 8, r >> 16, r >> 32);
+            else if (k == 2) handler.escape(r >> 8, r >> 16, r >> 32);
+            else if (k == 3) handler.launch(r >> 8, r >> 32);
+            else handler.depositWithPermitRelayed(r >> 8, (r >> 8) + 1 + (r >> 16) % 2, r >> 32);
+        }
+        emit log_named_uint("trades", handler.trades());
+        emit log_named_uint("withdraws", handler.withdraws());
+        emit log_named_uint("launches", handler.launches());
+        emit log_named_uint("permit deposits", handler.sweeps());
+        assertGe(handler.trades(), 60);
+        assertGe(handler.withdraws(), 120);
+        assertGe(handler.launches(), 60);
+        assertGe(handler.sweeps(), 60);
+        afterInvariant();
+        assertFalse(handler.unauthorizedDecrease());
         assertFalse(handler.sweepMisCredited());
     }
 

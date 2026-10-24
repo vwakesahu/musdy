@@ -117,6 +117,8 @@ contract MusdyVault is IMusdyVault, EIP712, Ownable, ReentrancyGuard {
         bytes32 r,
         bytes32 s
     ) external nonReentrant {
+        // only cash: crediting any other token to owner would plant positions (same rule as deposit for someone else)
+        if (token != MUSD && token != BTC) revert UnsupportedToken();
         // a front run permit already set the allowance, so only a short allowance is fatal
         // anyone can sweep a standing allowance this way, but only into owner's own vault balance, which owner can withdraw any time
         try IERC20Permit(token).permit(owner, address(this), amount, deadline, v, r, s) {}
@@ -181,19 +183,23 @@ contract MusdyVault is IMusdyVault, EIP712, Ownable, ReentrancyGuard {
     }
 
     // returns the pool a pool trade of token would use, address(0) when there is none
-    // an empty volatile pool (anyone can create one) must not shadow a funded stable pool
+    // of the volatile and stable pools the one holding more MUSD wins (volatile on a tie), so a dust or
+    // attacker seeded pool can't shadow the deep one; a pool with either reserve at zero is ignored
     function poolFor(address token) public view returns (address pool, bool stable) {
         address volatilePool = IMezoPoolFactory(factory).getPool(token, MUSD, false);
-        if (_funded(volatilePool)) return (volatilePool, stable);
         address stablePool = IMezoPoolFactory(factory).getPool(token, MUSD, true);
-        stable = _funded(stablePool);
+        uint256 v = _musdReserve(volatilePool);
+        uint256 st = _musdReserve(stablePool);
+        stable = st > v;
         if (stable) pool = stablePool;
+        else if (v != 0) pool = volatilePool;
     }
 
-    function _funded(address pool) private view returns (bool) {
-        if (pool == address(0)) return false;
+    function _musdReserve(address pool) private view returns (uint256) {
+        if (pool == address(0)) return 0;
         (uint256 r0, uint256 r1,) = IMezoPool(pool).getReserves();
-        return r0 != 0 && r1 != 0;
+        if (r0 == 0 || r1 == 0) return 0;
+        return IMezoPool(pool).token0() == MUSD ? r0 : r1;
     }
 
     function _buy(address user, address token, uint256 amountIn, uint256 minOut, address ref)

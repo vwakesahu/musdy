@@ -62,6 +62,7 @@ interface IMusdyVault {
     error ZeroAmount();
     error FeeTooHigh();
     error BadRecipient();
+    error UnsupportedToken();
 
     function MUSD() external view returns (address);
     function BTC() external view returns (address);
