@@ -26,7 +26,6 @@ contract VaultHandler is Test {
     uint256 public tamperSuccess;
     uint256 public launches;
     uint256 public sweeps;
-    // attempts vs successes, so a run where everything quietly reverts fails instead of passing
     uint256 public tradeTries;
     uint256 public trades;
     uint256 public withdrawTries;
@@ -65,7 +64,6 @@ contract VaultHandler is Test {
         return tokens.length;
     }
 
-    // records every actor balance, runs the action, then flags any drop for someone who didn't authorise it
     modifier watch(uint256 authorised) {
         uint256 n = tokens.length;
         uint256[3][] memory before = new uint256[3][](n);
@@ -94,7 +92,6 @@ contract VaultHandler is Test {
         vm.stopPrank();
     }
 
-    // tops an actor's cash up so buys and launches have something to spend
     function _cash(address a) internal returns (uint256 bal) {
         bal = vault.balanceOf(a, address(musd));
         if (bal >= 1e18) return bal;
@@ -109,7 +106,6 @@ contract VaultHandler is Test {
     function trade(uint256 who, uint256 tSeed, bool isBuy, uint256 amount) external watch(who) {
         address a = actor(who);
         address token = tokens[1 + tSeed % (tokens.length - 1)];
-        // nothing to sell turns into a buy, a buy always has cash
         if (!isBuy && vault.balanceOf(a, token) == 0) isBuy = true;
         uint256 bal = isBuy ? _cash(a) : vault.balanceOf(a, token);
         amount = bound(amount, bal < 1e12 ? bal : 1e12, bal);
@@ -125,7 +121,6 @@ contract VaultHandler is Test {
         } catch {}
     }
 
-    // a held, transferable token (curve tokens are locked until graduation), else MUSD topped up
     function _withdrawable(address a, uint256 tSeed) internal returns (address token, uint256 bal) {
         token = tokens[tSeed % tokens.length];
         bal = vault.balanceOf(a, token);
@@ -151,7 +146,6 @@ contract VaultHandler is Test {
         } catch {}
     }
 
-    // resubmits an already executed (struct, sig) pair, which must never go through again
     function replay(uint256 idx, bool asTrade) external watch(type(uint256).max) {
         if (asTrade && doneTrades.length > 0) {
             uint256 i = idx % doneTrades.length;
@@ -166,7 +160,6 @@ contract VaultHandler is Test {
         }
     }
 
-    // signs a valid action for the current nonce, then changes to, amountIn or token before submitting
     function tamper(uint256 who, uint256 field, uint256 seed) external watch(type(uint256).max) {
         address a = actor(who);
         uint256 mode = field % 3;
@@ -202,7 +195,6 @@ contract VaultHandler is Test {
 
     function launch(uint256 who, uint256 buy) external watch(who) {
         address a = actor(who);
-        // a third of launches buy nothing, the rest spend up to a fifth of the actor's cash
         uint256 initialBuy = buy % 3 == 0 ? 0 : bound(buy, 1e15, _cash(a) / 5);
         IMusdyVault.Launch memory l =
             IMusdyVault.Launch(a, "Inv Coin", "INV", "", initialBuy, vault.nonces(a), block.timestamp + 1);
@@ -214,7 +206,6 @@ contract VaultHandler is Test {
         } catch {}
     }
 
-    // the permit owner signs, a different actor submits; only the owner may be credited
     function depositWithPermitRelayed(uint256 who, uint256 by, uint256 amount) external watch(type(uint256).max) {
         if (who % 3 == by % 3) return;
         address o = actor(who);
@@ -229,7 +220,6 @@ contract VaultHandler is Test {
         if (vault.balanceOf(caller, address(musd)) != callerBefore) sweepMisCredited = true;
     }
 
-    // fee recipient stays inside the tracked set so solvency still sums every holder
     function setFee(uint256 who, uint256 bps) external watch(type(uint256).max) {
         address recipient = who % 4 == 3 ? feeTo : actor(who);
         uint16 b = uint16(bound(bps, 0, vault.MAX_FEE_BPS()));
@@ -248,7 +238,6 @@ contract VaultHandler is Test {
         } catch {}
     }
 
-    // a signature from the wrong key must never move anything or bump a nonce
     function forged(uint256 who, uint256 signer, uint256 amount) external watch(type(uint256).max) {
         address a = actor(who);
         if (signer % 3 == who % 3) return;
@@ -326,12 +315,10 @@ contract VaultInvariantTest is Base {
         assertFalse(handler.sweepMisCredited());
     }
 
-    // every run must actually exercise the ledger: shaped inputs mean nearly every attempt succeeds
     function afterInvariant() public view {
         _assertMostlySucceeded(handler.trades(), handler.tradeTries());
         _assertMostlySucceeded(handler.withdraws(), handler.withdrawTries());
         _assertMostlySucceeded(handler.launches(), handler.launchTries());
-        // and the run did something at all (about 13 of 32 calls land on these four on average)
         assertGe(handler.trades() + handler.withdraws() + handler.launches() + handler.sweeps(), 2);
     }
 
@@ -339,7 +326,6 @@ contract VaultInvariantTest is Base {
         assertGe(ok * 10, tries * 9, "under 90% of attempts succeeded");
     }
 
-    // drives the handler directly for a long sequence and asserts each action really succeeded many times
     function test_vault_handlerActionsSucceed() public {
         for (uint256 i; i < 400; ++i) {
             uint256 r = uint256(keccak256(abi.encode(i)));

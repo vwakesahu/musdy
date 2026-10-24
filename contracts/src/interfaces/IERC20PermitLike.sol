@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-// what the web and server read from a depositable token; MUSD has nonces/eip712Domain, the BTC precompile has nonce(owner)
 interface IERC20PermitLike {
     function name() external view returns (string memory);
     function symbol() external view returns (string memory);

@@ -7,7 +7,6 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {IMezoPool} from "../interfaces/IMezoPools.sol";
 
-// constant product pool with a 0.3% fee, its own LP token
 contract MockPool is IMezoPool, ERC20 {
     using SafeERC20 for IERC20;
 

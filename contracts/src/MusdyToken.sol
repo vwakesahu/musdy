@@ -3,7 +3,6 @@ pragma solidity 0.8.28;
 
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
-// launch token, locked to curve trades until the launchpad graduates it
 contract MusdyToken is ERC20 {
     address public immutable launchpad;
     string public image;

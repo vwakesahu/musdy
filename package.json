@@ -1,3 +1,12 @@
-{ "name": "app", "private": true, "scripts": {
-  "dev": "pnpm -r --parallel dev", "test": "pnpm -r test", "typecheck": "pnpm -r typecheck",
-  "e2e": "pnpm --filter web e2e", "anvil": "anvil --block-time 1" } }
+{
+  "name": "app",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm -r --parallel dev",
+    "test": "node scripts/check-comments.mjs && pnpm -r test",
+    "typecheck": "pnpm -r typecheck",
+    "e2e": "pnpm --filter web e2e",
+    "anvil": "anvil --block-time 1",
+    "check:comments": "node scripts/check-comments.mjs"
+  }
+}

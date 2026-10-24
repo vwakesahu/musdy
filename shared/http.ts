@@ -1,4 +1,3 @@
-// the http contract. request bodies are validated with these on the server and built with them on the web.
 import { z } from "zod";
 import { Candle, Deployment, FeedItem, LeaderRow, Profile, TokenInfo, TxStatus, zAddress, zHex, zUint, zVenue, zIssued } from "./types";
 
@@ -22,7 +21,6 @@ export const WithdrawBody = z.object({
 export const LaunchBody = z.object({
   launch: z.object({
     user: zAddress,
-    // limits are utf8 bytes like the contract checks
     name: z.string().min(1).refine((v) => new TextEncoder().encode(v).length <= 32, "name is over 32 bytes"),
     symbol: z.string().min(1).refine((v) => new TextEncoder().encode(v).length <= 10, "symbol is over 10 bytes"),
     image: z
@@ -50,12 +48,10 @@ export const FaucetBody = z.object({ address: zAddress, issued: zIssued, sig: zH
 export const ProfileBody = z.object({ address: zAddress, handle: z.string().regex(/^[a-z0-9_]{3,15}$/), issued: zIssued, sig: zHex });
 export const FollowBody = z.object({ address: zAddress, target: zAddress, follow: z.boolean(), issued: zIssued, sig: zHex });
 
-// every POST that submits a chain tx answers with this, then progress arrives as tx messages on user:<addr>
 export const Accepted = TxStatus;
 
 export const Health = z.object({ ok: z.boolean(), block: z.number(), chainId: z.number(), relayer: zAddress, relayerBtc: zUint, faucet: z.boolean() });
 
-// query params, parse them with these on the server and type them with these on the web
 export const TokenSort = z.enum(["trending", "new", "stocks"]);
 export const CandleTf = z.enum(["1m", "5m", "1h", "1d"]);
 export const PnlWindow = z.enum(["d1", "d7", "all"]);
@@ -68,27 +64,25 @@ export const Quote = z.object({ amountOut: zUint, fee: zUint, priceImpact: z.num
 export const Nonce = z.object({ nonce: zUint });
 
 export const routes = {
-  // GET
-  health: "/health", // Health
-  config: "/config", // Deployment
-  tokens: "/tokens", // ?sort=trending|new|stocks  -> TokenInfo[]
-  token: "/tokens/:address", // TokenInfo
-  candles: "/tokens/:address/candles", // ?tf=1m|5m|1h|1d -> Candle[]
-  tokenTrades: "/tokens/:address/trades", // ?before=<id> -> FeedItem[]
-  feed: "/feed", // ?scope=global|following&address=&before= -> FeedItem[]
-  user: "/users/:address", // ?viewer=<addr> -> Profile
-  userTrades: "/users/:address/trades", // FeedItem[]
-  leaderboard: "/leaderboard", // ?window=d1|d7|all -> LeaderRow[]
-  quote: "/quote", // ?token=&isBuy=&amountIn= -> Quote
-  nonce: "/nonce/:address", // Nonce, the vault nonce
-  // POST
-  trade: "/actions/trade", // TradeBody -> Accepted
-  withdraw: "/actions/withdraw", // WithdrawBody -> Accepted
-  launch: "/actions/launch", // LaunchBody -> Accepted
-  deposit: "/actions/deposit", // PermitDepositBody -> Accepted
-  faucet: "/faucet", // FaucetBody -> Accepted, only when Health.faucet is true
-  profile: "/profile", // ProfileBody -> Profile
-  follow: "/follow", // FollowBody -> { ok: true }
+  health: "/health",
+  config: "/config",
+  tokens: "/tokens",
+  token: "/tokens/:address",
+  candles: "/tokens/:address/candles",
+  tokenTrades: "/tokens/:address/trades",
+  feed: "/feed",
+  user: "/users/:address",
+  userTrades: "/users/:address/trades",
+  leaderboard: "/leaderboard",
+  quote: "/quote",
+  nonce: "/nonce/:address",
+  trade: "/actions/trade",
+  withdraw: "/actions/withdraw",
+  launch: "/actions/launch",
+  deposit: "/actions/deposit",
+  faucet: "/faucet",
+  profile: "/profile",
+  follow: "/follow",
 } as const;
 
 export const ErrorBody = z.object({ code: z.string(), message: z.string() });

@@ -9,7 +9,6 @@ import {MockRouter} from "../src/mocks/MockRouter.sol";
 import {MusdyLaunchpad} from "../src/MusdyLaunchpad.sol";
 import {MusdyVault} from "../src/MusdyVault.sol";
 
-// anvil only: mocks, seeded MUSD pools at testnet like prices, launchpad, vault, faucet MUSD
 contract DeployLocal is DeploymentWriter {
     uint256 internal constant ANVIL_0 = 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80;
     address internal constant FAUCET = 0x70997970C51812dc3A010C7d01b50e0d17dc79C8;
@@ -25,7 +24,6 @@ contract DeployLocal is DeploymentWriter {
         vm.startBroadcast(key);
 
         musd = new MockERC20Permit("Mezo USD", "MUSD");
-        // BTC copies the precompile permit (domain "BTC", nonce(owner)) so the web permit path works locally
         MockBtcPermit btc = new MockBtcPermit();
         MockERC20Permit nvda = new MockERC20Permit("NVIDIA", "NVDA");
         MockERC20Permit tsla = new MockERC20Permit("Tesla", "TSLA");

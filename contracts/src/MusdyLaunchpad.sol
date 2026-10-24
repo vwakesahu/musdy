@@ -10,7 +10,6 @@ import {IMusdyLaunchpad} from "./interfaces/IMusdyLaunchpad.sol";
 import {IMezoRouter, IMezoPoolFactory, IMezoPool} from "./interfaces/IMezoPools.sol";
 import {MusdyToken} from "./MusdyToken.sol";
 
-// pump style constant product curve priced in MUSD, graduates into a mezo pools volatile pool
 contract MusdyLaunchpad is IMusdyLaunchpad, Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
@@ -121,7 +120,6 @@ contract MusdyLaunchpad is IMusdyLaunchpad, Ownable, ReentrancyGuard {
         return curves[token].virtualToken != 0;
     }
 
-    // MUSD per whole token, 1e18 scaled
     function priceOf(address token) external view returns (uint256) {
         Curve storage c = curves[token];
         if (c.virtualToken == 0) revert NotCurveToken();
@@ -134,7 +132,6 @@ contract MusdyLaunchpad is IMusdyLaunchpad, Ownable, ReentrancyGuard {
         if (c.graduated) revert AlreadyGraduated();
     }
 
-    // rounding always favours the curve so k never shrinks
     function _quoteBuy(Curve storage c, uint256 musdIn) private view returns (uint256 tokensOut, uint256 musdUsed) {
         uint256 vM = c.virtualMusd;
         uint256 vT = c.virtualToken;
@@ -160,9 +157,7 @@ contract MusdyLaunchpad is IMusdyLaunchpad, Ownable, ReentrancyGuard {
         address pool = IMezoPoolFactory(factory).getPool(token, MUSD, false);
         if (pool == address(0)) pool = IMezoPoolFactory(factory).createPool(token, MUSD, false);
         c.pool = pool;
-        // before unlock a curve token can only sit with the launchpad or a buyer (buy pays msg.sender), so the pool
-        // holds zero of it and mint (sqrt(a0 * a1) - MINIMUM_LIQUIDITY) cannot succeed, LP supply is zero here
-        // and every LP above the locked minimum goes to dEaD; the check keeps that true if the lock ever changes
+        // no curve token sits in the pool before unlock, so LP supply is zero and all LP above the minimum goes to dEaD
         if (IMezoPool(pool).totalSupply() != 0) revert PoolNotEmpty();
         uint256 musdAmount = c.realMusd;
         uint256 tokenAmount = TOTAL_SUPPLY - CURVE_SUPPLY;

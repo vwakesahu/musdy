@@ -6,7 +6,6 @@ import {MusdyLaunchpad} from "../src/MusdyLaunchpad.sol";
 import {MusdyVault} from "../src/MusdyVault.sol";
 import {IMezoRouter} from "../src/interfaces/IMezoPools.sol";
 
-// mezo testnet: launchpad and vault against the real router, MUSD and BTC from shared/chains.ts
 contract DeployMezo is DeploymentWriter {
     address internal constant ROUTER = 0x9a1ff7FE3a0F69959A3fBa1F1e5ee18e1A9CD7E9;
     address internal constant MUSD = 0x118917a40FAF1CD7a13dB0Ef56C86De7973Ac503;

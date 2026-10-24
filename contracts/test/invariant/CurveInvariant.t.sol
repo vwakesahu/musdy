@@ -25,10 +25,8 @@ contract CurveHandler is Test {
     bool public foreignBuyWrongError;
     bool public preGraduationMint;
     uint256 public seeds;
-    // MUSD the launchpad gained (or lost) on each token's own calls, so solvency is checked per token
     mapping(address => int256) public ghostMusd;
 
-    // books the launchpad's MUSD change during the call against the token it traded
     modifier track(uint256 tSeed) {
         address t = tokens[tSeed % tokens.length];
         uint256 b0 = musd.balanceOf(address(lp));
@@ -74,7 +72,6 @@ contract CurveHandler is Test {
         return c.virtualMusd * 1e18 / c.virtualToken;
     }
 
-    // toSeed picks the recipient: the trader, the token's pool, or any address
     function buy(uint256 tSeed, uint256 who, uint256 amount, uint256 toSeed, address randomTo) external track(tSeed) {
         address t = tokens[tSeed % tokens.length];
         address trader = traders[who % 3];
@@ -129,7 +126,6 @@ contract CurveHandler is Test {
         if (_price(t) >= p0) priceViolated = true;
     }
 
-    // griefer pre creates the pool, donates MUSD, maybe syncs, and tries to mint LP before graduation
     function seedPool(uint256 tSeed, uint256 amount, bool doSync) external {
         address t = tokens[tSeed % tokens.length];
         address pool = _poolOf(t);
@@ -162,8 +158,6 @@ contract CurveInvariantTest is Test {
         targetContract(address(handler));
     }
 
-    // per token: each live curve's realMusd is exactly the MUSD its own trades left in the launchpad,
-    // a graduated curve left nothing behind, and the launchpad holds every live curve's MUSD in full
     function invariant_curve_realMusdBackedPerToken() public view {
         uint256 held = musd.balanceOf(address(lp));
         uint256 sum;
@@ -206,8 +200,6 @@ contract CurveInvariantTest is Test {
         assertFalse(handler.foreignBuyWrongError());
     }
 
-    // MockPool, like the mezo (velodrome v2) pool, locks MINIMUM_LIQUIDITY (1000) at address(1) on the first mint;
-    // the fork suite checks the real pool does the same
     function invariant_curve_graduationLpLocked() public view {
         assertFalse(handler.preGraduationMint());
         for (uint256 i; i < handler.tokenCount(); ++i) {

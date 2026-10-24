@@ -11,6 +11,7 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       - uses: foundry-rs/foundry-toolchain@v1
       - run: pnpm install --frozen-lockfile
+      - run: node scripts/check-comments.mjs
       - run: pnpm typecheck && pnpm test
       - run: cd contracts && forge test
         if: hashFiles('contracts/foundry.toml') != ''

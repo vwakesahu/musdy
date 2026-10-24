@@ -3,7 +3,6 @@ pragma solidity 0.8.28;
 
 import {Script} from "forge-std/Script.sol";
 
-// writes one chain's Deployment into shared/deployments.json, keeping the other chain keys
 abstract contract DeploymentWriter is Script {
     struct TokenEntry {
         address addr;

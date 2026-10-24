@@ -1,4 +1,3 @@
-// the one way to find a token's permit domain and the owner's permit nonce, the web signs with it and the server verifies with it
 import { parseAbi, type PublicClient } from "viem";
 import { btcPermitDomain } from "./eip712";
 import type { Address } from "./types";

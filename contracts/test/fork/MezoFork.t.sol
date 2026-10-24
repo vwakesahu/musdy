@@ -12,7 +12,6 @@ import {IMusdyVault} from "../../src/interfaces/IMusdyVault.sol";
 import {IMusdyLaunchpad} from "../../src/interfaces/IMusdyLaunchpad.sol";
 import {IMezoPool, IMezoPoolFactory} from "../../src/interfaces/IMezoPools.sol";
 
-// runs against mezo testnet: forge test --match-path 'test/fork/*' --fork-url mezo_testnet
 // BTC (0x7b7C...) is a cosmos precompile, an anvil fork only sees its stub bytecode, so BTC trades are not covered here
 interface ISyncPool {
     function sync() external;
@@ -168,7 +167,6 @@ contract MezoForkTest is Test {
         assertEq(tokenIs0 ? r0 : r1, 206_900_000e18);
         assertEq(tokenIs0 ? r1 : r0, c.realMusd);
         assertGt(IERC20(c.pool).balanceOf(0x000000000000000000000000000000000000dEaD), 0);
-        // real pool locks MINIMUM_LIQUIDITY (1000) at address(1) like the mock, all the rest is dEaD's
         assertEq(IERC20(c.pool).balanceOf(address(1)), 1000);
         assertEq(
             IERC20(c.pool).balanceOf(0x000000000000000000000000000000000000dEaD) + 1000, IERC20(c.pool).totalSupply()

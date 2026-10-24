@@ -31,7 +31,6 @@ contract VaultTest is Base {
         assertEq(MockERC20Permit(token).allowance(address(vault), address(launchpad)), 0);
     }
 
-    // views and admin
 
     function test_views() public view {
         assertEq(vault.MUSD(), address(musd));
@@ -77,7 +76,6 @@ contract VaultTest is Base {
         new MusdyVault(address(musd), address(0), address(router), address(launchpad), feeTo, 50, owner);
     }
 
-    // deposits
 
     function test_deposit_creditsOnBehalfOf() public {
         musd.mint(bob, 100e18);
@@ -106,7 +104,6 @@ contract VaultTest is Base {
     }
 
     function test_deposit_onBehalfOfCashOnly() public {
-        // MUSD (the faucet path) and BTC can be gifted
         btc.mint(bob, 2e18);
         nvda.mint(bob, 2e18);
         vm.startPrank(bob);
@@ -114,7 +111,6 @@ contract VaultTest is Base {
         nvda.approve(address(vault), 2e18);
         vault.deposit(address(btc), 1e18, alice);
         assertEq(vault.balanceOf(alice, address(btc)), 1e18);
-        // any other token only to the depositor itself
         vm.expectRevert(IMusdyVault.BadRecipient.selector);
         vault.deposit(address(nvda), 1e18, alice);
         vault.deposit(address(nvda), 1e18, bob);
@@ -139,7 +135,6 @@ contract VaultTest is Base {
 
     function test_depositWithPermit_btcPrecompileDomain() public {
         MockBtcPermit pbtc = new MockBtcPermit();
-        // permit deposits are MUSD and BTC only, so this vault's BTC is the precompile copy
         vault = new MusdyVault(address(musd), address(pbtc), address(router), address(launchpad), feeTo, 50, owner);
         assertEq(pbtc.name(), "BTC");
         assertEq(pbtc.decimals(), 18);
@@ -171,7 +166,6 @@ contract VaultTest is Base {
         assertEq(vault.balanceOf(relayer, address(pbtc)), 0);
     }
 
-    // a standing allowance can be swept by anyone, but only into the owner's own vault balance
     function test_depositWithPermit_thirdPartySweepCreditsOwner() public {
         musd.mint(alice, 40e18);
         vm.prank(alice);
@@ -219,7 +213,6 @@ contract VaultTest is Base {
         vault.depositWithPermit(alice, address(musd), 50e18, deadline, v, r, s);
     }
 
-    // round 3: permit deposits credited any token to any owner, which undid the deposit recipient rule
     function test_depositWithPermit_cashOnly() public {
         nvda.mint(alice, 5e18);
         vm.prank(alice);
@@ -229,7 +222,6 @@ contract VaultTest is Base {
         vm.prank(relayer);
         vm.expectRevert(IMusdyVault.UnsupportedToken.selector);
         vault.depositWithPermit(alice, address(nvda), 5e18, deadline, v, r, s);
-        // a fake token with no permit at all and a standing allowance
         MockERC20Permit fake = new MockERC20Permit("Fake", "TSLA");
         fake.mint(alice, 5e18);
         vm.prank(alice);
@@ -238,7 +230,6 @@ contract VaultTest is Base {
         vault.depositWithPermit(alice, address(fake), 5e18, deadline, 27, bytes32(0), bytes32(0));
         assertEq(vault.balanceOf(alice, address(nvda)), 0);
         assertEq(vault.balanceOf(alice, address(fake)), 0);
-        // MUSD and BTC still go through
         musd.mint(alice, 1e18);
         btc.mint(alice, 1e18);
         (v, r, s) = _permit(aliceKey, musd, 1e18, deadline);
@@ -249,7 +240,6 @@ contract VaultTest is Base {
         assertEq(vault.balanceOf(alice, address(btc)), 1e18);
     }
 
-    // trades on pools
 
     function test_trade_buyPool() public {
         _fund(alice, 1000e18);
@@ -290,7 +280,6 @@ contract VaultTest is Base {
     }
 
     function test_poolFor_emptyVolatileDoesNotShadowStable() public {
-        // anyone can create an empty volatile pool for a stable only token
         address empty = factory.createPool(address(stab), address(musd), false);
         (address pool, bool stable) = vault.poolFor(address(stab));
         assertTrue(stable);
@@ -299,13 +288,11 @@ contract VaultTest is Base {
         _fund(alice, 100e18);
         uint256 out = _execTrade(aliceKey, _trade(alice, address(stab), true, 100e18, 0, address(0)));
         assertApproxEqRel(out, 99.5e18, 0.01e18);
-        // a funded volatile pool wins
         (pool, stable) = vault.poolFor(address(nvda));
         assertFalse(stable);
         assertEq(pool, factory.getPool(address(nvda), address(musd), false));
     }
 
-    // reviewer round 3: a 1 wei volatile pool next to a deep stable pool used to take every trade
     function test_poolFor_dustVolatileDoesNotShadowDeepStable() public {
         address dust = factory.createPool(address(stab), address(musd), false);
         stab.mint(dust, 1);
@@ -323,18 +310,15 @@ contract VaultTest is Base {
         uint256 out = _execTrade(aliceKey, _trade(alice, address(stab), true, 100e18, 0, address(0)));
         assertEq(out, q);
         assertApproxEqRel(out, 99.5e18, 0.01e18);
-        // the dust pool got nothing
         (r0, r1,) = MockPool(dust).getReserves();
         assertEq(r0 + r1, 2);
     }
 
-    // the mirror case: an attacker seeded stable pool with less MUSD can't take a deep volatile pool's trades
     function test_poolFor_shallowStableDoesNotShadowDeepVolatile() public {
         _seed(address(nvda), 1e18, 1000e18, true);
         (address pool, bool stable) = vault.poolFor(address(nvda));
         assertFalse(stable);
         assertEq(pool, factory.getPool(address(nvda), address(musd), false));
-        // once the stable pool holds more MUSD it wins
         _seed(address(nvda), 20_000e18, 2_000_000e18, true);
         (pool, stable) = vault.poolFor(address(nvda));
         assertTrue(stable);
@@ -348,7 +332,6 @@ contract VaultTest is Base {
         (address pool, bool stable) = vault.poolFor(address(orphan));
         assertEq(pool, address(0));
         assertFalse(stable);
-        // one sided donation is still not a route
         musd.mint(address(this), 1e18);
         musd.transfer(factory.getPool(address(orphan), address(musd), false), 1e18);
         (pool,) = vault.poolFor(address(orphan));
@@ -364,14 +347,12 @@ contract VaultTest is Base {
 
     function test_trade_buySlippage() public {
         _fund(alice, 1000e18);
-        // pool: the router gets 0 as its minimum, the vault's own check fires
         (uint256 qOut,) = vault.quote(address(nvda), true, 100e18);
         IMusdyVault.Trade memory t = _trade(alice, address(nvda), true, 100e18, qOut + 1, address(0));
         bytes memory sig = _sign(aliceKey, vault.hashTrade(t));
         vm.expectRevert(IMusdyVault.Slippage.selector);
         vault.executeTrade(t, sig);
         assertEq(_execTrade(aliceKey, _trade(alice, address(nvda), true, 100e18, qOut, address(0))), qOut);
-        // curve
         (address token,) = _execLaunch(aliceKey, _launch(alice, "Coin", 0));
         (qOut,) = vault.quote(token, true, 100e18);
         t = _trade(alice, token, true, 100e18, qOut + 1, address(0));
@@ -427,7 +408,6 @@ contract VaultTest is Base {
         _execTrade(aliceKey, t);
     }
 
-    // trades on the curve
 
     function test_trade_buySellCurve() public {
         _fund(alice, 1000e18);
@@ -459,7 +439,6 @@ contract VaultTest is Base {
         uint256 spent = 10_000e18 - vault.balanceOf(alice, address(musd));
         assertEq(spent, c.realMusd + qFee);
         assertEq(vault.balanceOf(feeTo, address(musd)), qFee);
-        // after graduation the same token trades through the new pool
         IMusdyVault.Trade memory t = _trade(alice, token, false, out / 10, 0, address(0));
         vm.expectEmit(true, true, true, false);
         emit IMusdyVault.Traded(alice, token, false, 0, 0, 0, address(0), IMusdyVault.Venue.Pool);
@@ -468,7 +447,6 @@ contract VaultTest is Base {
         _allowancesClean(token);
     }
 
-    // signatures, nonces, deadlines
 
     function test_trade_badSignature() public {
         _fund(alice, 100e18);
@@ -506,7 +484,6 @@ contract VaultTest is Base {
         vault.executeTrade(t, sig);
     }
 
-    // withdrawals
 
     function _withdrawMsg(address user, address token, uint256 amount, address to)
         internal
@@ -582,7 +559,6 @@ contract VaultTest is Base {
         vault.withdraw(address(musd), 1, bob);
     }
 
-    // launches through the vault
 
     function test_launch_viaVaultWithInitialBuy() public {
         _fund(alice, 1000e18);

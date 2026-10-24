@@ -1,12 +1,9 @@
-// domain types shared by server and web. only the lead edits this file.
 import { z } from "zod";
 
 export type Address = `0x${string}`;
 export const zAddress = z.string().regex(/^0x[0-9a-fA-F]{40}$/).transform((s) => s as Address);
 export const zHex = z.string().regex(/^0x[0-9a-fA-F]*$/).transform((s) => s as `0x${string}`);
-// bigints travel as decimal strings, 18 decimals unless the token says otherwise
-export const zUint = z.string().regex(/^\d{1,78}$/); // fits a uint256
-// signed off chain messages carry this, an iso 8601 timestamp with a zone, valid for 5 minutes
+export const zUint = z.string().regex(/^\d{1,78}$/);
 export const zIssued = z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/);
 
 export const VENUES = ["pool", "curve"] as const; // index matches the solidity Venue enum
@@ -34,19 +31,19 @@ export const TokenInfo = TokenRef.extend({
   kind: zTokenKind,
   venue: zVenue,
   creator: zAddress.nullable(),
-  priceMusd: zUint, // MUSD per 1 whole token, 1e18 scaled
-  change24h: z.number(), // fraction, 0.12 is +12%
+  priceMusd: zUint,
+  change24h: z.number(),
   volume24hMusd: zUint,
   marketCapMusd: zUint,
-  curveProgress: z.number().nullable(), // 0..1 while on the curve, null otherwise
+  curveProgress: z.number().nullable(),
   pool: zAddress.nullable(),
-  holders: z.number(), // addresses with a non zero vault balance of this token
-  createdAt: z.number(), // unix seconds
+  holders: z.number(),
+  createdAt: z.number(),
 });
 export type TokenInfo = z.infer<typeof TokenInfo>;
 
 export const FeedItem = z.object({
-  id: z.string(), // txHash:logIndex
+  id: z.string(),
   block: z.number(),
   ts: z.number(),
   user: UserRef,
@@ -55,8 +52,8 @@ export const FeedItem = z.object({
   musdAmount: zUint,
   tokenAmount: zUint,
   priceMusd: zUint,
-  marketCapMusd: zUint, // at the time of the trade
-  ref: UserRef.nullable(), // the trader this one copied
+  marketCapMusd: zUint,
+  ref: UserRef.nullable(),
   venue: zVenue,
   txHash: zHex,
 });
@@ -65,27 +62,27 @@ export type FeedItem = z.infer<typeof FeedItem>;
 export const Position = z.object({
   token: TokenRef,
   amount: zUint,
-  avgCostMusd: zUint, // per whole token, 1e18 scaled
+  avgCostMusd: zUint,
   valueMusd: zUint,
   costMusd: zUint,
-  pnlMusd: z.string(), // signed decimal string, 1e18 scaled
+  pnlMusd: z.string(),
   pnlPct: z.number(),
-  withdrawable: z.boolean(), // false while a launch token is still on its curve
+  withdrawable: z.boolean(),
 });
 export type Position = z.infer<typeof Position>;
 
-export const Pnl = z.object({ d1: z.string(), d7: z.string(), all: z.string() }); // signed, 1e18 scaled
+export const Pnl = z.object({ d1: z.string(), d7: z.string(), all: z.string() });
 export type Pnl = z.infer<typeof Pnl>;
 
 export const Profile = z.object({
   user: UserRef,
-  balanceMusd: zUint, // cash in the vault
-  totalValueMusd: zUint, // cash plus positions
+  balanceMusd: zUint,
+  totalValueMusd: zUint,
   pnl: Pnl,
   positions: z.array(Position),
   followers: z.number(),
   following: z.number(),
-  followedByViewer: z.boolean().nullable(), // null when no ?viewer= was given
+  followedByViewer: z.boolean().nullable(),
   trades: z.number(),
 });
 export type Profile = z.infer<typeof Profile>;
@@ -100,7 +97,6 @@ export const LeaderRow = z.object({
 });
 export type LeaderRow = z.infer<typeof LeaderRow>;
 
-// candle prices are MUSD per whole token and v is MUSD volume, floats in whole units for the chart only
 export const Candle = z.object({ t: z.number(), o: z.number(), h: z.number(), l: z.number(), c: z.number(), v: z.number() });
 export type Candle = z.infer<typeof Candle>;
 

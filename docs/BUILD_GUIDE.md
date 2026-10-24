@@ -22,7 +22,7 @@ the server is the source of truth for anything live. the web doesn't derive chai
 
 server logs one json line per event, `{t, type, ...}`. the web logs nothing.
 
-comments only where something non obvious needs saying, one line max. no commented out code, no `any`, no `@ts-ignore`, no `console.log` left in.
+comments only where something important and non obvious needs saying, and never more than one line, `node scripts/check-comments.mjs` fails the build otherwise. no commented out code, no `any`, no `@ts-ignore`, no `console.log` left in.
 
 ## look
 

@@ -2,7 +2,6 @@
 pragma solidity 0.8.28;
 
 interface IMusdyVault {
-    // eip712 domain: name "musdy", version "1"
     struct Trade {
         address user;
         address token;

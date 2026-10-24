@@ -6,7 +6,6 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {IMezoRouter, IMezoPoolFactory, IMezoPool} from "../interfaces/IMezoPools.sol";
 import {MockPool} from "./MockPool.sol";
 
-// aerodrome shaped router over MockPoolFactory, constant product with 0.3% fee
 contract MockRouter is IMezoRouter {
     using SafeERC20 for IERC20;
 

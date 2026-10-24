@@ -1,4 +1,3 @@
-// the typed data both sides use, web signs with it and server verifies with it
 import type { Address } from "./types";
 
 export const domainFor = (chainId: number, vault: Address) =>
@@ -40,7 +39,6 @@ export const launchTypes = {
   ],
 } as const;
 
-// erc2612 permit, MUSD and BTC on mezo both support it
 export const permitTypes = {
   Permit: [
     { name: "owner", type: "address" },
@@ -51,15 +49,12 @@ export const permitTypes = {
   ],
 } as const;
 
-// plain personal_sign messages for off chain profile actions, valid for 5 minutes
 export const profileMessage = (handle: string, issued: string) => `musdy profile\nhandle: ${handle}\nissued: ${issued}`;
 export const followMessage = (target: Address, follow: boolean, issued: string) =>
   `musdy ${follow ? "follow" : "unfollow"}\ntarget: ${target.toLowerCase()}\nissued: ${issued}`;
 
 export const faucetMessage = (address: Address, issued: string) => `musdy faucet\naddress: ${address.toLowerCase()}\nissued: ${issued}`;
 
-// permit domains differ per token. MUSD exposes eip712Domain() and nonces(owner).
-// the BTC precompile has no eip712Domain(), its domain is name "BTC" version "1", and its nonce getter is nonce(owner).
-// sign by trying eip712Domain() and nonces() first and fall back to this only when they revert.
+// BTC precompile has no eip712Domain(): domain "BTC"/"1", nonce(owner); try the standard getters first
 export const btcPermitDomain = (chainId: number, btc: Address) =>
   ({ name: "BTC", version: "1", chainId, verifyingContract: btc }) as const;

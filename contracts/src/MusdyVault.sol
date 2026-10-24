@@ -12,7 +12,6 @@ import {IMusdyVault} from "./interfaces/IMusdyVault.sol";
 import {IMusdyLaunchpad} from "./interfaces/IMusdyLaunchpad.sol";
 import {IMezoRouter, IMezoPoolFactory, IMezoPool} from "./interfaces/IMezoPools.sol";
 
-// custodial ledger, users sign eip712 actions and anyone relays them
 contract MusdyVault is IMusdyVault, EIP712, Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
@@ -117,10 +116,8 @@ contract MusdyVault is IMusdyVault, EIP712, Ownable, ReentrancyGuard {
         bytes32 r,
         bytes32 s
     ) external nonReentrant {
-        // only cash: crediting any other token to owner would plant positions (same rule as deposit for someone else)
         if (token != MUSD && token != BTC) revert UnsupportedToken();
-        // a front run permit already set the allowance, so only a short allowance is fatal
-        // anyone can sweep a standing allowance this way, but only into owner's own vault balance, which owner can withdraw any time
+        // a standing allowance can be swept by anyone, but only into the owner's own vault balance
         try IERC20Permit(token).permit(owner, address(this), amount, deadline, v, r, s) {}
         catch {
             if (IERC20(token).allowance(owner, address(this)) < amount) revert Insufficient();
@@ -182,9 +179,7 @@ contract MusdyVault is IMusdyVault, EIP712, Ownable, ReentrancyGuard {
         emit FeeSet(recipient, bps);
     }
 
-    // returns the pool a pool trade of token would use, address(0) when there is none
-    // of the volatile and stable pools the one holding more MUSD wins (volatile on a tie), so a dust or
-    // attacker seeded pool can't shadow the deep one; a pool with either reserve at zero is ignored
+    // of the volatile and stable pools the one with more MUSD wins, so a dust pool can't shadow the deep one
     function poolFor(address token) public view returns (address pool, bool stable) {
         address volatilePool = IMezoPoolFactory(factory).getPool(token, MUSD, false);
         address stablePool = IMezoPoolFactory(factory).getPool(token, MUSD, true);

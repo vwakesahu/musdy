@@ -30,7 +30,6 @@ export interface KnownToken {
   kind: TokenKind;
 }
 
-// tokens with a live MUSD pool on mezo testnet, checked 2026-10-24
 export const testnetTokens: KnownToken[] = [
   { address: "0x118917a40FAF1CD7a13dB0Ef56C86De7973Ac503", symbol: "MUSD", name: "Mezo USD", decimals: 18, kind: "musd" },
   { address: "0x7b7C000000000000000000000000000000000000", symbol: "BTC", name: "Bitcoin", decimals: 18, kind: "btc" },

@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-// subset of the mezo pools (aerodrome style) router, factory and pool we touch
 interface IMezoRouter {
     struct Route {
         address from;
