@@ -39,6 +39,20 @@ export const launchTypes = {
   ],
 } as const;
 
+export const intentTypes = {
+  Intent: [
+    { name: "user", type: "address" },
+    { name: "isBuy", type: "bool" },
+    { name: "chainId", type: "uint256" },
+    { name: "token", type: "string" },
+    { name: "amountIn", type: "uint256" },
+    { name: "minOut", type: "uint256" },
+    { name: "ref", type: "address" },
+    { name: "nonce", type: "uint256" },
+    { name: "deadline", type: "uint256" },
+  ],
+} as const;
+
 export const permitTypes = {
   Permit: [
     { name: "owner", type: "address" },

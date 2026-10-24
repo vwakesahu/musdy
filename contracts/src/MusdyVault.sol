@@ -23,7 +23,11 @@ contract MusdyVault is IMusdyVault, EIP712, Ownable, ReentrancyGuard {
     bytes32 public constant LAUNCH_TYPEHASH = keccak256(
         "Launch(address user,string name,string symbol,string image,uint256 initialBuy,uint256 nonce,uint256 deadline)"
     );
+    bytes32 public constant INTENT_TYPEHASH = keccak256(
+        "Intent(address user,bool isBuy,uint256 chainId,string token,uint256 amountIn,uint256 minOut,address ref,uint256 nonce,uint256 deadline)"
+    );
     uint16 public constant MAX_FEE_BPS = 100;
+    uint256 public constant REFUND_DELAY = 1 hours;
     uint256 private constant BPS = 10_000;
 
     address public immutable MUSD;
@@ -36,6 +40,17 @@ contract MusdyVault is IMusdyVault, EIP712, Ownable, ReentrancyGuard {
 
     mapping(address => mapping(address => uint256)) public balanceOf;
     mapping(address => uint256) public nonces;
+
+    struct IntentState {
+        address user;
+        bool isBuy;
+        uint256 amountIn;
+        uint256 openedAt;
+        bool settled;
+    }
+
+    address public solver;
+    mapping(bytes32 => IntentState) public intents;
 
     error ZeroAddress();
 
@@ -100,6 +115,25 @@ contract MusdyVault is IMusdyVault, EIP712, Ownable, ReentrancyGuard {
         );
     }
 
+    function hashIntent(Intent calldata i) public view returns (bytes32) {
+        return _hashTypedDataV4(
+            keccak256(
+                abi.encode(
+                    INTENT_TYPEHASH,
+                    i.user,
+                    i.isBuy,
+                    i.chainId,
+                    keccak256(bytes(i.token)),
+                    i.amountIn,
+                    i.minOut,
+                    i.ref,
+                    i.nonce,
+                    i.deadline
+                )
+            )
+        );
+    }
+
     function deposit(address token, uint256 amount, address onBehalfOf) external nonReentrant {
         if (onBehalfOf == address(0)) revert ZeroAddress();
         // gifting cash is fine (the faucet does it), crediting anything else to someone else would plant positions
@@ -151,6 +185,54 @@ contract MusdyVault is IMusdyVault, EIP712, Ownable, ReentrancyGuard {
         if (l.initialBuy > 0) tokensOut = _buy(l.user, token, l.initialBuy, 0, address(0));
     }
 
+    function executeIntent(Intent calldata i, bytes calldata sig) external nonReentrant returns (bytes32 id) {
+        id = hashIntent(i);
+        _use(i.user, i.nonce, i.deadline, id, sig);
+        if (i.amountIn == 0) revert ZeroAmount();
+        address s = solver;
+        if (s == address(0)) revert NoSolver();
+        if (i.isBuy) {
+            _debit(i.user, MUSD, i.amountIn);
+            balanceOf[s][MUSD] += i.amountIn;
+        }
+        intents[id] = IntentState({
+            user: i.user, isBuy: i.isBuy, amountIn: i.amountIn, openedAt: block.timestamp, settled: false
+        });
+        emit IntentOpened(id, i.user, i.isBuy, i.chainId, i.token, i.amountIn, i.minOut, i.ref);
+    }
+
+    function settleIntent(bytes32 id, address user, uint256 musdToUser, uint256 tokenAmount, bool ok)
+        external
+        nonReentrant
+    {
+        if (msg.sender != solver) revert NotSolver();
+        IntentState storage st = intents[id];
+        if (st.user == address(0) || st.user != user) revert UnknownIntent();
+        if (st.settled) revert AlreadySettled();
+        st.settled = true;
+        if (musdToUser > 0) {
+            _debit(msg.sender, MUSD, musdToUser);
+            balanceOf[user][MUSD] += musdToUser;
+        }
+        emit IntentSettled(id, user, musdToUser, tokenAmount, ok);
+    }
+
+    function refundIntent(bytes32 id) external nonReentrant {
+        IntentState storage st = intents[id];
+        if (st.user == address(0) || st.user != msg.sender) revert UnknownIntent();
+        if (st.settled) revert AlreadySettled();
+        if (!st.isBuy) revert NotRefundable();
+        if (block.timestamp < st.openedAt + REFUND_DELAY) revert TooEarly();
+        st.settled = true;
+        uint256 amount = st.amountIn;
+        address s = solver;
+        uint256 bal = balanceOf[s][MUSD];
+        if (bal < amount) revert SolverInsufficient();
+        balanceOf[s][MUSD] = bal - amount;
+        balanceOf[msg.sender][MUSD] += amount;
+        emit IntentSettled(id, msg.sender, amount, 0, false);
+    }
+
     function quote(address token, bool isBuy, uint256 amountIn) external view returns (uint256 amountOut, uint256 fee) {
         if (isBuy) {
             fee = _fee(amountIn);
@@ -177,6 +259,12 @@ contract MusdyVault is IMusdyVault, EIP712, Ownable, ReentrancyGuard {
         feeRecipient = recipient;
         feeBps = bps;
         emit FeeSet(recipient, bps);
+    }
+
+    function setSolver(address solver_) external onlyOwner {
+        if (solver_ == address(0)) revert ZeroAddress();
+        solver = solver_;
+        emit SolverSet(solver_);
     }
 
     // of the volatile and stable pools the one with more MUSD wins, so a dust pool can't shadow the deep one

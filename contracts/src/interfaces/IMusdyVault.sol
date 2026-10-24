@@ -32,6 +32,18 @@ interface IMusdyVault {
         uint256 deadline;
     }
 
+    struct Intent {
+        address user;
+        bool isBuy;
+        uint256 chainId;
+        string token;
+        uint256 amountIn;
+        uint256 minOut;
+        address ref;
+        uint256 nonce;
+        uint256 deadline;
+    }
+
     enum Venue {
         Pool,
         Curve
@@ -51,6 +63,18 @@ interface IMusdyVault {
     );
     event Launched(address indexed user, address indexed token);
     event FeeSet(address feeRecipient, uint16 feeBps);
+    event SolverSet(address solver);
+    event IntentOpened(
+        bytes32 indexed id,
+        address indexed user,
+        bool isBuy,
+        uint256 chainId,
+        string token,
+        uint256 amountIn,
+        uint256 minOut,
+        address ref
+    );
+    event IntentSettled(bytes32 indexed id, address indexed user, uint256 musdToUser, uint256 tokenAmount, bool ok);
 
     error BadSignature();
     error BadNonce();
@@ -62,6 +86,13 @@ interface IMusdyVault {
     error FeeTooHigh();
     error BadRecipient();
     error UnsupportedToken();
+    error NotSolver();
+    error NoSolver();
+    error UnknownIntent();
+    error AlreadySettled();
+    error NotRefundable();
+    error TooEarly();
+    error SolverInsufficient();
 
     function MUSD() external view returns (address);
     function BTC() external view returns (address);
@@ -70,6 +101,12 @@ interface IMusdyVault {
     function launchpad() external view returns (address);
     function feeRecipient() external view returns (address);
     function feeBps() external view returns (uint16);
+    function solver() external view returns (address);
+    function REFUND_DELAY() external view returns (uint256);
+    function intents(bytes32 id)
+        external
+        view
+        returns (address user, bool isBuy, uint256 amountIn, uint256 openedAt, bool settled);
 
     function balanceOf(address user, address token) external view returns (uint256);
     function nonces(address user) external view returns (uint256);
@@ -77,6 +114,7 @@ interface IMusdyVault {
     function hashTrade(Trade calldata t) external view returns (bytes32);
     function hashWithdraw(Withdraw calldata w) external view returns (bytes32);
     function hashLaunch(Launch calldata l) external view returns (bytes32);
+    function hashIntent(Intent calldata i) external view returns (bytes32);
 
     function deposit(address token, uint256 amount, address onBehalfOf) external;
     function depositWithPermit(
@@ -94,6 +132,11 @@ interface IMusdyVault {
     function executeWithdraw(Withdraw calldata w, bytes calldata sig) external;
     function executeLaunch(Launch calldata l, bytes calldata sig) external returns (address token, uint256 tokensOut);
 
+    function executeIntent(Intent calldata i, bytes calldata sig) external returns (bytes32 id);
+    function settleIntent(bytes32 id, address user, uint256 musdToUser, uint256 tokenAmount, bool ok) external;
+    function refundIntent(bytes32 id) external;
+
     function quote(address token, bool isBuy, uint256 amountIn) external view returns (uint256 amountOut, uint256 fee);
     function setFee(address recipient, uint16 bps) external;
+    function setSolver(address solver_) external;
 }

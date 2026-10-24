@@ -12,6 +12,7 @@ import {MusdyVault} from "../src/MusdyVault.sol";
 contract DeployLocal is DeploymentWriter {
     uint256 internal constant ANVIL_0 = 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80;
     address internal constant FAUCET = 0x70997970C51812dc3A010C7d01b50e0d17dc79C8;
+    address internal constant ANVIL_7 = 0x14dC79964da2C08b23698B3D3cc7Ca32193d9955;
 
     MockERC20Permit internal musd;
     MockRouter internal router;
@@ -46,6 +47,7 @@ contract DeployLocal is DeploymentWriter {
         MockERC20Permit crcl = new MockERC20Permit("Circle", "CRCL");
         _seed(coin, 10_000e18, vm.envOr("PRICE_COIN", uint256(165e18)));
         _seed(crcl, 15_000e18, vm.envOr("PRICE_CRCL", uint256(86e18)));
+        vault.setSolver(vm.envOr("SOLVER_ADDRESS", ANVIL_7));
         vm.stopBroadcast();
 
         TokenEntry[] memory tokens = new TokenEntry[](7);

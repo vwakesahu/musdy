@@ -22,6 +22,7 @@ abstract contract Base is Test {
     address internal owner = makeAddr("owner");
     address internal feeTo = makeAddr("feeTo");
     address internal relayer = makeAddr("relayer");
+    address internal solver = makeAddr("solver");
     uint256 internal aliceKey = 0xA11CE;
     uint256 internal bobKey = 0xB0B;
     address internal alice;
@@ -41,6 +42,8 @@ abstract contract Base is Test {
         _seed(address(stab), 1_000_000e18, 1_000_000e18, true);
         launchpad = new MusdyLaunchpad(address(musd), address(router), 1500e18, owner);
         vault = new MusdyVault(address(musd), address(btc), address(router), address(launchpad), feeTo, 50, owner);
+        vm.prank(owner);
+        vault.setSolver(solver);
     }
 
     function _seed(address token, uint256 tokenAmt, uint256 musdAmt, bool stable) internal {

@@ -32,6 +32,14 @@ contract VaultHandler is Test {
     uint256 public withdraws;
     uint256 public launchTries;
 
+    address public solver;
+    uint256 public ghostSolverMusd;
+    uint256 public intentsOpened;
+    uint256 public intentsClosed;
+    uint256 public doubleClose;
+    bytes32[] internal openIds;
+    bytes32[] internal closedIds;
+
     IMusdyVault.Trade[] internal doneTrades;
     bytes[] internal doneTradeSigs;
     IMusdyVault.Withdraw[] internal doneWithdraws;
@@ -54,6 +62,7 @@ contract VaultHandler is Test {
         tokens = tokens_;
         feeTo = feeTo_;
         vaultOwner = vaultOwner_;
+        solver = vault.solver();
     }
 
     function actor(uint256 i) public view returns (address) {
@@ -178,9 +187,8 @@ contract VaultHandler is Test {
         }
         uint256 musdBal = vault.balanceOf(a, address(musd));
         if (musdBal < 2) return;
-        IMusdyVault.Trade memory t = IMusdyVault.Trade(
-            a, tokens[1], true, musdBal / 2, 0, address(0), vault.nonces(a), block.timestamp + 1
-        );
+        IMusdyVault.Trade memory t =
+            IMusdyVault.Trade(a, tokens[1], true, musdBal / 2, 0, address(0), vault.nonces(a), block.timestamp + 1);
         bytes memory tsig = _sig(who, vault.hashTrade(t));
         if (mode == 1) {
             t.amountIn = bound(seed, 1, musdBal);
@@ -249,11 +257,96 @@ contract VaultHandler is Test {
         } catch {}
     }
 
+    function openIntent(uint256 who, bool isBuy, uint256 amount) external watch(who) {
+        address a = actor(who);
+        uint256 bal = isBuy ? _cash(a) : type(uint128).max;
+        amount = bound(amount, 1, bal);
+        IMusdyVault.Intent memory i = IMusdyVault.Intent(
+            a,
+            isBuy,
+            8453,
+            "0x4200000000000000000000000000000000000006",
+            amount,
+            0,
+            address(0),
+            vault.nonces(a),
+            block.timestamp + 1
+        );
+        bytes32 id = vault.executeIntent(i, _sig(who, vault.hashIntent(i)));
+        ghostNonce[a]++;
+        intentsOpened++;
+        if (isBuy) ghostSolverMusd += amount;
+        openIds.push(id);
+    }
+
+    function settleIntent(uint256 idx, uint256 pay, bool ok) external watch(type(uint256).max) {
+        if (openIds.length == 0) return;
+        bytes32 id = _takeOpen(idx);
+        (address user,,,,) = vault.intents(id);
+        pay = bound(pay, 0, ghostSolverMusd);
+        vm.prank(solver);
+        vault.settleIntent(id, user, pay, pay / 3, ok);
+        ghostSolverMusd -= pay;
+        intentsClosed++;
+    }
+
+    function refundIntent(uint256 idx, uint256 wait) external watch(type(uint256).max) {
+        if (openIds.length == 0) return;
+        uint256 j = idx % openIds.length;
+        bytes32 id = openIds[j];
+        (address user, bool isBuy, uint256 amountIn, uint256 openedAt,) = vault.intents(id);
+        if (!isBuy) return;
+        vm.warp(
+            openedAt + 1 hours + bound(wait, 0, 1 days) > block.timestamp
+                ? openedAt + 1 hours + bound(wait, 0, 1 days)
+                : block.timestamp
+        );
+        if (ghostSolverMusd < amountIn) _solverDeposit(amountIn - ghostSolverMusd);
+        vm.prank(user);
+        vault.refundIntent(id);
+        _takeOpen(j);
+        ghostSolverMusd -= amountIn;
+        intentsClosed++;
+    }
+
+    function closeTwice(uint256 idx, bool asRefund) external watch(type(uint256).max) {
+        if (closedIds.length == 0) return;
+        bytes32 id = closedIds[idx % closedIds.length];
+        (address user,,,,) = vault.intents(id);
+        vm.warp(block.timestamp + 2 hours);
+        vm.prank(asRefund ? user : solver);
+        if (asRefund) {
+            try vault.refundIntent(id) {
+                doubleClose++;
+            } catch {}
+        } else {
+            try vault.settleIntent(id, user, 0, 0, true) {
+                doubleClose++;
+            } catch {}
+        }
+    }
+
+    function _solverDeposit(uint256 amount) internal {
+        musd.mint(solver, amount);
+        vm.startPrank(solver);
+        musd.approve(address(vault), amount);
+        vault.deposit(address(musd), amount, solver);
+        vm.stopPrank();
+        ghostSolverMusd += amount;
+    }
+
+    function _takeOpen(uint256 idx) internal returns (bytes32 id) {
+        uint256 j = idx % openIds.length;
+        id = openIds[j];
+        openIds[j] = openIds[openIds.length - 1];
+        openIds.pop();
+        closedIds.push(id);
+    }
+
     function _relayPermit(uint256 who, address caller, uint256 amount) internal {
         address o = actor(who);
         uint256 deadline = block.timestamp + 1;
-        bytes32 structHash =
-            keccak256(abi.encode(PERMIT_TYPEHASH, o, address(vault), amount, musd.nonces(o), deadline));
+        bytes32 structHash = keccak256(abi.encode(PERMIT_TYPEHASH, o, address(vault), amount, musd.nonces(o), deadline));
         (uint8 v, bytes32 r, bytes32 s) =
             vm.sign(keys[who % 3], keccak256(abi.encodePacked("\x19\x01", musd.DOMAIN_SEPARATOR(), structHash)));
         vm.prank(caller);
@@ -284,7 +377,7 @@ contract VaultInvariantTest is Base {
     function invariant_vault_solvent() public view {
         for (uint256 j; j < handler.tokenCount(); ++j) {
             address token = handler.tokens(j);
-            uint256 sum = vault.balanceOf(feeTo, token);
+            uint256 sum = vault.balanceOf(feeTo, token) + vault.balanceOf(handler.solver(), token);
             for (uint256 i; i < 3; ++i) {
                 sum += vault.balanceOf(handler.actor(i), token);
             }
@@ -293,6 +386,34 @@ contract VaultInvariantTest is Base {
     }
 
     function invariant_vault_onlyOwnerDebits() public view {
+        assertFalse(handler.unauthorizedDecrease());
+    }
+
+    function invariant_vault_solverHoldsOpenIntentCash() public view {
+        assertEq(vault.balanceOf(handler.solver(), address(musd)), handler.ghostSolverMusd());
+    }
+
+    function invariant_vault_intentSettlesOnce() public view {
+        assertEq(handler.doubleClose(), 0);
+    }
+
+    function test_vault_intentActionsHold() public {
+        for (uint256 i; i < 300; ++i) {
+            uint256 r = uint256(keccak256(abi.encode("intent", i)));
+            uint256 k = r % 4;
+            if (k == 0) handler.openIntent(r >> 8, (r >> 16) % 3 != 0, r >> 32);
+            else if (k == 1) handler.settleIntent(r >> 8, r >> 32, (r >> 16) % 2 == 0);
+            else if (k == 2) handler.refundIntent(r >> 8, r >> 32);
+            else handler.closeTwice(r >> 8, (r >> 16) % 2 == 0);
+        }
+        emit log_named_uint("intents opened", handler.intentsOpened());
+        emit log_named_uint("intents closed", handler.intentsClosed());
+        assertGe(handler.intentsOpened(), 50);
+        assertGe(handler.intentsClosed(), 40);
+        invariant_vault_solvent();
+        invariant_vault_solverHoldsOpenIntentCash();
+        invariant_vault_intentSettlesOnce();
+        invariant_vault_noncesStepByOne();
         assertFalse(handler.unauthorizedDecrease());
     }
 

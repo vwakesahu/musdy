@@ -22,6 +22,7 @@ contract DeployMezo is DeploymentWriter {
         vm.startBroadcast(key);
         MusdyLaunchpad launchpad = new MusdyLaunchpad(MUSD, ROUTER, 1500e18, deployer);
         MusdyVault vault = new MusdyVault(MUSD, BTC, ROUTER, address(launchpad), deployer, 50, deployer);
+        vault.setSolver(vm.envAddress("SOLVER_ADDRESS"));
         vm.stopBroadcast();
 
         TokenEntry[] memory tokens = new TokenEntry[](7);
