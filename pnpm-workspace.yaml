@@ -3,3 +3,7 @@ allowBuilds:
   unrs-resolver: true
   sharp: true
   esbuild: true
+  '@reown/appkit': false
+  bufferutil: false
+  keccak: false
+  utf-8-validate: false

@@ -1,0 +1,17 @@
+import type { ReactNode } from "react";
+import { BalancePill } from "./balance-pill";
+import { SocketBanner } from "./socket-banner";
+
+export function ScreenHeader({ title, left, right, extra }: { title: string; left?: ReactNode; right?: ReactNode; extra?: ReactNode }) {
+  return (
+    <>
+      <header className="sticky top-0 z-20 flex h-14 items-center gap-2 bg-bg/90 px-4 pt-[env(safe-area-inset-top)] backdrop-blur-md">
+        {left}
+        <h1 className="flex-1 truncate text-[20px] leading-[26px] font-semibold">{title}</h1>
+        {extra}
+        {right ?? <BalancePill />}
+      </header>
+      <SocketBanner />
+    </>
+  );
+}
