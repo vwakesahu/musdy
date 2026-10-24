@@ -11,7 +11,7 @@ export function RowSkeletons({ n = 6 }: { n?: number }) {
   return (
     <ul aria-label="Loading">
       {Array.from({ length: n }, (_, i) => (
-        <li key={i} className="flex min-h-[72px] items-center gap-3 border-b border-line px-4 py-3">
+        <li key={i} className="flex min-h-[72px] items-center gap-3 border-b border-border px-4 py-4 lg:px-6">
           <Skeleton className="h-10 w-10 rounded-full" />
           <span className="flex flex-1 flex-col gap-2">
             <Skeleton className="h-3.5 w-32" />
@@ -69,7 +69,7 @@ export function FeedList({
             window.scrollTo({ top: 0, behavior: reduced ? "auto" : "smooth" });
             setFrozenTop(null);
           }}
-          className="press fixed top-16 left-1/2 z-30 -translate-x-1/2 rounded-full bg-raised px-4 py-2 text-[13px] font-semibold shadow-lg shadow-black/50"
+          className="press fixed top-16 left-1/2 z-30 -translate-x-1/2 rounded-full bg-accent px-4 py-2 text-[14px] font-semibold text-white"
         >
           {hidden} new
         </button>

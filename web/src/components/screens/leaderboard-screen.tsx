@@ -1,13 +1,17 @@
 "use client";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import type { PnlWindow } from "shared";
 import { RowSkeletons } from "../feed-list";
+import { FeedRail } from "../feed-rail";
 import { LeaderRow } from "../leader-row";
 import { ScreenHeader } from "../screen-header";
+import { RangeTabs } from "../underline-tabs";
+import { UserAvatar } from "../ui/avatar";
 import { EmptyState } from "../ui/empty-state";
-import { Segmented } from "../ui/segmented";
+import { Pnl } from "../ui/pnl";
 import { useSession } from "@/hooks/use-session";
-import type { PnlWindow } from "shared";
+import { signedBig } from "@/lib/format";
 import { api } from "@/lib/http";
 
 export function LeaderboardScreen() {
@@ -20,8 +24,22 @@ export function LeaderboardScreen() {
   return (
     <>
       <ScreenHeader title="Leaderboard" />
-      <div className="px-4 pb-2">
-        <Segmented
+      {mine && (
+        <div className="mx-4 mt-1 mb-2 flex items-center gap-3 rounded-[16px] bg-surface p-4 lg:mx-6">
+          <UserAvatar user={mine.user} size={48} />
+          <div className="flex-1">
+            <p className="text-[14px] leading-5 text-muted">Your rank</p>
+            <p className="mt-0.5 inline-block rounded-[8px] bg-accent-soft px-2 text-[20px] leading-7 font-medium text-text tabular-nums">
+              <span className="text-accent-hi">#</span>
+              {mine.rank}
+            </p>
+          </div>
+          <Pnl value={signedBig(mine.pnlMusd)} className="text-[20px] leading-[26px] font-medium" />
+        </div>
+      )}
+      <div className="flex items-center justify-between px-4 pt-3 pb-1 lg:px-6">
+        <h2 className="text-[19px] leading-6 font-medium tracking-[-0.01em]">Top traders</h2>
+        <RangeTabs
           value={win}
           onChange={setWin}
           options={[
@@ -46,11 +64,7 @@ export function LeaderboardScreen() {
           ))}
         </ul>
       )}
-      {mine && mine.rank > 8 && (
-        <div className="sticky bottom-[calc(56px+env(safe-area-inset-bottom))] z-10 border-t border-line">
-          <LeaderRow row={mine} self />
-        </div>
-      )}
+      <FeedRail traders={false} />
     </>
   );
 }

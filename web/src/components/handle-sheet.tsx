@@ -28,7 +28,7 @@ export function HandleSheet({ open, onOpenChange, current }: { open: boolean; on
   return (
     <Drawer open={open} onOpenChange={onOpenChange} title="Your name on musdy">
       <div className="flex flex-col gap-3">
-        <label className="flex h-12 items-center rounded-[14px] bg-raised px-4">
+        <label className="flex h-[52px] items-center rounded-[14px] border border-border bg-surface px-4 focus-within:border-accent-hi">
           <span className="text-[16px] text-muted">@</span>
           <input
             value={value}
@@ -38,7 +38,7 @@ export function HandleSheet({ open, onOpenChange, current }: { open: boolean; on
             spellCheck={false}
             placeholder="handle"
             aria-label="Handle"
-            className="h-full flex-1 bg-transparent text-[16px] outline-none placeholder:text-muted"
+            className="h-full flex-1 bg-transparent text-[16px] outline-none placeholder:text-faint"
           />
         </label>
         <p className="text-[12px] leading-4 text-muted">3 to 15 characters: lowercase letters, numbers and underscores.</p>

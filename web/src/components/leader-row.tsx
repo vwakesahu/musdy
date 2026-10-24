@@ -6,27 +6,34 @@ import { Medal } from "./ui/medal";
 import { Pnl } from "./ui/pnl";
 
 export function LeaderRow({ row, self }: { row: Row; self: boolean }) {
+  const pct = row.pnlPct * 100;
   return (
     <Link
       href={`/u/${row.user.address}`}
-      className={`press flex min-h-[64px] items-center gap-3 border-b border-line px-4 py-3 ${self ? "bg-surface" : ""}`}
+      className={`flex min-h-[76px] items-center gap-3 px-4 py-3 transition-colors hover:bg-surface-3 lg:px-6 ${self ? "bg-surface" : ""}`}
       data-testid="leader-row"
       data-user={row.user.address.toLowerCase()}
     >
-      <span className="grid w-7 place-items-center text-[14px] font-semibold text-muted tabular-nums">
-        {row.rank <= 3 ? <Medal rank={row.rank as 1 | 2 | 3} /> : row.rank}
+      <span className="grid w-7 shrink-0 place-items-center text-[15px] text-muted tabular-nums">
+        {row.rank <= 3 ? <Medal rank={row.rank as 1 | 2 | 3} /> : `${row.rank}.`}
       </span>
-      <UserAvatar user={row.user} />
+      <UserAvatar user={row.user} size={48} />
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-[15px] leading-[22px] font-semibold">
-          {displayName(row.user)}
-          {self && <span className="ml-1.5 text-[12px] font-medium text-muted">you</span>}
-        </span>
+        <span className="block truncate text-[17px] leading-[22px] font-medium">{displayName(row.user)}</span>
         <span className="block truncate text-[14px] leading-5 text-muted">
           {row.user.handle ? `@${row.user.handle}` : `${row.trades} trades`}
+          {self && " · you"}
         </span>
       </span>
-      <Pnl value={signedBig(row.pnlMusd)} className="text-[15px] font-semibold" data-testid="leader-pnl" />
+      <span className="flex flex-col items-end">
+        <Pnl value={signedBig(row.pnlMusd)} className="text-[17px] leading-[22px] font-medium" data-testid="leader-pnl" />
+        {Number.isFinite(pct) && pct !== 0 && (
+          <span className={`text-[13px] leading-[17px] font-medium tabular-nums ${pct > 0 ? "text-up" : "text-down"}`}>
+            <span className="mr-0.5 text-[9px]">{pct > 0 ? "▲" : "▼"}</span>
+            {Math.abs(pct).toFixed(2)}%
+          </span>
+        )}
+      </span>
     </Link>
   );
 }
