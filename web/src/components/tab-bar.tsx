@@ -33,7 +33,7 @@ function TabBarView({ path }: { path: string }) {
                 className={cn("press flex h-full flex-col items-center justify-center gap-0.5 transition-colors", active ? "text-text" : "text-muted hover:text-text-2")}
               >
                 <Icon size={24} weight={active ? "fill" : "regular"} />
-                <span className="text-[10px] leading-3 font-medium lowercase">{t.label}</span>
+                <span className="text-[10px] leading-3 font-medium">{t.label}</span>
               </Link>
             </li>
           );

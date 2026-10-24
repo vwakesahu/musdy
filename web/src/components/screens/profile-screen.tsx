@@ -5,6 +5,7 @@ import { useState } from "react";
 import { isAddress, type Address } from "viem";
 import { BackBar } from "../back-bar";
 import { FeedList } from "../feed-list";
+import { FeedRail } from "../feed-rail";
 import { HandleSheet } from "../handle-sheet";
 import { LoginGate } from "../login-gate";
 import { PositionRow } from "../position-row";
@@ -12,9 +13,9 @@ import { ScreenHeader } from "../screen-header";
 import { UserAvatar } from "../ui/avatar";
 import { Button } from "../ui/button";
 import { EmptyState } from "../ui/empty-state";
-import { TrophyIcon } from "@phosphor-icons/react";
+import { ArrowsLeftRightIcon, PencilSimpleIcon, TrophyIcon } from "@phosphor-icons/react";
 import { Pnl } from "../ui/pnl";
-import { Segmented } from "../ui/segmented";
+import { RangeTabs, UnderlineTabs } from "../underline-tabs";
 import { Skeleton } from "../ui/skeleton";
 import { useActions } from "@/hooks/use-actions";
 import { useTradeList } from "@/hooks/use-feed";
@@ -92,65 +93,60 @@ function ProfileView({ address }: { address: Address }) {
 
   return (
     <div className="flex flex-col">
-      <section className="flex flex-col gap-3 px-4 pt-2 pb-6">
-        <div className="flex items-center gap-4">
+      <section className="flex flex-col px-4 pt-2 pb-5 lg:px-6">
+        <div className="relative w-fit">
           <UserAvatar user={user} size={72} />
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-[20px] leading-[26px] font-semibold" data-testid="profile-name">
-              {user.handle ?? shortAddr(address)}
+          {self && (
+            <button
+              onClick={() => setEditing(true)}
+              aria-label="Edit handle"
+              className="absolute -right-1 -bottom-1 grid h-7 w-7 cursor-pointer place-items-center rounded-full border-2 border-bg bg-black text-white"
+            >
+              <PencilSimpleIcon size={14} weight="fill" />
+            </button>
+          )}
+        </div>
+        <p className="mt-3 truncate text-[24px] leading-[30px] font-medium tracking-[-0.01em]" data-testid="profile-name">
+          {user.handle ?? shortAddr(address)}
+        </p>
+        <p className="truncate text-[15px] leading-5 text-muted">{user.handle ? `@${user.handle}` : address}</p>
+        {p ? (
+          <>
+            <p className="mt-3 flex gap-5 text-[15px] leading-5 text-muted">
+              <span>
+                <b className="font-semibold text-text tabular-nums">{p.following}</b> Following
+              </span>
+              <span>
+                <b className="font-semibold text-text tabular-nums">{p.followers}</b> Followers
+              </span>
             </p>
-            <p className="truncate font-mono text-[12px] leading-4 text-muted">{user.handle ? `@${user.handle}` : address}</p>
-            {p ? (
-              <p className="mt-1.5 flex gap-3 text-[13px] text-muted">
-                <span>
-                  <b className="font-semibold text-text">{p.followers}</b> followers
-                </span>
-                <span>
-                  <b className="font-semibold text-text">{p.following}</b> following
-                </span>
-                <span>
-                  <b className="font-semibold text-text">{p.trades}</b> trades
-                </span>
-              </p>
-            ) : profile.isPending ? (
-              <Skeleton className="mt-2 h-3.5 w-40" />
-            ) : null}
-          </div>
-        </div>
-
-        <div className="mt-2 flex items-end justify-between gap-3">
-          <div>
-            <p className="label">PnL</p>
-            {p ? (
-              <Pnl value={signedBig(p.pnl[win])} className="mt-1 block text-[40px] leading-[44px] font-bold tracking-[-0.03em]" />
-            ) : profile.isError ? (
-              <p className="mt-1 text-[14px] text-muted">Can&apos;t load this profile right now.</p>
-            ) : (
-              <Skeleton className="mt-2 h-10 w-40" />
-            )}
-          </div>
-          <div className="w-[168px]">
-            <Segmented size="sm" value={win} onChange={setWin} options={WINDOWS} />
-          </div>
-        </div>
+            <p className="mt-2.5 flex items-center gap-1.5 text-[13px] leading-[17px] text-muted">
+              <ArrowsLeftRightIcon size={14} weight="fill" />
+              {p.trades} trades
+            </p>
+          </>
+        ) : profile.isPending ? (
+          <Skeleton className="mt-3 h-4 w-48" />
+        ) : null}
 
         {self ? (
-          <div className="mt-2 grid grid-cols-2 gap-3">
+          <div className="mt-5 grid grid-cols-2 gap-3">
             <Button variant="secondary" onClick={() => setEditing(true)} data-testid="edit-handle">
               {user.handle ? "Edit handle" : "Set a handle"}
             </Button>
-            <Link href="/leaderboard" className="press inline-flex h-11 items-center justify-center gap-2 rounded-[14px] bg-raised text-[15px] font-semibold">
-              <TrophyIcon size={20} weight="bold" /> Leaderboard
-            </Link>
+            <Button variant="secondary" render={<Link href="/leaderboard" />}>
+              <TrophyIcon weight="bold" /> Leaderboard
+            </Button>
           </div>
         ) : (
           me &&
           (!p ? (
-            <Skeleton className="mt-2 h-[52px] w-full rounded-[14px]" />
+            <Skeleton className="mt-5 h-12 w-full rounded-[14px]" />
           ) : (
             <Button
               variant={isFollowing ? "secondary" : "primary"}
-              size="md" className="mt-2 w-full"
+              size="md"
+              className="mt-5 w-full"
               disabled={busy}
               onClick={toggleFollow}
               data-testid="follow"
@@ -161,16 +157,30 @@ function ProfileView({ address }: { address: Address }) {
         )}
       </section>
 
-      <div className="px-4 pb-2">
-        <Segmented
-          value={tab}
-          onChange={setTab}
-          options={[
-            { value: "positions", label: "Positions" },
-            { value: "trades", label: "Trades" },
-          ]}
-        />
-      </div>
+      <section className="border-t border-border px-4 pt-5 pb-4 lg:px-6">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-[13px] leading-[17px] text-muted">PnL</p>
+            {p ? (
+              <Pnl value={signedBig(p.pnl[win])} className="mt-1 block text-[40px] leading-[44px] font-medium tracking-[-0.03em]" />
+            ) : profile.isError ? (
+              <p className="mt-1 text-[14px] text-muted">Can&apos;t load this profile right now.</p>
+            ) : (
+              <Skeleton className="mt-2 h-10 w-40" />
+            )}
+          </div>
+          <RangeTabs value={win} onChange={setWin} options={WINDOWS} />
+        </div>
+      </section>
+
+      <UnderlineTabs
+        value={tab}
+        onChange={setTab}
+        options={[
+          { value: "positions", label: p ? `Positions (${positions.length})` : "Positions" },
+          { value: "trades", label: "Trades" },
+        ]}
+      />
       {tab === "positions" ? (
         profile.isPending ? (
           <Skeleton className="mx-4 mt-3 h-16" />
@@ -190,10 +200,11 @@ function ProfileView({ address }: { address: Address }) {
       )}
 
       {self && (
-        <button onClick={logout} className="press mx-auto my-6 h-11 min-w-[120px] rounded-full px-4 text-[14px] font-medium text-muted" data-testid="logout">
+        <Button variant="ghost" size="sm" onClick={logout} className="mx-auto my-8 px-5" data-testid="logout">
           Log out
-        </button>
+        </Button>
       )}
+      <FeedRail />
       {self && <HandleSheet open={editing} onOpenChange={setEditing} current={user.handle} />}
     </div>
   );

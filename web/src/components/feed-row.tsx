@@ -1,14 +1,22 @@
 "use client";
 import Link from "next/link";
+import { RepeatIcon } from "@phosphor-icons/react";
 import type { FeedItem } from "shared";
 import { useCurrentPrice } from "@/hooks/use-live";
 import { useNow } from "@/hooks/use-now";
 import { displayName, timeAgo, usd } from "@/lib/format";
 import { CopyButton } from "./copy-button";
 import { UserAvatar } from "./ui/avatar";
-import { CaretRightIcon } from "@phosphor-icons/react";
 import { PctChip } from "./ui/pnl";
 import { TokenIcon } from "./ui/token-icon";
+
+export function SideTag({ buy }: { buy: boolean }) {
+  return (
+    <span className={`rounded-[6px] px-1.5 text-[13px] leading-5 font-semibold ${buy ? "bg-up-soft text-up-sm" : "bg-down-soft text-down"}`}>
+      {buy ? "Buy" : "Sell"}
+    </span>
+  );
+}
 
 export function FeedRow({ item, self }: { item: FeedItem; self: boolean }) {
   const now = useNow();
@@ -17,26 +25,29 @@ export function FeedRow({ item, self }: { item: FeedItem; self: boolean }) {
   const since = item.isBuy && current !== null && at > 0n ? Number(((current - at) * 10_000n) / at) / 10_000 : null;
 
   return (
-    <div className="relative flex min-h-[72px] items-center gap-3 border-b border-line px-4 py-3" data-testid="feed-row" data-id={item.id} data-user={item.user.address.toLowerCase()} data-side={item.isBuy ? "buy" : "sell"}>
+    <div
+      className="group/row relative flex items-center gap-3 border-b border-border px-4 py-4 transition-colors hover:bg-surface/60 lg:px-6"
+      data-testid="feed-row"
+      data-id={item.id}
+      data-user={item.user.address.toLowerCase()}
+      data-side={item.isBuy ? "buy" : "sell"}
+    >
       <Link href={`/token/${item.token.address}`} className="absolute inset-0" aria-label={`${item.token.symbol} details`} />
-      <Link href={`/u/${item.user.address}`} className="relative z-10 -mx-0.5 grid h-11 w-11 shrink-0 place-items-center" aria-label={displayName(item.user)}>
-        <UserAvatar user={item.user} />
+      <Link href={`/u/${item.user.address}`} className="relative z-10 shrink-0 self-start" aria-label={displayName(item.user)}>
+        <UserAvatar user={item.user} size={40} />
       </Link>
       <div className="pointer-events-none min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
-          <span className="truncate text-[15px] leading-[22px] font-semibold">{displayName(item.user)}</span>
-          <span
-            className={`rounded-full px-1.5 text-[12px] leading-[18px] font-medium ${item.isBuy ? "bg-up/12 text-up" : "bg-down/12 text-down"}`}
-          >
-            {item.isBuy ? "Buy" : "Sell"}
-          </span>
-          {now > 0 && <span className="text-[12px] leading-4 font-medium text-muted">{timeAgo(item.ts, now)}</span>}
+          <span className="truncate text-[16px] leading-5 font-medium">{displayName(item.user)}</span>
+          <SideTag buy={item.isBuy} />
+          {now > 0 && <span className="shrink-0 text-[14px] leading-5 text-muted">{timeAgo(item.ts, now)}</span>}
         </div>
-        <div className="mt-0.5 flex items-center gap-1.5 text-[14px] leading-5">
-          <TokenIcon token={item.token} />
-          <span className="font-semibold">{item.token.symbol}</span>
-          <span className="truncate">
-            {usd(BigInt(item.musdAmount))} <span className="text-muted">at {usd(BigInt(item.marketCapMusd))} MC</span>
+        <div className="mt-2.5 flex items-center gap-2.5 text-[16px] leading-5">
+          <TokenIcon token={item.token} size={32} />
+          <span className="flex min-w-0 items-baseline gap-1.5">
+            <span className="shrink-0 font-medium underline decoration-faint decoration-dotted decoration-2 underline-offset-[5px]">{item.token.symbol}</span>
+            <span className="shrink-0">{usd(BigInt(item.musdAmount))}</span>
+            <span className="truncate text-muted">at {usd(BigInt(item.marketCapMusd))} MC</span>
           </span>
           {since !== null && (
             <span data-testid="since-buy" className="shrink-0">
@@ -44,9 +55,14 @@ export function FeedRow({ item, self }: { item: FeedItem; self: boolean }) {
             </span>
           )}
         </div>
-        {item.ref && <p className="mt-0.5 text-[12px] leading-4 font-medium text-muted">copied {displayName(item.ref)}</p>}
+        {item.ref && (
+          <p className="mt-2 flex items-center gap-1 text-[13px] leading-[17px] text-muted">
+            <RepeatIcon size={14} weight="bold" />
+            copied {displayName(item.ref)}
+          </p>
+        )}
       </div>
-      {item.isBuy && !self ? <CopyButton item={item} /> : <CaretRightIcon size={18} weight="bold" className="text-muted" />}
+      {item.isBuy && !self && <CopyButton item={item} />}
     </div>
   );
 }
