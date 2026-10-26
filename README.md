@@ -8,8 +8,6 @@ it's live at https://musdy.fun on mezo testnet, built by [@vwakesahu](https://x.
 
 [![watch the musdy demo](https://img.youtube.com/vi/-kZQSVvRB5Q/maxresdefault.jpg)](https://youtu.be/-kZQSVvRB5Q)
 
-the product video is on [youtube](https://youtu.be/-kZQSVvRB5Q), and there's a [30 second cut](https://musdy.fun/demo.mp4) too.
-
 ## how it works
 
 your balance is MUSD, mezo's dollar backed by bitcoin, and it sits in the musdy vault on mezo. you don't send transactions, you sign what you want and our relayer submits it and pays the gas. the vault only does what you signed, so the relayer can't move your money, and you can always pull it out of the vault without us.
