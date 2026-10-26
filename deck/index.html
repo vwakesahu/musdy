@@ -1,0 +1,380 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>musdy deck</title>
+<meta name="description" content="buy any coin. settle on mezo.">
+<meta name="theme-color" content="#070510">
+<link rel="canonical" href="https://deck.musdy.fun/">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://deck.musdy.fun/">
+<meta property="og:title" content="musdy">
+<meta property="og:description" content="buy any coin. settle on mezo.">
+<meta property="og:image" content="https://deck.musdy.fun/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="musdy">
+<meta name="twitter:description" content="buy any coin. settle on mezo.">
+<meta name="twitter:image" content="https://deck.musdy.fun/og.png">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon-180.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #070510; --surface: #12111a; --surface-2: #161523; --border: #1b1926; --border-strong: #2c2b35;
+  --text: #f7f7f7; --text-2: #c9c8cc; --muted: #9999a3; --faint: #66667a;
+  --accent: #516bf6; --accent-hi: #8b9cf6; --up: #21c85e;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; background: var(--bg); color: var(--text); overflow: hidden; }
+body { font-family: "Geist", system-ui, sans-serif; -webkit-font-smoothing: antialiased; font-feature-settings: "tnum"; touch-action: pan-y; }
+a { color: inherit; text-decoration: none; }
+
+#deck { position: fixed; inset: 0; }
+.stage { position: absolute; left: 50%; top: 50%; width: 1920px; height: 1080px; transform-origin: 0 0; }
+.slide { position: absolute; inset: 0; width: 1920px; height: 1080px; overflow: hidden; background: var(--bg);
+  opacity: 0; visibility: hidden; transition: opacity .35s ease, visibility 0s .35s; }
+.slide.on { opacity: 1; visibility: visible; transition: opacity .35s ease; }
+.glow { position: absolute; width: 1400px; height: 1400px; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(closest-side, rgba(81,107,246,.16), rgba(81,107,246,0)); }
+
+/* shared slide parts */
+.pad { position: absolute; inset: 0; padding: 112px 140px; display: flex; flex-direction: column; }
+.top { display: flex; align-items: center; justify-content: space-between; }
+.brand { display: flex; align-items: center; gap: 16px; font-size: 34px; font-weight: 600; letter-spacing: -0.04em; }
+.brand img { width: 44px; height: 44px; }
+.label { font-size: 28px; font-weight: 500; color: var(--faint); letter-spacing: -0.01em; }
+.src { position: absolute; left: 140px; bottom: 64px; font-size: 21px; color: var(--faint); letter-spacing: 0; }
+.pill { display: inline-flex; align-items: center; gap: 16px; height: 96px; padding: 0 40px; border-radius: 999px;
+  background: var(--surface); border: 1px solid var(--border-strong); font-size: 40px; font-weight: 500; color: var(--muted); white-space: nowrap; }
+.pill b { color: var(--text); font-weight: 600; }
+.dot { width: 18px; height: 18px; border-radius: 50%; background: var(--up); flex: none; }
+.num { font-weight: 700; letter-spacing: -0.055em; line-height: .9; }
+
+/* 1 title */
+.s1 .center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.s1 .lock { display: flex; align-items: center; gap: 64px; }
+.s1 .lock img { width: 268px; height: 268px; }
+.s1 .lock span { font-size: 300px; font-weight: 600; letter-spacing: -0.05em; line-height: 1; margin-top: -40px; }
+.s1 .line { margin-top: 72px; font-size: 56px; color: var(--muted); letter-spacing: -0.02em; }
+.s1 .url { position: absolute; bottom: 80px; left: 0; right: 0; text-align: center; font-size: 32px; color: var(--faint); }
+
+/* 2 market */
+.s2 .kicker { margin-top: 128px; font-size: 56px; color: var(--muted); letter-spacing: -0.02em; }
+.s2 .big { margin-top: 24px; display: flex; align-items: baseline; gap: 40px; }
+.s2 .big .num { font-size: 300px; }
+.s2 .big em { font-style: normal; font-size: 112px; font-weight: 600; letter-spacing: -0.04em; color: var(--muted); }
+.s2 .pills { margin-top: 72px; display: flex; gap: 24px; }
+.s2 .but { margin-top: 64px; font-size: 56px; color: var(--muted); letter-spacing: -0.02em; }
+.s2 .but b { color: var(--text); font-weight: 600; }
+
+/* 3 why mezo */
+.s3 h2 { margin-top: 64px; font-size: 84px; font-weight: 600; letter-spacing: -0.045em; line-height: 1; }
+.s3 h2 span { color: var(--muted); }
+.bars { margin-top: 64px; display: grid; grid-template-columns: 200px 1fr; row-gap: 40px; align-items: center; }
+.bars .k { font-size: 36px; color: var(--muted); font-weight: 500; }
+.bars .row { display: flex; align-items: center; gap: 28px; }
+.bars .bar { height: 56px; border-radius: 14px; background: var(--accent); transform-origin: 0 50%; flex: none; }
+.bars .bar.dim { background: #3a3f6e; }
+.bars .bar.green { background: var(--up); }
+.bars .v { font-size: 44px; font-weight: 600; letter-spacing: -0.03em; white-space: nowrap; }
+.bars .v small { font-size: 30px; color: var(--muted); font-weight: 500; margin-left: 14px; letter-spacing: 0; }
+.s3 .so { margin-top: 72px; display: flex; align-items: center; gap: 20px; font-size: 44px; color: var(--muted); letter-spacing: -0.02em; }
+.s3 .so b { color: var(--text); font-weight: 600; }
+.s3 .so i { font-style: normal; color: var(--faint); }
+
+/* 4 how */
+.s4 .phone { position: absolute; left: 150px; top: 100px; width: 516px; height: 880px; border-radius: 56px; overflow: hidden;
+  border: 1px solid var(--border-strong); box-shadow: 0 60px 120px rgba(0,0,0,.6), 0 0 0 12px rgba(255,255,255,.025); background: #08070f; }
+.s4 .phone img { width: 100%; height: 100%; object-fit: cover; object-position: top; display: block; }
+.s4 .cap { position: absolute; left: 150px; width: 516px; top: 1004px; text-align: center; font-size: 22px; color: var(--faint); }
+.s4 .right { position: absolute; left: 820px; right: 140px; top: 112px; bottom: 112px; display: flex; flex-direction: column; }
+.s4 h2 { margin-top: 56px; font-size: 88px; font-weight: 600; letter-spacing: -0.045em; line-height: 1.02; }
+.s4 h2 span { color: var(--muted); }
+.steps { margin-top: 64px; position: relative; display: flex; flex-direction: column; gap: 36px; }
+.steps::before { content: ""; position: absolute; left: 35px; top: 40px; bottom: 40px; width: 2px; background: var(--border-strong); }
+.step { display: flex; align-items: center; gap: 36px; position: relative; }
+.step .n { width: 72px; height: 72px; border-radius: 50%; background: var(--surface-2); border: 1px solid var(--border-strong); display: grid; place-items: center;
+  font-size: 30px; font-weight: 600; color: var(--text); flex: none; }
+.step.last .n { background: var(--accent); border-color: var(--accent); }
+.step .t { font-size: 46px; font-weight: 600; letter-spacing: -0.03em; }
+.step .d { margin-top: 6px; font-size: 32px; color: var(--muted); display: flex; align-items: center; gap: 14px; }
+.chain { display: inline-flex; align-items: center; gap: 10px; }
+.chain i { width: 16px; height: 16px; border-radius: 50%; display: inline-block; }
+.proof { margin-top: auto; align-self: flex-start; height: 76px; font-size: 28px; padding: 0 32px; gap: 14px; }
+.proof .arrow { color: var(--muted); margin-left: 8px; }
+
+/* 5 end */
+.s5 .center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; padding-top: 168px; }
+.s5 .lock { display: flex; align-items: center; gap: 40px; }
+.s5 .lock img { width: 160px; height: 160px; }
+.s5 .lock span { font-size: 180px; font-weight: 600; letter-spacing: -0.05em; line-height: 1; margin-top: -24px; }
+.s5 .line { margin-top: 48px; font-size: 56px; color: var(--muted); letter-spacing: -0.02em; }
+.s5 .line b { color: var(--text); font-weight: 600; }
+.cards { margin-top: 88px; display: grid; grid-template-columns: repeat(3, 440px); gap: 28px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 28px; padding: 40px 40px 44px; }
+.card .h { display: flex; align-items: center; gap: 16px; font-size: 26px; color: var(--muted); font-weight: 500; }
+.card .h .dot { width: 14px; height: 14px; }
+.card .h .dot.blue { background: var(--accent); }
+.card .h .dot.off { background: var(--faint); box-shadow: none; }
+.card .b { margin-top: 20px; font-size: 40px; font-weight: 600; letter-spacing: -0.03em; line-height: 1.12; }
+.s5 .foot { position: absolute; bottom: 72px; left: 0; right: 0; display: flex; justify-content: center; gap: 56px; font-size: 30px; color: var(--muted); }
+.s5 .foot b { color: var(--text); font-weight: 500; }
+
+/* ui chrome, not part of slides */
+.ui { position: fixed; z-index: 10; display: flex; align-items: center; gap: 10px; font: 500 14px/1 "Geist", system-ui, sans-serif; color: var(--muted); }
+.ui.br { right: 20px; bottom: max(18px, env(safe-area-inset-bottom)); }
+.ui.tr { right: 20px; top: max(16px, env(safe-area-inset-top)); }
+.btn { height: 36px; padding: 0 14px; border-radius: 10px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--text);
+  font: 500 14px/1 "Geist", system-ui, sans-serif; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; }
+.btn:hover { background: #1d1c27; }
+.btn:active { transform: scale(.97); }
+.btn[disabled] { opacity: .6; cursor: progress; }
+.btn.nav { width: 36px; padding: 0; justify-content: center; font-size: 16px; }
+#count { min-width: 44px; text-align: center; font-variant-numeric: tabular-nums; }
+.hint { position: fixed; left: 0; right: 0; bottom: max(20px, env(safe-area-inset-bottom)); text-align: center; font: 400 13px "Geist", sans-serif; color: var(--faint); display: none; z-index: 9; }
+@media (orientation: portrait) and (max-width: 700px) { .hint { display: block; } .ui.br { bottom: max(48px, env(safe-area-inset-bottom)); } }
+
+#export { position: fixed; left: 0; top: 0; width: 1920px; height: 1080px; z-index: -1; pointer-events: none; }
+#export .slide { opacity: 1; visibility: visible; transition: none; }
+
+@media print {
+  @page { size: 1920px 1080px; margin: 0; }
+  html, body { height: auto; overflow: visible; background: var(--bg); -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .ui, .hint, #export { display: none !important; }
+  #deck { position: static; }
+  .stage { position: static; transform: none !important; width: 1920px; height: auto; }
+  .slide { position: relative; opacity: 1 !important; visibility: visible !important; transition: none; break-after: page; page-break-after: always; }
+  .slide:last-child { break-after: auto; page-break-after: auto; }
+  [data-in] { opacity: 1 !important; transform: none !important; }
+  .bar { transform: none !important; }
+  .phone { transform: none !important; }
+}
+@media (prefers-reduced-motion: reduce) { .slide, .slide.on { transition: none; } }
+</style>
+</head>
+<body>
+<div id="deck">
+  <div class="stage" id="stage">
+
+    <!-- 1 title -->
+    <section class="slide s1" data-title="musdy">
+      <div class="center">
+        <div class="lock" data-in><img src="assets/app-icon-512.png" alt=""><span>musdy</span></div>
+        <div class="line" data-in>buy any coin. settle on mezo.</div>
+      </div>
+      <div class="url" data-in>musdy.fun</div>
+    </section>
+
+    <!-- 2 market -->
+    <section class="slide s2" data-title="the market is real">
+      <div class="pad">
+        <div class="top"><div class="brand"><img src="assets/app-icon-512.png" alt="">musdy</div><div class="label">the market</div></div>
+        <div class="kicker" data-in>fomo makes</div>
+        <div class="big" data-in><span class="num" data-count="2" data-fmt="$#M+">$2M+</span><em>a week</em></div>
+        <div class="pills">
+          <div class="pill" data-in><b>$17M</b> in 30 days</div>
+          <div class="pill" data-in><b>~$206M</b> a year</div>
+          <div class="pill" data-in><b>$550M</b> valuation</div>
+        </div>
+        <div class="but" data-in>and <b>65%</b> of it runs on solana.</div>
+      </div>
+      <div class="src">fomo revenue, defillama: $2.36M oct 18–24, $16.95M sep 25–oct 24 2026 (30d x12). valuation: series b, index ventures, jun 2026.</div>
+    </section>
+
+    <!-- 3 why mezo -->
+    <section class="slide s3" data-title="why mezo">
+      <div class="pad">
+        <div class="top"><div class="brand"><img src="assets/app-icon-512.png" alt="">musdy</div><div class="label">why mezo</div></div>
+        <h2 data-in>bitcoin is 27x solana.<br><span>holders can't trade it without selling.</span></h2>
+        <div class="bars">
+          <div class="k" data-in>bitcoin</div>
+          <div class="row" data-in><div class="bar" data-bar style="width:1180px"></div><div class="v">$1.61T</div></div>
+          <div class="k" data-in>solana</div>
+          <div class="row" data-in><div class="bar dim" data-bar style="width:44px"></div><div class="v">$59.7B</div></div>
+          <div class="k" data-in>MUSD</div>
+          <div class="row" data-in><div class="bar green" data-bar style="width:6px"></div><div class="v">$29.5M<small>all that exists</small></div></div>
+        </div>
+        <div class="so" data-in><span class="dot"></span><b>musdy:</b> borrow MUSD on BTC, buy any coin, <b>settle on mezo.</b></div>
+      </div>
+      <div class="src">market caps: coingecko, oct 26 2026. MUSD supply: defillama stablecoins, oct 26 2026. bars to scale.</div>
+    </section>
+
+    <!-- 4 how -->
+    <section class="slide s4" data-title="how it works">
+      <div class="phone" data-tilt><img src="assets/app-token.png" alt="musdy token page"></div>
+      <div class="cap">the real app, musdy.fun</div>
+      <div class="right">
+        <div class="top"><div class="label">how it works</div><div class="brand"><img src="assets/app-icon-512.png" alt="">musdy</div></div>
+        <h2 data-in>one tap. any chain.<br><span>settles on mezo.</span></h2>
+        <div class="steps">
+          <div class="step" data-in><div class="n">1</div><div><div class="t">you sign</div><div class="d">gasless, google login</div></div></div>
+          <div class="step" data-in><div class="n">2</div><div><div class="t">solver fills via relay</div><div class="d">
+            <span class="chain"><i style="background:#0052ff"></i>base</span>
+            <span class="chain"><i style="background:#f0b90b"></i>bnb</span>
+            <span class="chain"><i style="background:#9945ff"></i>solana</span></div></div></div>
+          <div class="step last" data-in><div class="n">3</div><div><div class="t">settles in MUSD on mezo</div><div class="d">every trade</div></div></div>
+        </div>
+        <a class="pill proof" data-in href="https://github.com/vwakesahu/musdy#proof" target="_blank" rel="noopener"><span class="dot"></span><b>live, with onchain proof</b> <span class="arrow">github.com/vwakesahu/musdy#proof</span></a>
+      </div>
+    </section>
+
+    <!-- 5 live + ask -->
+    <section class="slide s5" data-title="live now">
+      <div class="center">
+        <div class="lock" data-in><img src="assets/app-icon-512.png" alt=""><span>musdy</span></div>
+        <div class="line" data-in>live now at <b>musdy.fun</b></div>
+        <div class="cards">
+          <div class="card" data-in><div class="h"><span class="dot"></span>live</div><div class="b">testnet app,<br>MUSD on mezo</div></div>
+          <div class="card" data-in><div class="h"><span class="dot"></span>proven</div><div class="b">real mainnet fills<br>on base + bnb</div></div>
+          <div class="card" data-in><div class="h"><span class="dot blue"></span>next</div><div class="b">mainnet, borrow<br>against BTC in app</div></div>
+        </div>
+      </div>
+      <div class="foot"><a href="https://github.com/vwakesahu/musdy" target="_blank" rel="noopener"><b>github.com/vwakesahu/musdy</b></a><a href="https://x.com/vwakesahu" target="_blank" rel="noopener">@vwakesahu</a></div>
+    </section>
+
+  </div>
+</div>
+
+<div class="ui tr"><button class="btn" id="pdf" type="button">export pdf</button></div>
+<div class="ui br">
+  <button class="btn nav" id="prev" type="button" aria-label="previous slide">&larr;</button>
+  <span id="count">1 / 5</span>
+  <button class="btn nav" id="next" type="button" aria-label="next slide">&rarr;</button>
+</div>
+<div class="hint">rotate for full size</div>
+
+<script src="assets/motion.js"></script>
+<script>
+(() => {
+  const stage = document.getElementById('stage');
+  const slides = [...stage.querySelectorAll('.slide')];
+  const count = document.getElementById('count');
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let cur = 0, raf = 0;
+
+  // fit 1920x1080 into any viewport
+  function fit() {
+    const s = Math.min(innerWidth / 1920, innerHeight / 1080);
+    stage.style.transform = `scale(${s}) translate(-50%, -50%)`;
+  }
+  addEventListener('resize', fit); fit();
+
+  // entrance motion driven by the harness springs (lib/motion.js), pure in t
+  function play(slide) {
+    cancelAnimationFrame(raf);
+    const ins = [...slide.querySelectorAll('[data-in]')];
+    const bars = [...slide.querySelectorAll('[data-bar]')];
+    const tilt = slide.querySelector('[data-tilt]');
+    const counts = [...slide.querySelectorAll('[data-count]')];
+    if (reduced) return;
+    const t0 = performance.now();
+    const frame = (now) => {
+      const t = (now - t0) / 1000;
+      ins.forEach((el, i) => {
+        const s = spring(t - 0.1 - i * 0.07, ...FEEL.default);
+        el.style.opacity = clamp(s * 1.4);
+        el.style.transform = `translateY(${(1 - s) * 28}px)`;
+      });
+      bars.forEach((el, i) => {
+        const s = spring(t - 0.45 - i * 0.12, ...FEEL.heavy);
+        el.style.transform = `scaleX(${Math.max(0, s)})`;
+      });
+      if (tilt) {
+        const s = spring(t - 0.05, ...FEEL.heavy);
+        tilt.style.transform = `perspective(1600px) rotateY(${(1 - s) * 18}deg) rotateX(${(1 - s) * 8}deg) translateY(${(1 - s) * 40}px)`;
+        tilt.style.opacity = clamp(s * 1.6);
+      }
+      counts.forEach((el) => {
+        const v = +el.dataset.count * clamp(spring(t - 0.2, ...FEEL.heavy));
+        el.textContent = el.dataset.fmt.replace('#', v.toFixed(1).replace(/\.0$/, ''));
+      });
+      if (t < 2.6) raf = requestAnimationFrame(frame);
+      else settle(slide);
+    };
+    raf = requestAnimationFrame(frame);
+  }
+  function settle(root) {
+    root.querySelectorAll('[data-in],[data-bar],[data-tilt]').forEach((el) => el.removeAttribute('style') || 0);
+    root.querySelectorAll('[data-bar]').forEach((el) => el.style.width = el.dataset.w);
+    root.querySelectorAll('[data-count]').forEach((el) => el.textContent = el.dataset.fmt.replace('#', el.dataset.count));
+  }
+  // keep bar widths in data so settle() can restore them after clearing inline styles
+  stage.querySelectorAll('[data-bar]').forEach((el) => el.dataset.w = el.style.width);
+
+  function go(i) {
+    i = Math.max(0, Math.min(slides.length - 1, i));
+    if (i === cur && slides[i].classList.contains('on')) return;
+    slides[cur].classList.remove('on');
+    settle(slides[cur]);
+    cur = i;
+    slides[cur].classList.add('on');
+    count.textContent = `${cur + 1} / ${slides.length}`;
+    history.replaceState(null, '', `#${cur + 1}`);
+    play(slides[cur]);
+  }
+
+  addEventListener('keydown', (e) => {
+    if (['ArrowRight', 'ArrowDown', 'PageDown', ' ', 'Enter'].includes(e.key)) { e.preventDefault(); go(cur + 1); }
+    else if (['ArrowLeft', 'ArrowUp', 'PageUp', 'Backspace'].includes(e.key)) { e.preventDefault(); go(cur - 1); }
+    else if (e.key === 'Home') go(0);
+    else if (e.key === 'End') go(slides.length - 1);
+  });
+  document.getElementById('prev').onclick = () => go(cur - 1);
+  document.getElementById('next').onclick = () => go(cur + 1);
+  document.getElementById('deck').addEventListener('click', (e) => {
+    if (e.target.closest('a')) return;
+    go(e.clientX > innerWidth / 3 ? cur + 1 : cur - 1);
+  });
+  let sx = 0, sy = 0;
+  addEventListener('touchstart', (e) => { sx = e.touches[0].clientX; sy = e.touches[0].clientY; }, { passive: true });
+  addEventListener('touchend', (e) => {
+    const dx = e.changedTouches[0].clientX - sx, dy = e.changedTouches[0].clientY - sy;
+    if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy)) { go(dx < 0 ? cur + 1 : cur - 1); e.preventDefault(); }
+  });
+
+  // export: render each slide to canvas with html2canvas, assemble with jsPDF. fallback: print css.
+  const load = (src) => new Promise((ok, no) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = no; document.head.appendChild(s); });
+  const btn = document.getElementById('pdf');
+  btn.onclick = async (e) => {
+    e.stopPropagation();
+    btn.disabled = true; const label = btn.textContent; btn.textContent = 'exporting…';
+    const box = document.createElement('div'); box.id = 'export';
+    try {
+      if (!window.html2canvas) await load('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
+      if (!window.jspdf) await load('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+      await document.fonts.ready;
+      document.body.appendChild(box);
+      const pdf = new jspdf.jsPDF({ orientation: 'landscape', unit: 'px', format: [1920, 1080], hotfixes: ['px_scaling'], compress: true });
+      for (let i = 0; i < slides.length; i++) {
+        box.innerHTML = '';
+        const c = slides[i].cloneNode(true);
+        c.classList.add('on'); settle(c);
+        box.appendChild(c);
+        await Promise.all([...c.querySelectorAll('img')].map((im) => im.complete ? 0 : new Promise((r) => { im.onload = im.onerror = r; })));
+        const canvas = await html2canvas(c, { width: 1920, height: 1080, windowWidth: 1920, windowHeight: 1080, scale: 1, backgroundColor: '#070510', useCORS: true, logging: false, x: 0, y: 0, scrollX: 0, scrollY: 0 });
+        if (i) pdf.addPage([1920, 1080], 'landscape');
+        pdf.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, 1920, 1080);
+      }
+      pdf.save('musdy-deck.pdf');
+    } catch (err) {
+      console.warn('pdf export failed, falling back to print', err);
+      slides.forEach(settle);
+      window.print();
+    } finally {
+      box.remove();
+      btn.disabled = false; btn.textContent = label;
+    }
+  };
+
+  const start = parseInt(location.hash.slice(1), 10);
+  cur = 0;
+  go(Number.isFinite(start) ? start - 1 : 0);
+})();
+</script>
+</body>
+</html>
