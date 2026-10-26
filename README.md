@@ -6,6 +6,10 @@ fomo on mezo. you log in with google, you get one dollar balance, and you buy co
 
 it's live at https://musdy.fun on mezo testnet, built by [@vwakesahu](https://x.com/vwakesahu). it's a beta, keep deposits to $10 or $20.
 
+[![watch the 30s demo](docs/images/demo.png)](https://musdy.fun/demo.mp4)
+
+30 seconds, tap to play.
+
 ## how it works
 
 your balance is MUSD, mezo's dollar backed by bitcoin, and it sits in the musdy vault on mezo. you don't send transactions, you sign what you want and our relayer submits it and pays the gas. the vault only does what you signed, so the relayer can't move your money, and you can always pull it out of the vault without us.
