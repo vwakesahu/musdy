@@ -6,9 +6,9 @@ fomo on mezo. you log in with google, you get one dollar balance, and you buy co
 
 it's live at https://musdy.fun on mezo testnet, built by [@vwakesahu](https://x.com/vwakesahu). it's a beta, keep deposits to $10 or $20.
 
-[![watch the 30s demo](docs/images/demo.png)](https://musdy.fun/demo.mp4)
+[![watch the musdy demo](https://img.youtube.com/vi/-kZQSVvRB5Q/maxresdefault.jpg)](https://youtu.be/-kZQSVvRB5Q)
 
-30 seconds, tap to play.
+the product video is on [youtube](https://youtu.be/-kZQSVvRB5Q), and there's a [30 second cut](https://musdy.fun/demo.mp4) too.
 
 ## how it works
 

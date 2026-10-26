@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>musdy deck</title>
 <meta name="description" content="buy any coin. settle on mezo.">
-<meta name="theme-color" content="#070510">
+<meta name="theme-color" content="#ffffff">
 <link rel="canonical" href="https://deck.musdy.fun/">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://deck.musdy.fun/">
@@ -25,9 +25,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root {
-  --bg: #070510; --surface: #12111a; --surface-2: #161523; --border: #1b1926; --border-strong: #2c2b35;
-  --text: #f7f7f7; --text-2: #c9c8cc; --muted: #9999a3; --faint: #66667a;
-  --accent: #516bf6; --accent-hi: #8b9cf6; --up: #21c85e;
+  --bg: #ffffff; --surface: #f4f4f6; --border: #ececf0; --border-strong: #e2e2e8;
+  --text: #070510; --muted: #8a8a94; --faint: #b4b4bc; --accent: #516bf6;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { height: 100%; background: var(--bg); color: var(--text); overflow: hidden; }
@@ -39,90 +38,62 @@ a { color: inherit; text-decoration: none; }
 .slide { position: absolute; inset: 0; width: 1920px; height: 1080px; overflow: hidden; background: var(--bg);
   opacity: 0; visibility: hidden; transition: opacity .35s ease, visibility 0s .35s; }
 .slide.on { opacity: 1; visibility: visible; transition: opacity .35s ease; }
-.glow { position: absolute; width: 1400px; height: 1400px; border-radius: 50%; pointer-events: none;
-  background: radial-gradient(closest-side, rgba(81,107,246,.16), rgba(81,107,246,0)); }
 
-/* shared slide parts */
-.pad { position: absolute; inset: 0; padding: 112px 140px; display: flex; flex-direction: column; }
-.top { display: flex; align-items: center; justify-content: space-between; }
-.brand { display: flex; align-items: center; gap: 16px; font-size: 34px; font-weight: 600; letter-spacing: -0.04em; }
-.brand img { width: 44px; height: 44px; }
-.label { font-size: 28px; font-weight: 500; color: var(--faint); letter-spacing: -0.01em; }
-.src { position: absolute; left: 140px; bottom: 64px; font-size: 21px; color: var(--faint); letter-spacing: 0; }
-.pill { display: inline-flex; align-items: center; gap: 16px; height: 96px; padding: 0 40px; border-radius: 999px;
-  background: var(--surface); border: 1px solid var(--border-strong); font-size: 40px; font-weight: 500; color: var(--muted); white-space: nowrap; }
-.pill b { color: var(--text); font-weight: 600; }
-.dot { width: 18px; height: 18px; border-radius: 50%; background: var(--up); flex: none; }
-.num { font-weight: 700; letter-spacing: -0.055em; line-height: .9; }
+.pad { position: absolute; inset: 0; padding: 120px 160px; display: flex; flex-direction: column; }
+.b { color: var(--accent); }
+.m { color: var(--muted); }
+h1, h2 { font-weight: 600; letter-spacing: -0.045em; line-height: 1.05; }
+.mark { position: absolute; left: 160px; top: 96px; width: 56px; height: 56px; }
+.src { position: absolute; left: 160px; bottom: 72px; font-size: 21px; color: var(--faint); }
 
 /* 1 title */
 .s1 .center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-.s1 .lock { display: flex; align-items: center; gap: 64px; }
-.s1 .lock img { width: 268px; height: 268px; }
-.s1 .lock span { font-size: 300px; font-weight: 600; letter-spacing: -0.05em; line-height: 1; margin-top: -40px; }
-.s1 .line { margin-top: 72px; font-size: 56px; color: var(--muted); letter-spacing: -0.02em; }
-.s1 .url { position: absolute; bottom: 80px; left: 0; right: 0; text-align: center; font-size: 32px; color: var(--faint); }
+.s1 .center img { width: 168px; height: 168px; }
+.s1 h1 { margin-top: 72px; font-size: 136px; text-align: center; }
+.s1 .url { position: absolute; bottom: 88px; left: 0; right: 0; text-align: center; font-size: 30px; color: var(--muted); }
 
 /* 2 market */
-.s2 .kicker { margin-top: 128px; font-size: 56px; color: var(--muted); letter-spacing: -0.02em; }
-.s2 .big { margin-top: 24px; display: flex; align-items: baseline; gap: 40px; }
-.s2 .big .num { font-size: 300px; }
-.s2 .big em { font-style: normal; font-size: 112px; font-weight: 600; letter-spacing: -0.04em; color: var(--muted); }
-.s2 .pills { margin-top: 72px; display: flex; gap: 24px; }
-.s2 .but { margin-top: 64px; font-size: 56px; color: var(--muted); letter-spacing: -0.02em; }
-.s2 .but b { color: var(--text); font-weight: 600; }
+.s2 .kicker { margin-top: 160px; font-size: 64px; font-weight: 500; letter-spacing: -0.03em; color: var(--muted); }
+.s2 h1 { margin-top: 8px; font-size: 280px; letter-spacing: -0.06em; line-height: .95; }
+.s2 h1 small { font-size: 120px; letter-spacing: -0.045em; }
+.facts { margin-top: 88px; display: flex; gap: 120px; }
+.facts div { font-size: 48px; font-weight: 600; letter-spacing: -0.03em; }
+.facts span { display: block; margin-top: 6px; font-size: 30px; font-weight: 500; letter-spacing: -0.01em; color: var(--muted); }
 
 /* 3 why mezo */
-.s3 h2 { margin-top: 64px; font-size: 84px; font-weight: 600; letter-spacing: -0.045em; line-height: 1; }
-.s3 h2 span { color: var(--muted); }
-.bars { margin-top: 64px; display: grid; grid-template-columns: 200px 1fr; row-gap: 40px; align-items: center; }
+.s3 h2 { margin-top: 96px; font-size: 88px; }
+.bars { margin-top: 72px; display: grid; grid-template-columns: 220px 1fr; row-gap: 36px; align-items: center; }
 .bars .k { font-size: 36px; color: var(--muted); font-weight: 500; }
 .bars .row { display: flex; align-items: center; gap: 28px; }
-.bars .bar { height: 56px; border-radius: 14px; background: var(--accent); transform-origin: 0 50%; flex: none; }
-.bars .bar.dim { background: #3a3f6e; }
-.bars .bar.green { background: var(--up); }
+.bars .bar { height: 48px; border-radius: 10px; background: var(--text); transform-origin: 0 50%; flex: none; }
+.bars .bar.dim { background: #d6d6dc; }
+.bars .bar.blue { background: var(--accent); }
 .bars .v { font-size: 44px; font-weight: 600; letter-spacing: -0.03em; white-space: nowrap; }
-.bars .v small { font-size: 30px; color: var(--muted); font-weight: 500; margin-left: 14px; letter-spacing: 0; }
-.s3 .so { margin-top: 72px; display: flex; align-items: center; gap: 20px; font-size: 44px; color: var(--muted); letter-spacing: -0.02em; }
+.s3 .so { margin-top: 64px; font-size: 48px; font-weight: 500; letter-spacing: -0.03em; color: var(--muted); }
 .s3 .so b { color: var(--text); font-weight: 600; }
-.s3 .so i { font-style: normal; color: var(--faint); }
 
 /* 4 how */
-.s4 .phone { position: absolute; left: 150px; top: 100px; width: 516px; height: 880px; border-radius: 56px; overflow: hidden;
-  border: 1px solid var(--border-strong); box-shadow: 0 60px 120px rgba(0,0,0,.6), 0 0 0 12px rgba(255,255,255,.025); background: #08070f; }
+.s4 .phone { position: absolute; left: 160px; top: 100px; width: 500px; height: 880px; border-radius: 52px; overflow: hidden;
+  box-shadow: 0 0 0 1px rgba(7,5,16,.06), 0 30px 80px rgba(7,5,16,.22); background: #070510; }
 .s4 .phone img { width: 100%; height: 100%; object-fit: cover; object-position: top; display: block; }
-.s4 .cap { position: absolute; left: 150px; width: 516px; top: 1004px; text-align: center; font-size: 22px; color: var(--faint); }
-.s4 .right { position: absolute; left: 820px; right: 140px; top: 112px; bottom: 112px; display: flex; flex-direction: column; }
-.s4 h2 { margin-top: 56px; font-size: 88px; font-weight: 600; letter-spacing: -0.045em; line-height: 1.02; }
-.s4 h2 span { color: var(--muted); }
-.steps { margin-top: 64px; position: relative; display: flex; flex-direction: column; gap: 36px; }
-.steps::before { content: ""; position: absolute; left: 35px; top: 40px; bottom: 40px; width: 2px; background: var(--border-strong); }
-.step { display: flex; align-items: center; gap: 36px; position: relative; }
-.step .n { width: 72px; height: 72px; border-radius: 50%; background: var(--surface-2); border: 1px solid var(--border-strong); display: grid; place-items: center;
-  font-size: 30px; font-weight: 600; color: var(--text); flex: none; }
-.step.last .n { background: var(--accent); border-color: var(--accent); }
-.step .t { font-size: 46px; font-weight: 600; letter-spacing: -0.03em; }
-.step .d { margin-top: 6px; font-size: 32px; color: var(--muted); display: flex; align-items: center; gap: 14px; }
-.chain { display: inline-flex; align-items: center; gap: 10px; }
-.chain i { width: 16px; height: 16px; border-radius: 50%; display: inline-block; }
-.proof { margin-top: auto; align-self: flex-start; height: 76px; font-size: 28px; padding: 0 32px; gap: 14px; }
-.proof .arrow { color: var(--muted); margin-left: 8px; }
+.s4 .right { position: absolute; left: 820px; right: 160px; top: 120px; bottom: 120px; display: flex; flex-direction: column; justify-content: center; }
+.s4 h2 { font-size: 104px; }
+.steps { margin-top: 80px; display: flex; flex-direction: column; gap: 44px; }
+.step { display: flex; gap: 40px; align-items: baseline; }
+.step .n { width: 56px; font-size: 32px; font-weight: 500; color: var(--faint); flex: none; }
+.step .t { font-size: 48px; font-weight: 600; letter-spacing: -0.03em; }
+.step .d { margin-top: 6px; font-size: 32px; color: var(--muted); }
+.proof { margin-top: 72px; font-size: 30px; color: var(--muted); }
+.proof u { color: var(--text); text-decoration-thickness: 2px; text-underline-offset: 8px; text-decoration-color: var(--border-strong); }
 
 /* 5 end */
-.s5 .center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; padding-top: 168px; }
-.s5 .lock { display: flex; align-items: center; gap: 40px; }
-.s5 .lock img { width: 160px; height: 160px; }
-.s5 .lock span { font-size: 180px; font-weight: 600; letter-spacing: -0.05em; line-height: 1; margin-top: -24px; }
-.s5 .line { margin-top: 48px; font-size: 56px; color: var(--muted); letter-spacing: -0.02em; }
-.s5 .line b { color: var(--text); font-weight: 600; }
-.cards { margin-top: 88px; display: grid; grid-template-columns: repeat(3, 440px); gap: 28px; }
-.card { background: var(--surface); border: 1px solid var(--border); border-radius: 28px; padding: 40px 40px 44px; }
-.card .h { display: flex; align-items: center; gap: 16px; font-size: 26px; color: var(--muted); font-weight: 500; }
-.card .h .dot { width: 14px; height: 14px; }
-.card .h .dot.blue { background: var(--accent); }
-.card .h .dot.off { background: var(--faint); box-shadow: none; }
-.card .b { margin-top: 20px; font-size: 40px; font-weight: 600; letter-spacing: -0.03em; line-height: 1.12; }
-.s5 .foot { position: absolute; bottom: 72px; left: 0; right: 0; display: flex; justify-content: center; gap: 56px; font-size: 30px; color: var(--muted); }
+.s5 .center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.s5 .center img { width: 120px; height: 120px; }
+.s5 h1 { margin-top: 56px; font-size: 128px; text-align: center; }
+.cols { margin-top: 112px; display: grid; grid-template-columns: repeat(3, 420px); gap: 64px; }
+.cols .h { font-size: 28px; font-weight: 500; color: var(--muted); }
+.cols .t { margin-top: 14px; font-size: 40px; font-weight: 600; letter-spacing: -0.03em; line-height: 1.15; }
+.s5 .foot { position: absolute; bottom: 80px; left: 0; right: 0; display: flex; justify-content: center; gap: 56px; font-size: 30px; color: var(--muted); }
 .s5 .foot b { color: var(--text); font-weight: 500; }
 
 /* ui chrome, not part of slides */
@@ -131,7 +102,7 @@ a { color: inherit; text-decoration: none; }
 .ui.tr { right: 20px; top: max(16px, env(safe-area-inset-top)); }
 .btn { height: 36px; padding: 0 14px; border-radius: 10px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--text);
   font: 500 14px/1 "Geist", system-ui, sans-serif; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; }
-.btn:hover { background: #1d1c27; }
+.btn:hover { background: #ebebef; }
 .btn:active { transform: scale(.97); }
 .btn[disabled] { opacity: .6; cursor: progress; }
 .btn.nav { width: 36px; padding: 0; justify-content: center; font-size: 16px; }
@@ -161,80 +132,70 @@ a { color: inherit; text-decoration: none; }
 <div id="deck">
   <div class="stage" id="stage">
 
-    <!-- 1 title -->
     <section class="slide s1" data-title="musdy">
       <div class="center">
-        <div class="lock" data-in><img src="assets/app-icon-512.png" alt=""><span>musdy</span></div>
-        <div class="line" data-in>buy any coin. settle on mezo.</div>
+        <img src="assets/mark.svg" alt="musdy" data-in>
+        <h1 data-in>buy any coin.<br>settle on <span class="b">mezo.</span></h1>
       </div>
       <div class="url" data-in>musdy.fun</div>
     </section>
 
-    <!-- 2 market -->
-    <section class="slide s2" data-title="the market is real">
+    <section class="slide s2" data-title="the market">
+      <img class="mark" src="assets/mark.svg" alt="">
       <div class="pad">
-        <div class="top"><div class="brand"><img src="assets/app-icon-512.png" alt="">musdy</div><div class="label">the market</div></div>
         <div class="kicker" data-in>fomo makes</div>
-        <div class="big" data-in><span class="num" data-count="2" data-fmt="$#M+">$2M+</span><em>a week</em></div>
-        <div class="pills">
-          <div class="pill" data-in><b>$17M</b> in 30 days</div>
-          <div class="pill" data-in><b>~$206M</b> a year</div>
-          <div class="pill" data-in><b>$550M</b> valuation</div>
+        <h1 data-in><span class="b" data-count="2" data-fmt="$#M+">$2M+</span> <small>a week.</small></h1>
+        <div class="facts">
+          <div data-in>$17M<span>in 30 days</span></div>
+          <div data-in>~$206M<span>a year</span></div>
+          <div data-in>$550M<span>valuation</span></div>
+          <div data-in>65%<span>of it on solana</span></div>
         </div>
-        <div class="but" data-in>and <b>65%</b> of it runs on solana.</div>
       </div>
       <div class="src">fomo revenue, defillama: $2.36M oct 18–24, $16.95M sep 25–oct 24 2026 (30d x12). valuation: series b, index ventures, jun 2026.</div>
     </section>
 
-    <!-- 3 why mezo -->
     <section class="slide s3" data-title="why mezo">
+      <img class="mark" src="assets/mark.svg" alt="">
       <div class="pad">
-        <div class="top"><div class="brand"><img src="assets/app-icon-512.png" alt="">musdy</div><div class="label">why mezo</div></div>
-        <h2 data-in>bitcoin is 27x solana.<br><span>holders can't trade it without selling.</span></h2>
+        <h2 data-in>bitcoin is <span class="b">27x</span> solana.<br><span class="m">holders can't trade it without selling.</span></h2>
         <div class="bars">
           <div class="k" data-in>bitcoin</div>
-          <div class="row" data-in><div class="bar" data-bar style="width:1180px"></div><div class="v">$1.61T</div></div>
+          <div class="row" data-in><div class="bar" data-bar style="width:1140px"></div><div class="v">$1.61T</div></div>
           <div class="k" data-in>solana</div>
-          <div class="row" data-in><div class="bar dim" data-bar style="width:44px"></div><div class="v">$59.7B</div></div>
+          <div class="row" data-in><div class="bar dim" data-bar style="width:42px"></div><div class="v">$59.7B</div></div>
           <div class="k" data-in>MUSD</div>
-          <div class="row" data-in><div class="bar green" data-bar style="width:6px"></div><div class="v">$29.5M<small>all that exists</small></div></div>
+          <div class="row" data-in><div class="bar blue" data-bar style="width:6px"></div><div class="v">$29.5M</div></div>
         </div>
-        <div class="so" data-in><span class="dot"></span><b>musdy:</b> borrow MUSD on BTC, buy any coin, <b>settle on mezo.</b></div>
+        <div class="so" data-in><b>musdy:</b> borrow MUSD on BTC, buy any coin, settle on mezo.</div>
       </div>
       <div class="src">market caps: coingecko, oct 26 2026. MUSD supply: defillama stablecoins, oct 26 2026. bars to scale.</div>
     </section>
 
-    <!-- 4 how -->
     <section class="slide s4" data-title="how it works">
       <div class="phone" data-tilt><img src="assets/app-token.png" alt="musdy token page"></div>
-      <div class="cap">the real app, musdy.fun</div>
       <div class="right">
-        <div class="top"><div class="label">how it works</div><div class="brand"><img src="assets/app-icon-512.png" alt="">musdy</div></div>
-        <h2 data-in>one tap. any chain.<br><span>settles on mezo.</span></h2>
+        <h2 data-in>one tap. any chain.<br>settles on <span class="b">mezo.</span></h2>
         <div class="steps">
-          <div class="step" data-in><div class="n">1</div><div><div class="t">you sign</div><div class="d">gasless, google login</div></div></div>
-          <div class="step" data-in><div class="n">2</div><div><div class="t">solver fills via relay</div><div class="d">
-            <span class="chain"><i style="background:#0052ff"></i>base</span>
-            <span class="chain"><i style="background:#f0b90b"></i>bnb</span>
-            <span class="chain"><i style="background:#9945ff"></i>solana</span></div></div></div>
-          <div class="step last" data-in><div class="n">3</div><div><div class="t">settles in MUSD on mezo</div><div class="d">every trade</div></div></div>
+          <div class="step" data-in><div class="n">01</div><div><div class="t">you sign</div><div class="d">google login, no gas</div></div></div>
+          <div class="step" data-in><div class="n">02</div><div><div class="t">solver fills via relay</div><div class="d">base, bnb chain, solana</div></div></div>
+          <div class="step" data-in><div class="n">03</div><div><div class="t">settles in MUSD on mezo</div><div class="d">every trade</div></div></div>
         </div>
-        <a class="pill proof" data-in href="https://github.com/vwakesahu/musdy#proof" target="_blank" rel="noopener"><span class="dot"></span><b>live, with onchain proof</b> <span class="arrow">github.com/vwakesahu/musdy#proof</span></a>
+        <a class="proof" data-in href="https://github.com/vwakesahu/musdy#proof" target="_blank" rel="noopener">onchain proof at <u>github.com/vwakesahu/musdy</u></a>
       </div>
     </section>
 
-    <!-- 5 live + ask -->
     <section class="slide s5" data-title="live now">
       <div class="center">
-        <div class="lock" data-in><img src="assets/app-icon-512.png" alt=""><span>musdy</span></div>
-        <div class="line" data-in>live now at <b>musdy.fun</b></div>
-        <div class="cards">
-          <div class="card" data-in><div class="h"><span class="dot"></span>live</div><div class="b">testnet app,<br>MUSD on mezo</div></div>
-          <div class="card" data-in><div class="h"><span class="dot"></span>proven</div><div class="b">real mainnet fills<br>on base + bnb</div></div>
-          <div class="card" data-in><div class="h"><span class="dot blue"></span>next</div><div class="b">mainnet, borrow<br>against BTC in app</div></div>
+        <img src="assets/mark.svg" alt="musdy" data-in>
+        <h1 data-in>live now at <span class="b">musdy.fun</span></h1>
+        <div class="cols">
+          <div data-in><div class="h">live</div><div class="t">testnet app,<br>MUSD on mezo</div></div>
+          <div data-in><div class="h">proven</div><div class="t">real mainnet fills<br>on base and bnb</div></div>
+          <div data-in><div class="h">next</div><div class="t">mainnet, borrow<br>against BTC in app</div></div>
         </div>
       </div>
-      <div class="foot"><a href="https://github.com/vwakesahu/musdy" target="_blank" rel="noopener"><b>github.com/vwakesahu/musdy</b></a><a href="https://x.com/vwakesahu" target="_blank" rel="noopener">@vwakesahu</a></div>
+      <div class="foot"><a href="https://github.com/vwakesahu/musdy" target="_blank" rel="noopener"><b>github.com/vwakesahu/musdy</b></a><a href="https://youtu.be/-kZQSVvRB5Q" target="_blank" rel="noopener">demo video</a><a href="https://x.com/vwakesahu" target="_blank" rel="noopener">@vwakesahu</a></div>
     </section>
 
   </div>
@@ -356,7 +317,7 @@ a { color: inherit; text-decoration: none; }
         c.classList.add('on'); settle(c);
         box.appendChild(c);
         await Promise.all([...c.querySelectorAll('img')].map((im) => im.complete ? 0 : new Promise((r) => { im.onload = im.onerror = r; })));
-        const canvas = await html2canvas(c, { width: 1920, height: 1080, windowWidth: 1920, windowHeight: 1080, scale: 1, backgroundColor: '#070510', useCORS: true, logging: false, x: 0, y: 0, scrollX: 0, scrollY: 0 });
+        const canvas = await html2canvas(c, { width: 1920, height: 1080, windowWidth: 1920, windowHeight: 1080, scale: 1, backgroundColor: '#ffffff', useCORS: true, logging: false, x: 0, y: 0, scrollX: 0, scrollY: 0 });
         if (i) pdf.addPage([1920, 1080], 'landscape');
         pdf.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, 1920, 1080);
       }
