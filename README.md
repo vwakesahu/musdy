@@ -12,7 +12,7 @@ it's live at https://musdy.fun on mezo testnet, built by [@vwakesahu](https://x.
 
 your balance is MUSD, mezo's dollar backed by bitcoin, and it sits in the musdy vault on mezo. you don't send transactions, you sign what you want and our relayer submits it and pays the gas. the vault only does what you signed, so the relayer can't move your money, and you can always pull it out of the vault without us.
 
-bitcoin and stocks trade against mezo pools. coins on other chains go through our solver, it takes your MUSD in the vault, buys the coin on its own chain with relay, and settles the result back to the vault. a sell runs the same path backwards. a coin launched on musdy starts on a bonding curve and moves into its own mezo pool when the curve sells out, with the liquidity burned so it can't be pulled. every trade is 0.5%.
+bitcoin and stocks trade against mezo pools. coins on other chains go through our solver, it takes your MUSD in the vault, buys the coin on its own chain with relay, and settles the result back to the vault. a sell runs the same path backwards. every trade is 0.5%.
 
 deposits come in two ways. send anything to the address the app gives you for a chain and relay bridges it, or send USDC straight to your own musdy address and the app sweeps it with a signed authorization, no gas from you. either way it lands as MUSD.
 
@@ -50,7 +50,7 @@ both ways of depositing land as dollars on mezo.
 - USDC sent straight to your own musdy address on base [`0x214a…689c`](https://basescan.org/tx/0x214a128af2e1fcf58160092cbceb18cba5e231e996014d3f2bb244a82ee9689c), swept with a signed authorization and no gas from you [`0x9f68…1d4b`](https://basescan.org/tx/0x9f689aeaedf3cccbd8fe80be622fd49bf8e409606bf355cd73af9c2e18fc1d4b), credited on mezo [`0x95e9…1349`](https://explorer.test.mezo.org/tx/0x95e9ffc07b8003db032c3326ab8c0abe72ad698c5ae463a51b532263d5d51349)
 - testnet faucet claim [`0x6e43…bdb8`](https://explorer.test.mezo.org/tx/0x6e43d0cddd403fc77f97f1b5ea64804c96d4c9935f75050fa424eaf0e955bdb8)
 
-the vault is MusdyVault [`0xE6bd…1119`](https://explorer.test.mezo.org/address/0xE6bdDc38313ff3E1484109c82f0cA69200Fa1119) deployed in [`0x6625…8a03`](https://explorer.test.mezo.org/tx/0x6625407bae5049b846c257648e291696e52c1046d9ba942610c91921ae968a03) and the launchpad is MusdyLaunchpad [`0x8779…DFF6`](https://explorer.test.mezo.org/address/0x8779B801C6b0851008cA5955c0b413c4C8bADFF6) in [`0x7f2b…8480`](https://explorer.test.mezo.org/tx/0x7f2ba455e018bb32825fcc12c21e7e33c219e1d10fd780a5635380516f178480). the solver is [`0xc586…0a2b`](https://basescan.org/address/0xc586102Fd2206e349DDF9dDce83f49510ee20a2b) on every chain. nothing is on mezo mainnet yet, that comes after the buildathon.
+the vault is MusdyVault [`0xE6bd…1119`](https://explorer.test.mezo.org/address/0xE6bdDc38313ff3E1484109c82f0cA69200Fa1119) deployed in [`0x6625…8a03`](https://explorer.test.mezo.org/tx/0x6625407bae5049b846c257648e291696e52c1046d9ba942610c91921ae968a03). the solver is [`0xc586…0a2b`](https://basescan.org/address/0xc586102Fd2206e349DDF9dDce83f49510ee20a2b) on every chain. nothing is on mezo mainnet yet, that comes after the buildathon.
 
 ## running it
 
