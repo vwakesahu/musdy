@@ -44,6 +44,6 @@ test("buy and sell a stock from the sheet", async ({ page }, info) => {
   await expect.poll(() => vaultBalance(me.address, stock.address), { timeout: 30_000 }).toBe(0n);
   expect(await vaultBalance(me.address, dep.musd)).toBeGreaterThan(cash1);
   await expect(page.getByTestId("position-block")).toHaveCount(0, { timeout: 30_000 });
-  await page.goto("/");
+  await page.goto("/feed");
   await expect.poll(async () => Number(await cashText(page))).toBeGreaterThan(Number(cash1 / 10n ** 16n) / 100);
 });

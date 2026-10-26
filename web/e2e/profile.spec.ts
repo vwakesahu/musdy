@@ -27,7 +27,7 @@ test("set a handle and follow a trader", async ({ page }, info) => {
   if ((await page.getByTestId("follow").innerText()) === "Following") await page.getByTestId("follow").click();
   await expect(page.getByTestId("follow")).toHaveText("Follow");
 
-  await page.goto("/");
+  await page.goto("/feed");
   await page.getByRole("tab", { name: "Following" }).click();
   const theirs = await buyAs(other, stock.address, "2");
   const stranger = await buyAs(third, stock.address, "2");

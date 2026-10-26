@@ -47,7 +47,7 @@ test("copy is capped to cash", async ({ page }) => {
 test("sell rows have no copy button", async ({ page }) => {
   await otherBuys(stock.address, "2");
   const held = await vaultBalance(other.address, stock.address);
-  await page.goto("/");
+  await page.goto("/feed");
   await expect(page.getByRole("heading", { name: "Feed" })).toBeVisible();
   const sold = await tradeAs(other, stock.address, false, held / 2n);
   const row = page.locator(`[data-testid="feed-row"][data-id="${sold.id}"]`);

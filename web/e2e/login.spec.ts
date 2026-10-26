@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { devLogin, me, shot } from "./helpers";
 
 test("login lands on the feed with an address and a balance", async ({ page }, info) => {
-  await page.goto("/");
+  await page.goto("/feed");
   await expect(page.getByRole("heading", { name: "Feed" })).toBeVisible();
   await devLogin(page);
   await expect(page.getByTestId("balance-pill")).toHaveText(/\$\d/);
@@ -17,7 +17,7 @@ test("a chain mismatch refuses to sign", async ({ page }) => {
     const res = await route.fetch();
     await route.fulfill({ response: res, json: { ...((await res.json()) as object), chainId: 31611 } });
   });
-  await page.goto("/");
+  await page.goto("/feed");
   await expect(page.getByTestId("config-error")).toContainText("server runs chain 31611");
   await page.getByRole("button", { name: "Log in" }).first().click();
   await expect(page.getByRole("dialog").getByTestId("login-config-error")).toBeVisible();
@@ -28,7 +28,7 @@ test("a chain mismatch refuses to sign", async ({ page }) => {
 test("Continue with Google starts Google OAuth, dev login still works", async ({ page }) => {
   test.skip(!process.env.NEXT_PUBLIC_PRIVY_APP_ID, "build has no Privy app id");
   await page.route(/accounts\.google\.com/, (route) => route.fulfill({ status: 200, contentType: "text/html", body: "<title>google</title>" }));
-  await page.goto("/");
+  await page.goto("/feed");
   await page.getByRole("button", { name: "Log in" }).first().click();
   const dialog = page.getByRole("dialog");
   const google = dialog.getByTestId("google-login");
@@ -42,7 +42,7 @@ test("Continue with Google starts Google OAuth, dev login still works", async ({
   await expect(page.locator("#privy-modal-content")).toHaveCount(0);
   await page.waitForURL(/accounts\.google\.com/, { timeout: 20_000 }).catch(() => undefined);
 
-  await page.goto("/");
+  await page.goto("/feed");
   await devLogin(page);
   await expect(page.getByTestId("balance-pill")).toHaveText(/\$\d/);
 });

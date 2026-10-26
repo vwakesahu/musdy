@@ -49,7 +49,7 @@ export async function shot(page: Page, info: TestInfo, name: string) {
   await page.screenshot({ path: `../out/shots/${name}-${info.project.name}.png` });
 }
 
-export async function devLogin(page: Page, path = "/") {
+export async function devLogin(page: Page, path = "/feed") {
   await page.goto(path);
   const pill = page.getByTestId("balance-pill");
   if (await pill.isVisible().catch(() => false)) return;
@@ -61,7 +61,7 @@ export async function devLogin(page: Page, path = "/") {
   await expect(pill).toBeVisible();
 }
 
-export async function loginAs(page: Page, key: Hex, path = "/") {
+export async function loginAs(page: Page, key: Hex, path = "/feed") {
   await page.addInitScript((k) => window.localStorage.setItem("musdy:devkey", k), key);
   await devLogin(page, path);
 }

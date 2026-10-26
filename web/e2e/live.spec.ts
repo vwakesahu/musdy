@@ -13,7 +13,7 @@ test("a trade made while offline appears once after reconnect", async ({ page },
     ws.connectToServer();
   });
 
-  await page.goto("/");
+  await page.goto("/feed");
   await expect(page.getByRole("heading", { name: "Feed" })).toBeVisible();
   await expect.poll(() => open.size).toBeGreaterThan(0);
   await page.evaluate(() => {

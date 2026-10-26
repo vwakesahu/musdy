@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { otherBuys, rowDollars, rowName, shot, stock } from "./helpers";
 
 test("a new trade slides into the global feed", async ({ page }, info) => {
-  await page.goto("/");
+  await page.goto("/feed");
   await expect(page.getByRole("heading", { name: "Feed" })).toBeVisible();
   await page.waitForTimeout(1500);
   const item = await otherBuys(stock.address, "5");

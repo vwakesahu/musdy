@@ -33,6 +33,6 @@ test("launch a coin and find it under new", async ({ page }, info) => {
   await expect(row.getByLabel(/Launch curve/)).toBeVisible();
   await shot(page, info, "launch-new");
 
-  await page.goto("/");
+  await page.goto("/feed");
   await expect(page.locator(`[data-testid="feed-row"][data-user="${me.address.toLowerCase()}"]`).filter({ hasText: symbol }).first()).toBeVisible({ timeout: 30_000 });
 });
